@@ -995,8 +995,9 @@ async function runBatchTagging(){
           row[fld.name]=clean; updCellFast(ri,fld.name,clean); done++; updProg(done,total);
           log('ok',`[${fld.name}] R${ri+1}: ${clean.substring(0,40)}`);
         }catch(err){
+          const stk=err.stack?err.stack.split('\n').slice(0,5).join(' | '):'no-stack';
           row[fld.name]=`[错] ${err.message}`; updCellFast(ri,fld.name,row[fld.name]);
-          done++; updProg(done,total); log('err',`[${fld.name}] R${ri+1}: ${err.message} | raw=${typeof raw!=='undefined'?String(raw).substring(0,100):'N/A'}`);
+          done++; updProg(done,total); log('err',`[${fld.name}] R${ri+1}: ${err.message} | stack: ${stk} | raw=${typeof raw!=='undefined'?String(raw).substring(0,80):'N/A'}`);
         }
         markP(ri,false); await sleep(80);
       }
