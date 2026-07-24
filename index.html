@@ -133,6 +133,14 @@ body {
 .tbtn:disabled { opacity: 0.4; cursor: not-allowed; }
 .divider { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
 
+/* Correction buttons */
+.btn { display:inline-flex; align-items:center; gap:4px; padding:6px 14px; border-radius:var(--radius-sm); font-size:12px; font-weight:600; cursor:pointer; border:1px solid transparent; font-family:inherit; transition:all .15s ease; }
+.btn:disabled { opacity:.45; cursor:not-allowed; }
+.btn-warn { background:var(--warning); color:#fff; box-shadow:0 1px 3px rgba(245,158,11,0.25); }
+.btn-warn:hover:not(:disabled) { background:#e6900a; }
+.btn-ghost { background:var(--surface); color:var(--text-secondary); border-color:var(--border); box-shadow:none; }
+.btn-ghost:hover { border-color:#CBD5E1; color:var(--text-primary); }
+
 .content-body { flex: 1; overflow: auto; position: relative; }
 
 /* ===== TABLE VIEW ===== */
@@ -2145,6 +2153,25 @@ function renderLlmVal(c){
       <div class="vm"><div class="vm-v" style="color:var(--error)">${R.incorrect}</div><div class="vm-l">需调整</div></div>
     </div></div>
 
+    <div class="dsec" style="background:rgba(245,158,11,0.04);border:1px solid rgba(245,158,11,0.18)">
+      <div class="ds-title">一键矫正</div>
+      <div class="ds-meta">
+        <span>待修正条目: <strong style="color:var(--error)">${R.incorrect}</strong> 条</span>
+        <span style="color:var(--text-tertiary);font-size:11px">（将把判定为「部分正确 / 不正确」的标签替换为 AI 建议标签）</span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:6px">
+        <button class="btn btn-warn" id="corrBtn" onclick="runCorrection()" ${R.incorrect>0?'':'disabled'}>一键矫正 ${R.incorrect>0?'('+R.incorrect+')':''}</button>
+        <button class="btn btn-ghost" id="corrStopBtn" onclick="_corrStop=true" style="display:none">停止</button>
+        <span id="corrStatus" style="font-size:11px;color:var(--text-secondary)"></span>
+      </div>
+      <div id="corrProgWrap" style="display:none;margin-top:8px">
+        <div style="height:6px;background:var(--border);border-radius:4px;overflow:hidden">
+          <div id="corrProgBar" style="height:100%;width:0%;background:var(--warning);transition:width .2s"></div>
+        </div>
+        <div id="corrProgText" style="font-size:11px;color:var(--text-secondary);margin-top:4px"></div>
+      </div>
+    </div>
+
     <div class="dsec"><div class="ds-title">逐条验证明细</div>
       <div style="overflow-x:auto">
         <table class="dt" style="font-size:12px;min-width:900px">
@@ -2158,16 +2185,20 @@ function renderLlmVal(c){
             <th style="min-width:280px;max-width:420px">评估</th>
           </tr></thead>
           <tbody>${R.results.map(function(res, ri){
-            var vc = res.verdict==='correct'?'var(--success)':res.verdict==='partial'?'var(--warning)':'var(--error)';
-            var vi = res.verdict==='correct'?'&#10003;':res.verdict==='partial'?'&#9888;':'&#10007;';
-            var rid='vlm_'+ri;
+            var isCorr=res.corrected;
+            var vc = isCorr?'var(--success)':(res.verdict==='correct'?'var(--success)':res.verdict==='partial'?'var(--warning)':'var(--error)');
+            var vi = isCorr?'&#10003;':(res.verdict==='correct'?'&#10003;':res.verdict==='partial'?'&#9888;':'&#10007;');
+            var showTag = isCorr ? res.llmVerdict : res.originalTag;
+            var tagCell = isCorr
+              ? `<span class="tag-pill" style="background:rgba(16,185,129,0.12);color:#059669;border:1px solid rgba(16,185,129,0.35)">${esc(String(res.llmVerdict))}</span><span style="display:inline-block;margin-left:5px;font-size:9px;color:#059669;background:rgba(16,185,129,0.12);padding:1px 5px;border-radius:4px;vertical-align:middle">已修正</span>`
+              : `<span class="tag-pill" style="background:rgba(37,99,235,0.1);color:#2563EB;border:1px solid rgba(37,99,235,0.2)">${esc(String(res.originalTag))}</span>`;
             return `<tr style="border-left:3px solid ${vc}">
               <td style="text-align:center;font-size:15px;color:${vc}">${vi}</td>
               <td style="text-align:center">${res.rowIndex}</td>
               <td>${esc(res.fieldName)}</td>
               <td onclick="toggleCellExpand(this)" class="exp-cell" title="点击展开/收起完整原文"><div class="exp-cnt">${esc(res.originalText)}</div></td>
-              <td><span class="tag-pill" style="background:rgba(37,99,235,0.1);color:#2563EB;border:1px solid rgba(37,99,235,0.2)">${esc(res.originalTag)}</span></td>
-              <td><span class="tag-pill" style="background:rgba(16,185,129,0.1);color:#059669;border:1px solid rgba(16,185,129,0.2)">${esc(res.llmVerdict)}</span></td>
+              <td id="tagcell_${ri}">${tagCell}</td>
+              <td><span class="tag-pill" style="background:rgba(16,185,129,0.1);color:#059669;border:1px solid rgba(16,185,129,0.2)">${esc(String(res.llmVerdict))}</span></td>
               <td onclick="toggleCellExpand(this)" class="exp-cell" title="点击展开/收起完整评估"><div class="exp-cnt">${esc(res.reason)}</div></td>
             </tr>`;
           }).join('')}</tbody>
@@ -2227,6 +2258,7 @@ async function runLLMValidation(){
 
   isProcessing=true; setProc(true); setSt('running','LLM 验证中...');
   stopRequested=false;
+  var valSheetIdx=activeSheetIdx;  // 验证时所在工作表，用于矫正时定位
 
   var results=[]; var correct=0; var incorrect=0;
   var totalTasks=sample.length*aiFields.filter(function(f){return true;}).length;
@@ -2299,12 +2331,12 @@ async function runLLMValidation(){
             llmVerdict:parsed.verdict_tag||parsed.verdict||'未知',
             verdict:parsed.verdict==='correct'?'correct':(parsed.verdict==='partial'?'partial':'incorrect'),
             reason:parsed.reason||'',
-            originalText:context
+            originalText:context, sheetIdx:valSheetIdx, corrected:false
           });
           if(parsed.verdict==='correct') correct++; else incorrect++;
           log('ok', '[验证] R'+(dataIdx+1)+' '+fld.name+': '+parsed.verdict);
         } catch(err){
-          results.push({rowIndex:dataIdx+1,fieldName:fld.name,originalTag:tag,llmVerdict:'解析失败',verdict:'incorrect',reason:String(err.message),originalText:context});
+          results.push({rowIndex:dataIdx+1,fieldName:fld.name,originalTag:tag,llmVerdict:'解析失败',verdict:'incorrect',reason:String(err.message),originalText:context,sheetIdx:valSheetIdx,corrected:false});
           incorrect++;
           log('err', '[验证] R'+(dataIdx+1)+' '+fld.name+': '+err.message);
         }
@@ -2315,7 +2347,7 @@ async function runLLMValidation(){
 
     var totalChecked=results.length;
     var accuracy=totalChecked?Math.round(correct/totalChecked*100):0;
-    llmValResults={sampleSize:sample.length,fields:aiFields.map(function(f){return f.name;}),timestamp:new Date().toLocaleString('zh-CN'),accuracy:accuracy,correct:correct,incorrect:incorrect,results:results};
+    llmValResults={sampleSize:sample.length,fields:aiFields.map(function(f){return f.name;}),timestamp:new Date().toLocaleString('zh-CN'),accuracy:accuracy,correct:correct,incorrect:incorrect,results:results,sheetIdx:valSheetIdx};
 
     // Complete progress
     progText.textContent=(stopRequested?'已停止 · ':'完成! ')+'准确率 '+accuracy+'% ('+correct+'/'+totalChecked+')';
@@ -2348,6 +2380,72 @@ function exportLlmVal(){
   });
   download(csv,`llm-validation-${Date.now()}.csv`,'text/csv'); log('info','已导出 LLM 验证结果 CSV');
 }
+
+// --- One-click correction: apply AI suggested tags to data for incorrect/partial entries ---
+let _corrStop=false;
+async function runCorrection(){
+  if(!llmValResults){alert('没有验证结果');return;}
+  const R=llmValResults;
+  var problems=R.results.filter(function(r){ return r.verdict!=='correct' && !r.corrected && r.llmVerdict && r.llmVerdict!=='解析失败' && r.llmVerdict!=='未知'; });
+  if(!problems.length){ alert('没有可矫正的条目（或全部已修正）'); return; }
+  if(!confirm('即将把 '+problems.length+' 条判定为「部分正确/不正确」的标签，替换为 AI 建议标签。\n\n此操作会直接修改数据表格中的标签值，不可逐条撤销（可重新运行打标覆盖）。\n\n确认矫正？')) return;
+
+  var btn=document.getElementById('corrBtn');
+  var wrap=document.getElementById('corrProgWrap');
+  var bar=document.getElementById('corrProgBar');
+  var txt=document.getElementById('corrProgText');
+  var status=document.getElementById('corrStatus');
+  btn.disabled=true; _corrStop=false;
+  var stopBtn=document.getElementById('corrStopBtn'); if(stopBtn) stopBtn.style.display='inline-block';
+  wrap.style.display='block'; bar.style.width='0%';
+  status.textContent='矫正中...';
+
+  var sIdx=R.sheetIdx!=null?R.sheetIdx:activeSheetIdx;
+  var done=0, applied=0, skipped=0;
+  var total=problems.length;
+
+  for(var i=0;i<problems.length;i++){
+    if(_corrStop) break;
+    var r=problems[i];
+    var di=r.rowIndex-1;
+    var sheet=sheets[sIdx];
+    if(sheet && di>=0 && di<sheet.data.length && sheet.data[di]){
+      sheet.data[di][r.fieldName]=r.llmVerdict;
+      r.corrected=true; applied++;
+      // Live update the tag cell in the table
+      var cell=document.getElementById('tagcell_'+R.results.indexOf(r));
+      if(cell){
+        cell.innerHTML=`<span class="tag-pill" style="background:rgba(16,185,129,0.12);color:#059669;border:1px solid rgba(16,185,129,0.35)">${esc(String(r.llmVerdict))}</span><span style="display:inline-block;margin-left:5px;font-size:9px;color:#059669;background:rgba(16,185,129,0.12);padding:1px 5px;border-radius:4px;vertical-align:middle">已修正</span>`;
+      }
+      // Update row status icon
+      var row=cell?cell.parentNode:null;
+      if(row) row.style.borderLeftColor='var(--success)';
+    } else {
+      skipped++;
+    }
+    done++;
+    var pct=Math.round(done/total*100);
+    bar.style.width=pct+'%';
+    txt.textContent='矫正中... '+done+'/'+total+' ('+pct+'%) · 已应用 '+applied+' 条';
+    await sleep(40);
+  }
+
+  // Recompute accuracy
+  var totalChecked=R.results.length;
+  var nowCorrect=R.results.filter(function(r){ return r.verdict==='correct' || r.corrected; }).length;
+  R.correct=nowCorrect;
+  R.incorrect=totalChecked-nowCorrect;
+  R.accuracy=totalChecked?Math.round(nowCorrect/totalChecked*100):0;
+
+  saveState();
+  status.textContent=(_corrStop?'已停止 · ':'完成! ')+'已修正 '+applied+' 条'+(skipped?'（跳过 '+skipped+' 条无效）':'');
+  btn.disabled=false; btn.textContent='已矫正，可重新运行验证复核';
+  if(stopBtn) stopBtn.style.display='none';
+  log('info','一键矫正完成: 应用 '+applied+' 条，准确率更新为 '+R.accuracy+'%');
+  // Re-render report header stats after short delay
+  setTimeout(function(){ if(curView==='llmval') renderLlmVal(document.getElementById('docLlmVal')); }, 600);
+}
+
 
 
 // ============================================================
