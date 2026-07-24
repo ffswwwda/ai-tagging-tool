@@ -755,7 +755,7 @@ function switchSheet(idx){
   renderTable();
   updDataInfo();
   refreshDoc();
-  updateRunUI(isProcessing); updateBgText();
+  updateRunUI(); updateBgText();
 }
 
 function removeSheet(idx){
@@ -1525,7 +1525,8 @@ async function aiGenOpts(){
 // BATCH TAGGING
 // ============================================================
 async function runBatchTagging(){
-  if(isProcessing){alert('已有打标任务进行中，请先停止');return;}
+  // 每表独立：只检查当前表是否已在运行，不阻塞其他表
+  if(sheetProc[activeSheetIdx] && sheetProc[activeSheetIdx].active){alert('当前工作表正在打标中，请先停止');return;}
   if(!aiFields.length){alert('先配置 AI 字段');return;}
   if(!tableData().length){alert('先上传数据');return;}
   var cfg=apiCfg();
@@ -1542,15 +1543,13 @@ async function runBatchTagging(){
   var localData=sheet.data;
   var sheetName=sheet.name;
 
-  stopRequested=false;
-  isProcessing=true;
   var total=rows.length*localFields.length;
   var done=0;
   var skipped=0;
   var t0=Date.now();
   var perTimes=[];
-  sheetProc[targetIdx]={active:true,done:0,total:total,start:t0,name:sheetName};
-  updateRunUI(true);
+  sheetProc[targetIdx]={active:true,done:0,total:total,start:t0,name:sheetName,stop:false};
+  updateRunUI();
   if(targetIdx===activeSheetIdx){ setSt('running','处理中...'); }
 
   function isFieldDone(rowData,fldName){
@@ -1563,7 +1562,7 @@ async function runBatchTagging(){
   // A single field lane: processes its rows vertically (row by row)
   async function tagField(fld){
     for(var r=0;r<rows.length;r++){
-      if(stopRequested) break;
+      if(sheetProc[targetIdx].stop) break;
       var ri=rows[r];
       if(ri>=localData.length) continue;
       var rowData=localData[ri];
@@ -1632,14 +1631,14 @@ async function runBatchTagging(){
   for(var fi=0;fi<localFields.length;fi++) lanes.push(tagField(localFields[fi]));
   await Promise.all(lanes);
 
-  if(stopRequested) setSt('done','已停止'); else setSt('done','完成');
+  if(sheetProc[targetIdx].stop) setSt('done','已停止'); else setSt('done','完成');
   var resumeNote = skipped>0 ? '（续打模式：跳过 '+skipped+' 条已完成的字段标注）' : '';
-  log('info',(stopRequested?'已停止 ':'全部完成 ')+done+'/'+total+' (表: '+sheetName+')'+resumeNote);
+  log('info',(sheetProc[targetIdx].stop?'已停止 ':'全部完成 ')+done+'/'+total+' (表: '+sheetName+')'+resumeNote);
   if(targetIdx===activeSheetIdx){ refreshDoc(); updStatus(); }
   saveState();
-  isProcessing=false;
-  updateRunUI(false);
-  setTimeout(function(){ if(sheetProc[targetIdx]) sheetProc[targetIdx].active=false; updateRunUI(false); }, 2000);
+  sheetProc[targetIdx].active=false;
+  updateRunUI();
+  setTimeout(function(){ if(sheetProc[targetIdx]) sheetProc[targetIdx].active=false; updateRunUI(); }, 2000);
 }
 
 function markP(ri,on){const tr=document.querySelector(`tr[data-ri="${ri}"]`);if(tr)tr.classList.toggle('proc',on);}
@@ -1760,17 +1759,18 @@ function ctxReTagRow(){
   reTagRow(_ctxTarget.idx);
 }
 async function reTagRow(ri){
-  if(isProcessing){alert('正在处理中，请稍候');return;}
+  if(sheetProc[activeSheetIdx] && sheetProc[activeSheetIdx].active){alert('当前工作表正在打标中，请先停止');return;}
   if(!aiFields.length){alert('先配置 AI 字段');return;}
   var cfg=apiCfg();
   if(!cfg.key){alert('填 API Key');return;}
   if(ri<0||ri>=tableData().length){alert('行号无效');return;}
-  stopRequested=false;
-  isProcessing=true; updateRunUI(true); setSt('running','重新打标...');
+  if(!sheetProc[activeSheetIdx]) sheetProc[activeSheetIdx]={};
+  sheetProc[activeSheetIdx].active=true; sheetProc[activeSheetIdx].stop=false;
+  updateRunUI(); setSt('running','重新打标...');
   var total=aiFields.length, done=0;
   try{
     for(var fi=0;fi<aiFields.length;fi++){
-      if(stopRequested) break;
+      if(sheetProc[activeSheetIdx].stop) break;
       var fld=aiFields[fi];
       var rowData=tableData()[ri];
       var bp=buildPrompt(fld,rowData,originalColumns());
@@ -1801,27 +1801,30 @@ async function reTagRow(ri){
       }
       bufProc(ri,false); await sleep(60);
     }
-    if(stopRequested) setSt('done','已停止'); else setSt('done','完成');
-    log('info','重新打标完成 R'+(ri+1)+(stopRequested?' (已停止)':''));
+    if(sheetProc[activeSheetIdx].stop) setSt('done','已停止'); else setSt('done','完成');
+    log('info','重新打标完成 R'+(ri+1)+(sheetProc[activeSheetIdx].stop?' (已停止)':''));
     refreshDoc(); saveState();
   }catch(e){
     if(e.name!=='AbortError'){ setSt('error','出错'); log('err','中断: '+e.message); }
   }
-  isProcessing=false; updateRunUI(false);
+  sheetProc[activeSheetIdx].active=false; updateRunUI();
 }
 function setProc(on){
   document.getElementById('progTrack').classList.toggle('vis',on);
   document.getElementById('ptText').style.display=on?'inline':'none';
   document.getElementById('runBtn').disabled=on; if(on) setSt('running','处理中...');
 }
-// Update run/stop button states and progress track visibility (respects per-sheet background runs)
-function updateRunUI(running){
-  document.getElementById('runBtn').disabled=running;
-  document.getElementById('stopBtn').disabled=!running;
+// Update run/stop button states for the ACTIVE sheet (each sheet is independent)
+function updateRunUI(){
+  var p = sheetProc[activeSheetIdx];
+  var running = !!(p && p.active);
+  // LLM 验证（工作区级操作）进行中时，开始按钮全局禁用，避免与验证冲突
+  var validRunning = !!isProcessing;
+  document.getElementById('runBtn').disabled = running || validRunning;
+  document.getElementById('stopBtn').disabled = !running;
   if(!running) document.getElementById('etaText').style.display='none';
-  var activeRun = sheetProc[activeSheetIdx] && sheetProc[activeSheetIdx].active;
-  document.getElementById('progTrack').classList.toggle('vis', !!activeRun);
-  document.getElementById('ptText').style.display = activeRun?'inline':'none';
+  document.getElementById('progTrack').classList.toggle('vis', running);
+  document.getElementById('ptText').style.display = running?'inline':'none';
   updateBgText();
 }
 // Show indicator when a non-active sheet is tagging in the background
@@ -1840,9 +1843,12 @@ function updateBgText(){
   else bg.style.display='none';
 }
 function stopTagging(){
-  if(!isProcessing){ return; }
-  stopRequested=true;
-  log('info','已请求停止，将在当前单元格完成后中断');
+  // 只停止当前工作表的打标（每表独立）；若 LLM 验证正在跑则一并停止
+  var p=sheetProc[activeSheetIdx];
+  var did=false;
+  if(p && p.active){ p.stop=true; log('info','已请求停止「'+p.name+'」的打标，将在当前单元格完成后中断'); did=true; }
+  if(isProcessing && typeof stopRequested!=='undefined'){ stopRequested=true; log('info','已请求停止 LLM 验证'); did=true; }
+  if(!did) return;
 }
 function fmtDur(sec){
   if(sec<60) return sec+'秒';
@@ -2265,7 +2271,7 @@ async function runLLMValidation(){
 
   // Reset button
   btn.disabled=false; btn.textContent='运行 LLM 验证';
-  isProcessing=false; setProc(false);
+  isProcessing=false; setProc(false); updateRunUI();
 }
 
 function exportLlmVal(){
