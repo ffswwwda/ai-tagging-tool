@@ -2099,16 +2099,33 @@ function renderLlmVal(c){
       <div class="vm"><div class="vm-v" style="color:var(--error)">${R.incorrect}</div><div class="vm-l">需调整</div></div>
     </div></div>
 
-    <div class="dsec"><div class="ds-title">逐条验证明细</div><div class="vilist">
-      ${R.results.map(res=>
-        `<div class="vi ${res.verdict==='correct'?'w':res.verdict==='incorrect'?'e':''}">
-          <span class="vi-i">${res.verdict==='correct'?'&#9989;':res.verdict==='incorrect'?'&#10060;':'&#9888;'}</span>
-          <div>
-            <div class="vi-t"><strong>行 ${res.rowIndex}</strong> · ${esc(res.fieldName)} — 原标签: <strong>${esc(res.originalTag)}</strong> → 建议: <strong>${esc(res.llmVerdict)}</strong></div>
-            <div class="vi-r" style="margin-top:4px;line-height:1.5">${esc(res.reason)}</div>
-          </div>
-        </div>`
-      ).join('')}
+    <div class="dsec"><div class="ds-title">逐条验证明细</div>
+      <div style="overflow-x:auto">
+        <table class="dt" style="font-size:12px;min-width:900px">
+          <thead><tr>
+            <th style="width:45px;text-align:center">状态</th>
+            <th style="width:50px;text-align:center">行</th>
+            <th style="width:100px">字段</th>
+            <th style="min-width:200px;max-width:320px">原文</th>
+            <th style="min-width:120px;max-width:180px">打标签</th>
+            <th style="min-width:120px;max-width:180px">建议标签</th>
+            <th style="min-width:280px;max-width:420px">评估</th>
+          </tr></thead>
+          <tbody>${R.results.map(res=>{
+            var vc = res.verdict==='correct'?'var(--success)':res.verdict==='partial'?'var(--warning)':'var(--error)';
+            var vi = res.verdict==='correct'?'&#10003;':res.verdict==='partial'?'&#9888;':'&#10007;';
+            return `<tr style="border-left:3px solid ${vc}">
+              <td style="text-align:center;font-size:15px;color:${vc}">${vi}</td>
+              <td style="text-align:center">${res.rowIndex}</td>
+              <td>${esc(res.fieldName)}</td>
+              <td title="${esc(res.originalText)}" style="word-break:break-all;max-height:80px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical">${esc(res.originalText)}</td>
+              <td><span class="tag-pill" style="background:rgba(37,99,235,0.1);color:#2563EB;border:1px solid rgba(37,99,235,0.2)">${esc(res.originalTag)}</span></td>
+              <td><span class="tag-pill" style="background:rgba(16,185,129,0.1);color:#059669;border:1px solid rgba(16,185,129,0.2)">${esc(res.llmVerdict)}</span></td>
+              <td style="line-height:1.5;color:var(--text-secondary);word-break:break-all">${esc(res.reason)}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>
+      </div>
     </div></div>`;
 }
 
@@ -2234,12 +2251,13 @@ async function runLLMValidation(){
             rowIndex:dataIdx+1, fieldName:fld.name, originalTag:tag,
             llmVerdict:parsed.verdict_tag||parsed.verdict||'未知',
             verdict:parsed.verdict==='correct'?'correct':(parsed.verdict==='partial'?'partial':'incorrect'),
-            reason:parsed.reason||''
+            reason:parsed.reason||'',
+            originalText:context
           });
           if(parsed.verdict==='correct') correct++; else incorrect++;
           log('ok', '[验证] R'+(dataIdx+1)+' '+fld.name+': '+parsed.verdict);
         } catch(err){
-          results.push({rowIndex:dataIdx+1,fieldName:fld.name,originalTag:tag,llmVerdict:'解析失败',verdict:'incorrect',reason:String(err.message)});
+          results.push({rowIndex:dataIdx+1,fieldName:fld.name,originalTag:tag,llmVerdict:'解析失败',verdict:'incorrect',reason:String(err.message),originalText:context});
           incorrect++;
           log('err', '[验证] R'+(dataIdx+1)+' '+fld.name+': '+err.message);
         }
@@ -2277,9 +2295,9 @@ async function runLLMValidation(){
 function exportLlmVal(){
   if(!llmValResults){alert('没有可导出的验证结果');return;}
   const R=llmValResults;
-  let csv='Row,Field,Original Tag,Suggestion,Verdict,Reason\n';
+  let csv='Row,Field,Original Tag,Suggestion,Verdict,Reason,Original Text\n';
   R.results.forEach(r=>{
-    csv+=`${r.rowIndex},"${r.fieldName}","${r.originalTag.replace(/"/g,'""')}","${r.llmVerdict.replace(/"/g,'""')}","${r.verdict}","${r.reason.replace(/"/g,'""')}"\n`;
+    csv+=`${r.rowIndex},"${r.fieldName}","${r.originalTag.replace(/"/g,'""')}","${r.llmVerdict.replace(/"/g,'""')}","${r.verdict}","${r.reason.replace(/"/g,'""')}","${(r.originalText||'').replace(/"/g,'""').replace(/\n/g,'\\n')}"\n`;
   });
   download(csv,`llm-validation-${Date.now()}.csv`,'text/csv'); log('info','已导出 LLM 验证结果 CSV');
 }
