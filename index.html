@@ -181,8 +181,7 @@ body {
   max-width: 260px; overflow: hidden;
 }
 .data-table tr:hover td { background: #FAFBFC; }
-.data-table tr.proc td { background: #FFFBEB; animation: pulse-row 1.5s ease infinite; }
-@keyframes pulse-row { 0%,100%{background:#FFFBEB} 50%{background:#FFF8DB} }
+.data-table tr.proc td { background: #FFFBEB; box-shadow: inset 2px 0 0 var(--warning); }
 .data-table td.cok { box-shadow: inset 3px 0 0 var(--success); background: #F0FDF4; }
 .data-table td.cerr { box-shadow: inset 3px 0 0 var(--error); background: #FEF2F2; }
 
@@ -361,6 +360,37 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+/* ===== THINK VIEW (analysis inspector) ===== */
+.think-top { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:16px; }
+.think-ctrls { display:flex; gap:6px; flex-shrink:0; }
+.think-wrap { display:flex; gap:18px; align-items:flex-start; }
+.think-list { width:210px; flex-shrink:0; max-height:68vh; overflow:auto; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--surface); }
+.think-list-h { font-size:11px; font-weight:600; color:var(--text-tertiary); padding:8px 10px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--surface); }
+.tk-item { padding:8px 10px; border-bottom:1px solid #f1f3f6; cursor:pointer; transition:background .12s; }
+.tk-item:hover { background:#f1f5ff; }
+.tk-item.act { background:var(--accent-light); box-shadow:inset 3px 0 0 var(--accent); }
+.tk-meta { font-size:11px; color:var(--text-secondary); font-weight:600; margin-bottom:2px; }
+.tk-tag { font-size:11px; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.think-detail { flex:1; min-width:0; max-height:68vh; overflow:auto; }
+.src-box { font-size:11.5px; white-space:pre-wrap; line-height:1.6; max-height:220px; overflow:auto; background:#f8fafc; border:1px solid var(--border); padding:10px; border-radius:6px; }
+.src-row { display:flex; gap:8px; padding:3px 0; border-bottom:1px dashed #eef1f5; }
+.src-row:last-child { border-bottom:none; }
+.src-k { flex-shrink:0; width:120px; font-weight:600; color:var(--accent); font-size:11px; }
+.src-v { flex:1; color:var(--text-primary); }
+.src-instr { background:#fffbeb; border-color:#fde68a; color:#713f12; }
+.src-empty { color:var(--text-tertiary); }
+.ana-box { font-family:'SF Mono',Monaco,Consolas,monospace; font-size:11.5px; white-space:pre-wrap; line-height:1.65; max-height:240px; overflow:auto; background:#0f172a; color:#e2e8f0; border:1px solid var(--border); padding:11px; border-radius:6px; }
+.ana-raw { background:#1e293b; }
+.tag-out { font-size:13px; padding:10px 12px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; color:#166534; font-weight:600; line-height:1.6; }
+.pill { padding:1px 8px; border-radius:8px; font-size:11px; font-weight:600; white-space:nowrap; }
+.pill-ok { background:#dcfce7; color:#15803d; }
+.pill-off { background:#f3f4f6; color:#6b7280; }
+.pill-deep { background:#e0e7ff; color:#3730a3; }
+
+/* Deep analysis toggle */
+.rec-reason { display:flex; align-items:center; gap:7px; margin-top:7px; font-size:11px; color:var(--text-secondary); cursor:pointer; user-select:none; }
+.rec-reason input { accent-color:var(--accent); cursor:pointer; }
 </style>
 </head>
 <body>
@@ -425,6 +455,7 @@ body {
     <input class="sb-input" type="password" id="apiKeySm" placeholder="API Key (sk-...)">
     <input class="sb-input" type="text" id="apiBaseSm" placeholder="Base URL" value="https://api.deepseek.com/v1">
     <input class="sb-input" type="text" id="apiModelSm" placeholder="模型" value="deepseek-chat">
+    <label class="rec-reason" title="开启后让 AI 在打标时额外返回「语义识别分析」文本，会在思考过程看板展示（消耗更多 token / 略慢）"><input type="checkbox" id="recReason"> 深度分析：记录 AI 语义推理</label>
     <button class="tbtn" style="width:100%;margin-top:6px;font-size:11.5px" onclick="testAPIConn()" id="testApiBtn">测试 API 连通性</button>
     <div id="apiTestResult" style="display:none;margin-top:6px;padding:8px;border-radius:6px;font-size:11px;word-break:break-all"></div>
   </div>
@@ -1441,6 +1472,7 @@ async function runBatchTagging(){
   if(!tableData().length){alert('先上传数据');return;}
   var cfg=apiCfg();
   if(!cfg.key){alert('填 API Key');return;}
+  var recReason=!!(document.getElementById('recReason')&&document.getElementById('recReason').checked);
   var rows=getTagRows();
   if(!rows.length){alert('打标范围无效，请检查行区间/指定行');return;}
 
@@ -1470,78 +1502,48 @@ async function runBatchTagging(){
       if(ri>=localData.length) continue;
       var rowData=localData[ri];
 
-      // Resolve {{col}} references
-      var resolved=fld.prompt;
-      var oc=sheet.originalColumns;
-      for(var ci2=0;ci2<oc.length;ci2++){
-        var colName=oc[ci2];
-        var safeCol=colName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-        var pattern=new RegExp('\\{\\{'+safeCol+'\\}\\}','g');
-        var val=rowData[colName]||'(无)';
-        resolved=resolved.replace(pattern,val);
+      var bp=buildPrompt(fld,rowData,sheet.originalColumns);
+      var sys=bp.sys, resolved=bp.resolved, srcMap=bp.srcMap, instr=bp.instr;
+      if(recReason){
+        sys+='\n\n请严格只输出一个 JSON 对象（不要代码块标记、不要任何解释文字）：{"分析":"你对上述原文的语义识别过程与判断依据","标签":"最终标签，多值用英文逗号分隔"}';
       }
-
-      var sys='你是专业数据标注助手。严格按指令标注。\n\n## 指令\n'+resolved;
-      if(fld.type!=='text'){
-        if(fld.options.length>0){
-          sys+='\n\n## 可选标签\n';
-          for(var oi=0;oi<fld.options.length;oi++){ sys+=(oi+1)+'. '+fld.options[oi]+'\n'; }
-        }
-        if(fld.strict && fld.options.length>0){
-          var multiText=fld.type==='multi'?'多选用逗号分隔':'单选唯一';
-          sys+='\n\n## 约束\n只能从可选标签中选择。'+multiText+'。无匹配则输出"未提及"';
-        } else {
-          var outText=fld.type==='multi'?'多选标签逗号分隔':'单选最匹配的一个';
-          sys+='\n\n## 输出\n'+outText+'。无匹配则"未提及"';
-        }
-      }
-      sys+='\n\n只输出结果，不要解释';
 
       var onScreen=(targetIdx===activeSheetIdx && curView==='table');
-      if(onScreen) markP(ri,true);
+      if(onScreen) bufProc(ri,true);
       var ts=Date.now();
       try {
         var raw=await callAPI(sys,'',cfg.key,0.2);
         if(typeof raw!=='string' || !raw) throw new Error('API返回空或非文本 (type='+(typeof raw)+')');
 
-        var clean='';
-        try {
-          clean=String(raw).trim();
-          clean=clean.replace(/^["'\u201c\u201d]/g,'');
-          clean=clean.replace(/["'\u201c\u201d]$/g,'');
-          clean=clean.replace(/^\d+[.\uff0e\u3001\s]*/gm,'');
-          clean=clean.trim();
-        } catch(cleanErr){ clean=String(raw).trim(); }
-
-        if(fld.type!=='text' && clean){
+        var reason='';
+        var parseRaw=raw;
+        if(recReason){
           try{
-            var parts=clean.split(/[,;\uff0c\uff1b\n]/);
-            var tagParts=[];
-            for(var pi=0;pi<parts.length;pi++){
-              var tp=String(parts[pi]).replace(/^["'\s\u3002.]|["'\s\u3002.]$/g,'').trim();
-              if(tp && tp!=='未提及') tagParts.push(tp);
-            }
-            tagParts=tagParts.slice(0, fld.type==='single'?1:20);
-            clean=tagParts.join(', ');
-          }catch(parseErr){ /* keep */ }
-          if(!clean) clean='未提及';
+            var jm=raw.match(/\{[\s\S]*\}/);
+            var jo=JSON.parse(jm[0]);
+            reason=String(jo.分析||'');
+            parseRaw=String(jo.标签!=null?jo.标签:raw);
+          }catch(e){ reason=''; parseRaw=raw; }
         }
+        var clean=cleanLabel(parseRaw,fld);
 
         rowData[fld.name]=clean;
-        if(onScreen){ updCellFast(ri,fld.name,clean); markCell(ri,fld.name,'ok'); }
-        pushThink({t:Date.now(),sheet:sheetName,row:ri,field:fld.name,usedLLM:true,prompt:resolved,raw:String(raw),clean:clean});
+        if(onScreen){ bufCell(ri,fld.name,clean,'ok',fld); }
+        pushThink({t:Date.now(),sheet:sheetName,row:ri,field:fld.name,usedLLM:true,
+          srcMap:srcMap,instr:instr,raw:String(raw),reason:reason,clean:clean});
       } catch(tagErr) {
         var errMsg=String(tagErr.message||tagErr);
         rowData[fld.name]='[错] '+errMsg;
-        if(onScreen){ updCellFast(ri,fld.name,rowData[fld.name]); markCell(ri,fld.name,'err'); }
-        pushThink({t:Date.now(),sheet:sheetName,row:ri,field:fld.name,usedLLM:true,prompt:resolved,raw:'(调用失败) '+errMsg,clean:'[错] '+errMsg});
+        if(onScreen){ bufCell(ri,fld.name,rowData[fld.name],'err',fld); }
+        pushThink({t:Date.now(),sheet:sheetName,row:ri,field:fld.name,usedLLM:true,
+          srcMap:srcMap,instr:instr,raw:'(调用失败) '+errMsg,reason:'',clean:'[错] '+errMsg});
       }
-      if(onScreen) markP(ri,false);
+      if(onScreen) bufProc(ri,false);
 
       var el=Date.now()-ts; perTimes.push(el);
       done++;
       if(sheetProc[targetIdx]) sheetProc[targetIdx].done=done;
-      if(onScreen) updProg(done,total,t0,perTimes);
+      if(onScreen) bufProg(done,total,t0,perTimes);
       else if(done%10===0) updateBgText();
       logThrottled('ok','['+fld.name+'] R'+(ri+1)+': '+String(clean||'').substring(0,40));
       await sleep(60);
@@ -1571,6 +1573,91 @@ function markCell(ri,cn,state){
   td.classList.remove('cok','cerr');
   if(state==='ok')td.classList.add('cok');
   else if(state==='err')td.classList.add('cerr');
+}
+
+// ============================================================
+// PERF: coalesce per-cell DOM writes into one rAF flush
+// (parallel lanes complete cells at different times; without this
+//  each completion triggers its own query + innerHTML rebuild + reflow)
+// ============================================================
+var _bufCells=[], _bufProc=[], _bufProg=null, _rafQ=false;
+function _schedUI(){ if(_rafQ)return; _rafQ=true; requestAnimationFrame(_flushUI); }
+function _flushUI(){
+  _rafQ=false;
+  for(var p=0;p<_bufProc.length;p++){ _applyProc(_bufProc[p].ri,_bufProc[p].on); }
+  _bufProc.length=0;
+  for(var c=0;c<_bufCells.length;c++){ _applyCell(_bufCells[c]); }
+  _bufCells.length=0;
+  if(_bufProg){ _applyProg(_bufProg.done,_bufProg.total,_bufProg.t0,_bufProg.per); _bufProg=null; }
+}
+function _applyProc(ri,on){ var tr=document.querySelector(`tr[data-ri="${ri}"]`); if(tr)tr.classList.toggle('proc',on); }
+function _applyCell(b){
+  var tr=document.querySelector(`tr[data-ri="${b.ri}"]`); if(!tr)return;
+  var visIdx=getVisibleCols().indexOf(b.cn); if(visIdx<0)return;
+  var td=tr.children[visIdx+2]; if(!td)return;
+  if(b.fld&&(b.fld.type==='multi'||b.fld.type==='single')){
+    var tags=String(b.val).split(',').map(function(t){return t.trim();}).filter(Boolean);
+    td.innerHTML='<div class="cell-tags">'+tags.map(function(t,i){return `<span class="tag-pill ${TC[i%TC.length]}" title="${esc(t)}">${esc(t)}</span>`;}).join('')+'</div>';
+  } else td.innerHTML=`<div class="cell-txt" title="${esc(String(b.val))}">${esc(String(b.val))}</div>`;
+  td.classList.remove('cok','cerr');
+  if(b.state==='ok')td.classList.add('cok'); else if(b.state==='err')td.classList.add('cerr');
+}
+function _applyProg(done,total,t0,per){
+  var fill=document.getElementById('progFill'); if(fill)fill.style.width=Math.round(done/total*100)+'%';
+  var pt=document.getElementById('ptText'); if(pt)pt.textContent=done+'/'+total;
+  // ETA
+  var etaEl=document.getElementById('etaText');
+  if(etaEl){
+    if(done>0 && per && per.length){
+      var avg=per.reduce(function(a,b){return a+b;},0)/per.length;
+      var remain=Math.max(0,(total-done))*avg;
+      var sec=Math.round(remain/1000);
+      var mm=Math.floor(sec/60), ss=sec%60;
+      var eta=new Date(Date.now()+remain);
+      etaEl.textContent='预计剩余 '+ (mm>0?mm+'分':'')+ss+'秒 · 预计完成 '+eta.toLocaleTimeString('zh-CN',{hour12:false});
+      etaEl.style.display='';
+    } else { etaEl.style.display='none'; }
+  }
+}
+// batched public API used by tagging loops
+function bufCell(ri,cn,val,state,fld){ _bufCells.push({ri:ri,cn:cn,val:val,state:state,fld:fld}); _schedUI(); }
+function bufProc(ri,on){ _bufProc.push({ri:ri,on:on}); _schedUI(); }
+function bufProg(done,total,t0,per){ _bufProg={done:done,total:total,t0:t0,per:per}; _schedUI(); }
+
+// ============================================================
+// Shared prompt builder + label cleaner (used by tagField & reTagRow)
+// ============================================================
+function buildPrompt(fld,rowData,oc){
+  var resolved=fld.prompt, srcMap={};
+  for(var ci2=0;ci2<oc.length;ci2++){
+    var colName=oc[ci2];
+    var safeCol=colName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    var pattern=new RegExp('\\{\\{'+safeCol+'\\}\\}','g');
+    var val=rowData[colName]||'(无)';
+    resolved=resolved.replace(pattern,val);
+    srcMap[colName]=val;
+  }
+  var sys='你是专业数据标注助手。严格按指令标注。\n\n## 指令\n'+resolved;
+  if(fld.type!=='text'){
+    if(fld.options.length>0){ sys+='\n\n## 可选标签\n'; for(var oi=0;oi<fld.options.length;oi++){ sys+=(oi+1)+'. '+fld.options[oi]+'\n'; } }
+    if(fld.strict && fld.options.length>0){ var mt=fld.type==='multi'?'多选用逗号分隔':'单选唯一'; sys+='\n\n## 约束\n只能从可选标签中选择。'+mt+'。无匹配则输出"未提及"'; }
+    else { var ot=fld.type==='multi'?'多选标签逗号分隔':'单选最匹配的一个'; sys+='\n\n## 输出\n'+ot+'。无匹配则"未提及"'; }
+  }
+  sys+='\n\n只输出结果，不要解释';
+  return {sys:sys,resolved:resolved,srcMap:srcMap,instr:fld.prompt};
+}
+function cleanLabel(raw,fld){
+  var clean='';
+  try{ clean=String(raw).trim().replace(/^["'\u201c\u201d]|["'\u201d]$/g,'').replace(/^\d+[.\uff0e\u3001\s]*/gm,'').trim(); }catch(e){ clean=String(raw).trim(); }
+  if(fld.type!=='text' && clean){
+    try{
+      var parts=clean.split(/[,;\uff0c\uff1b\n]/); var tagParts=[];
+      for(var pi=0;pi<parts.length;pi++){ var tp=String(parts[pi]).replace(/^["'\s\u3002.]|["'\s\u3002.]$/g,'').trim(); if(tp && tp!=='未提及') tagParts.push(tp); }
+      tagParts=tagParts.slice(0, fld.type==='single'?1:20); clean=tagParts.join(', ');
+    }catch(e){}
+    if(!clean) clean='未提及';
+  }
+  return clean;
 }
 
 function getTagRows(){
@@ -1609,60 +1696,33 @@ async function reTagRow(ri){
       if(stopRequested) break;
       var fld=aiFields[fi];
       var rowData=tableData()[ri];
-      var resolved=fld.prompt;
-      var oc=originalColumns();
-      for(var ci2=0;ci2<oc.length;ci2++){
-        var colName=oc[ci2];
-        var safeCol=colName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-        var pattern=new RegExp('\\{\\{'+safeCol+'\\}\\}','g');
-        var val=rowData[colName]||'(无)';
-        resolved=resolved.replace(pattern,val);
+      var bp=buildPrompt(fld,rowData,originalColumns());
+      var sys=bp.sys, resolved=bp.resolved, srcMap=bp.srcMap, instr=bp.instr;
+      var recReason=!!(document.getElementById('recReason')&&document.getElementById('recReason').checked);
+      if(recReason){
+        sys+='\n\n请严格只输出一个 JSON 对象（不要代码块标记、不要任何解释文字）：{"分析":"你对上述原文的语义识别过程与判断依据","标签":"最终标签，多值用英文逗号分隔"}';
       }
-      var sys='你是专业数据标注助手。严格按指令标注。\n\n## 指令\n'+resolved;
-      if(fld.type!=='text'){
-        if(fld.options.length>0){
-          sys+='\n\n## 可选标签\n';
-          for(var oi=0;oi<fld.options.length;oi++){ sys+=(oi+1)+'. '+fld.options[oi]+'\n'; }
-        }
-        if(fld.strict && fld.options.length>0){
-          var multiText=fld.type==='multi'?'多选用逗号分隔':'单选唯一';
-          sys+='\n\n## 约束\n只能从可选标签中选择。'+multiText+'。无匹配则输出"未提及"';
-        } else {
-          var outText=fld.type==='multi'?'多选标签逗号分隔':'单选最匹配的一个';
-          sys+='\n\n## 输出\n'+outText+'。无匹配则"未提及"';
-        }
-      }
-      sys+='\n\n只输出结果，不要解释';
-      markP(ri,true);
+      bufProc(ri,true);
       try{
         var raw=await callAPI(sys,'',cfg.key,0.2);
         if(typeof raw!=='string' || !raw){ throw new Error('API返回空或非文本 (type='+(typeof raw)+')'); }
-        var clean='';
-        try{ clean=String(raw).trim().replace(/^["'\u201c\u201d]|["'\u201d]$/g,'').replace(/^\d+[.\uff0e\u3001\s]*/gm,'').trim(); }catch(e){ clean=String(raw).trim(); }
-        if(fld.type!=='text' && clean){
-          try{
-            var parts=clean.split(/[,;\uff0c\uff1b\n]/); var tagParts=[];
-            for(var pi=0;pi<parts.length;pi++){
-              var tp=String(parts[pi]).replace(/^["'\s\u3002.]|["'\s\u3002.]$/g,'').trim();
-              if(tp && tp!=='未提及') tagParts.push(tp);
-            }
-            tagParts=tagParts.slice(0, fld.type==='single'?1:20);
-            clean=tagParts.join(', ');
-          }catch(e){}
-          if(!clean) clean='未提及';
+        var reason='', parseRaw=raw;
+        if(recReason){
+          try{ var jm=raw.match(/\{[\s\S]*\}/); var jo=JSON.parse(jm[0]); reason=String(jo.分析||''); parseRaw=String(jo.标签!=null?jo.标签:raw); }catch(e){ reason=''; parseRaw=raw; }
         }
-        rowData[fld.name]=clean; updCellFast(ri,fld.name,clean); markCell(ri,fld.name,'ok');
-        pushThink({t:Date.now(),sheet:curSheet()?curSheet().name:'',row:ri,field:fld.name,usedLLM:true,prompt:resolved,raw:String(raw),clean:clean});
-        done++; updProg(done,total);
+        var clean=cleanLabel(parseRaw,fld);
+        rowData[fld.name]=clean; bufCell(ri,fld.name,clean,'ok',fld);
+        pushThink({t:Date.now(),sheet:curSheet()?curSheet().name:'',row:ri,field:fld.name,usedLLM:true,srcMap:srcMap,instr:instr,raw:String(raw),reason:reason,clean:clean});
+        done++; bufProg(done,total);
         log('ok','[重打] ['+fld.name+'] R'+(ri+1)+': '+clean.substring(0,40));
       }catch(err){
         var errMsg=String(err.message||err);
-        rowData[fld.name]='[错] '+errMsg; updCellFast(ri,fld.name,rowData[fld.name]); markCell(ri,fld.name,'err');
-        pushThink({t:Date.now(),sheet:curSheet()?curSheet().name:'',row:ri,field:fld.name,usedLLM:true,prompt:resolved,raw:'(调用失败) '+errMsg,clean:'[错] '+errMsg});
-        done++; updProg(done,total);
+        rowData[fld.name]='[错] '+errMsg; bufCell(ri,fld.name,rowData[fld.name],'err',fld);
+        pushThink({t:Date.now(),sheet:curSheet()?curSheet().name:'',row:ri,field:fld.name,usedLLM:true,srcMap:srcMap,instr:instr,raw:'(调用失败) '+errMsg,reason:'',clean:'[错] '+errMsg});
+        done++; bufProg(done,total);
         log('err','[重打] ['+fld.name+'] R'+(ri+1)+': '+errMsg);
       }
-      markP(ri,false); await sleep(60);
+      bufProc(ri,false); await sleep(60);
     }
     if(stopRequested) setSt('done','已停止'); else setSt('done','完成');
     log('info','重新打标完成 R'+(ri+1)+(stopRequested?' (已停止)':''));
@@ -1713,20 +1773,6 @@ function fmtDur(sec){
   if(m<60) return m+'分'+s+'秒';
   var h=Math.floor(m/60); return h+'时'+(m%60)+'分';
 }
-function updProg(done,total,t0,perTimes){
-  document.getElementById('progFill').style.width=Math.round(done/total*100)+'%';
-  document.getElementById('ptText').textContent=done+'/'+total;
-  var etaEl=document.getElementById('etaText');
-  if(t0 && done>0 && perTimes && perTimes.length){
-    var avg=perTimes.reduce(function(a,b){return a+b;},0)/perTimes.length;
-    var remain=Math.max(0,(total-done))*avg;
-    var sec=Math.round(remain/1000);
-    var finish=new Date(Date.now()+remain);
-    var hh=String(finish.getHours()).padStart(2,'0'),mm=String(finish.getMinutes()).padStart(2,'0'),ss=String(finish.getSeconds()).padStart(2,'0');
-    etaEl.style.display='';
-    etaEl.textContent='预计剩余 '+fmtDur(sec)+' · 预计完成 '+hh+':'+mm+':'+ss;
-  } else { etaEl.style.display='none'; }
-}
 function setSt(type,text){document.getElementById('sdot').className='sdot '+type; document.getElementById('stText').textContent=text;}
 // Throttled logging to reduce DOM churn during heavy tagging
 function logThrottled(type,msg){ _logAcc++; if(_logAcc%8===0) log(type,msg); }
@@ -1736,7 +1782,7 @@ function logThrottled(type,msg){ _logAcc++; if(_logAcc%8===0) log(type,msg); }
 // VIEW SWITCHING
 // ============================================================
 function swView(v){
-  if(v!=='think' && _thinkTimer){ clearInterval(_thinkTimer); _thinkTimer=null; }
+  if(v!=='think'){ stopThinkTimer(); }
   curView=v;
   document.querySelectorAll('.vcard').forEach(c=>c.classList.toggle('on',c.dataset.v===v));
   const tableView = document.getElementById('tableView');
@@ -1771,53 +1817,74 @@ function renderCur(){
 }
 
 // --- Think carousel (last THINK_MAX AI runs) ---
-let _thinkTimer=null, _thinkIdx=0;
+let _thinkTimer=null, _thinkIdx=0, _thinkPlaying=true, _thinkEl=null;
 function renderThink(c){
+  _thinkEl=c;
   if(!thinkLog.length){
-    c.innerHTML='<div class="de"><div class="de-i">&#129302;</div><div class="de-t">暂无思考记录</div><div class="de-s">运行打标后，这里会轮播最近 '+THINK_MAX+' 条 AI 的分析过程（提示词 → 原始回复 → 是否调用 LLM）</div></div>';
-    if(_thinkTimer){clearInterval(_thinkTimer);_thinkTimer=null;}
-    return;
+    c.innerHTML='<div class="de"><div class="de-i">&#129302;</div><div class="de-t">暂无思考记录</div><div class="de-s">运行打标后，这里会轮播最近 '+THINK_MAX+' 条 AI 对原文的分析过程。开启侧栏「深度分析」可让 AI 写出语义识别推理。</div></div>';
+    stopThinkTimer(); return;
   }
-  _thinkIdx=0;
-  function paint(){
-    if(_thinkIdx>=thinkLog.length)_thinkIdx=0;
-    const r=thinkLog[_thinkIdx];
-    const llmBadge=r.usedLLM
-      ? '<span style="background:#dcfce7;color:#15803d;padding:1px 8px;border-radius:8px;font-size:11px;font-weight:600">已调用 LLM</span>'
-      : '<span style="background:#f3f4f6;color:#6b7280;padding:1px 8px;border-radius:8px;font-size:11px;font-weight:600">未调用 LLM</span>';
-    c.innerHTML=`<div class="dsec"><div class="ds-title">AI 思考过程 (轮播)</div>
-      <div class="ds-meta">
+  paintThink();
+  if(_thinkPlaying) startThinkTimer(); else stopThinkTimer();
+}
+function paintThink(){
+  const c=_thinkEl; if(!c)return;
+  if(_thinkIdx>=thinkLog.length)_thinkIdx=thinkLog.length-1;
+  if(_thinkIdx<0)_thinkIdx=0;
+  const r=thinkLog[_thinkIdx];
+  const llmBadge=r.usedLLM
+    ? '<span class="pill pill-ok">已调用 LLM</span>'
+    : '<span class="pill pill-off">未调用 LLM</span>';
+  const deepBadge = r.reason ? '<span class="pill pill-deep">含语义分析</span>' : '';
+  let srcHtml='';
+  if(r.srcMap && Object.keys(r.srcMap).length){
+    srcHtml='<div class="src-box">'+Object.keys(r.srcMap).map(function(k){
+      var v=String(r.srcMap[k]||'');
+      return '<div class="src-row"><span class="src-k">'+esc(k)+'</span><span class="src-v">'+esc(v.length>400?v.substring(0,400)+'…':v)+'</span></div>';
+    }).join('')+'</div>';
+  } else {
+    srcHtml='<div class="src-box src-empty">（此记录未记录原文快照）\n'+esc(r.prompt||'')+'</div>';
+  }
+  const analysisHtml = r.reason
+    ? '<div class="ana-box">'+esc(r.reason)+'</div>'
+    : '<div class="ana-box ana-raw">'+esc(r.raw||'(空)')+'</div>';
+  const analysisTitle = r.reason ? '③ AI 语义识别分析（推理）' : '③ AI 原始返回';
+  const listHtml=thinkLog.slice().reverse().map(function(rr,idxRev){
+    const realIdx=thinkLog.length-1-idxRev;
+    const act=realIdx===_thinkIdx?' act':'';
+    const tagPrev=String(rr.clean||'').substring(0,26);
+    return '<div class="tk-item'+act+'" onclick="thinkSelect('+realIdx+')"><div class="tk-meta">R'+((rr.row!=null?rr.row+1:'-'))+' · '+esc(rr.field||'')+'</div><div class="tk-tag">'+esc(tagPrev||'—')+'</div></div>';
+  }).join('');
+  c.innerHTML=`
+    <div class="think-top">
+      <div class="ds-meta" style="margin-bottom:0;flex-wrap:wrap">
         <span>第 ${_thinkIdx+1} / ${thinkLog.length} 条</span>
         <span>工作表: <strong>${esc(r.sheet||'')}</strong></span>
         <span>行: <strong>${r.row!=null?r.row+1:'-'}</strong></span>
         <span>字段: <strong>${esc(r.field||'')}</strong></span>
-        ${llmBadge}
+        ${llmBadge} ${deepBadge}
       </div>
-      <div class="sc">
-        <div class="sc-hdr"><span class="sc-t">① 构建的提示词</span></div>
-        <div style="font-family:'SF Mono',Monaco,Consolas,monospace;font-size:11.5px;white-space:pre-wrap;line-height:1.6;max-height:200px;overflow:auto;background:#f8f9fb;border:1px solid var(--border);padding:10px;border-radius:6px">${esc(r.prompt||'')}</div>
-      </div>
-      <div class="sc">
-        <div class="sc-hdr"><span class="sc-t">② AI 原始返回</span></div>
-        <div style="font-family:'SF Mono',Monaco,Consolas,monospace;font-size:11.5px;white-space:pre-wrap;line-height:1.6;max-height:200px;overflow:auto;background:#0f172a;color:#e2e8f0;border:1px solid var(--border);padding:10px;border-radius:6px">${esc(r.raw||'(空)')}</div>
-      </div>
-      <div class="sc">
-        <div class="sc-hdr"><span class="sc-t">③ 清洗后写入单元格</span></div>
-        <div style="font-size:12.5px;padding:8px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;color:#166534">${esc(r.clean||'')}</div>
+      <div class="think-ctrls">
+        <button class="tbtn" onclick="thinkStep(-1)">上一条</button>
+        <button class="tbtn" onclick="thinkStep(1)">下一条</button>
+        <button class="tbtn pri" onclick="thinkToggle()">${_thinkPlaying?'暂停轮播':'自动轮播'}</button>
       </div>
     </div>
-    <div style="display:flex;gap:8px;justify-content:center;margin-top:8px">
-      <button class="tbtn" onclick="thinkStep(-1)">上一条</button>
-      <button class="tbtn" onclick="thinkStep(1)">下一条</button>
-      <button class="tbtn" onclick="thinkToggle()">${_thinkTimer?'暂停轮播':'自动轮播'}</button>
+    <div class="think-wrap">
+      <div class="think-list"><div class="think-list-h">最近 ${thinkLog.length} 条（点击查看）</div>${listHtml}</div>
+      <div class="think-detail">
+        <div class="sc"><div class="sc-hdr"><span class="sc-t">① AI 看到的原文</span></div>${srcHtml}</div>
+        <div class="sc"><div class="sc-hdr"><span class="sc-t">② 识别指令（规则）</span></div><div class="src-box src-instr">${esc(r.instr||r.prompt||'')}</div></div>
+        <div class="sc"><div class="sc-hdr"><span class="sc-t">${analysisTitle}</span></div>${analysisHtml}</div>
+        <div class="sc"><div class="sc-hdr"><span class="sc-t">④ 打出的标签</span></div><div class="tag-out">${esc(r.clean||'')}</div></div>
+      </div>
     </div>`;
-  }
-  paint();
-  if(_thinkTimer)clearInterval(_thinkTimer);
-  _thinkTimer=setInterval(function(){ _thinkIdx++; paint(); }, 3500);
 }
-function thinkStep(d){ _thinkIdx+=d; if(_thinkIdx<0)_thinkIdx=thinkLog.length-1; if(_thinkIdx>=thinkLog.length)_thinkIdx=0; if(_thinkTimer){clearInterval(_thinkTimer);_thinkTimer=null;} renderThink(document.getElementById('docThink')); }
-function thinkToggle(){ if(_thinkTimer){clearInterval(_thinkTimer);_thinkTimer=null;} else { _thinkTimer=setInterval(function(){ _thinkIdx++; renderThink(document.getElementById('docThink')); }, 3500);} if(curView==='think') renderThink(document.getElementById('docThink')); }
+function startThinkTimer(){ stopThinkTimer(); _thinkTimer=setInterval(function(){ _thinkIdx++; paintThink(); }, 5000); }
+function stopThinkTimer(){ if(_thinkTimer){clearInterval(_thinkTimer);_thinkTimer=null;} }
+function thinkStep(d){ stopThinkTimer(); _thinkPlaying=false; _thinkIdx+=d; if(_thinkIdx<0)_thinkIdx=thinkLog.length-1; if(_thinkIdx>=thinkLog.length)_thinkIdx=0; paintThink(); }
+function thinkSelect(idx){ stopThinkTimer(); _thinkPlaying=false; _thinkIdx=idx; paintThink(); }
+function thinkToggle(){ _thinkPlaying=!_thinkPlaying; if(_thinkPlaying)startThinkTimer(); else stopThinkTimer(); paintThink(); }
 
 // --- Full ---
 function renderFull(c){
@@ -2347,16 +2414,18 @@ function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 function toggleAll(ck){document.querySelectorAll('.rcb').forEach(cb=>cb.checked=ck);}
 
 const _logs=[];
-let _syncTimer=null;
+let _logRaf=false, _logDirty=false;
 function log(type,msg){_logs.push({t:new Date().toLocaleTimeString('zh-CN',{hour12:false}),type,msg}); syncLog();}
-// Throttle log DOM rendering to reduce reflow churn during heavy tagging
+// Throttle log DOM rendering to once per frame to reduce reflow churn during heavy tagging
 function syncLog(){
-  if(_syncTimer) return;
-  _syncTimer=setTimeout(function(){ _syncTimer=null; _renderLog(); }, 350);
+  _logDirty=true;
+  if(_logRaf) return;
+  _logRaf=true;
+  requestAnimationFrame(function(){ _logRaf=false; if(_logDirty){ _logDirty=false; _renderLog(); } });
 }
 function _renderLog(){
   const la=document.getElementById('docLog'); if(!la)return; la.classList.add('vis');
-  la.innerHTML=_logs.slice(-100).map(l=>`<div class="ll ${l.type}">${l.t} ${l.msg}</div>`).join('');
+  la.innerHTML=_logs.slice(-60).map(l=>`<div class="ll ${l.type}">${l.t} ${l.msg}</div>`).join('');
   la.scrollTop=la.scrollHeight;
 }
 
