@@ -593,7 +593,8 @@ async function processFile(file){
     else if(/^xlsx?$/.test(ext)){await parseExcel(file);}
     else{alert('不支持此格式');return;}
     showTable();
-    log('info',`已加载 ${file.name} — ${sheets.length}个工作表`);
+    currentFileName=file.name;
+    log('info',`已加载 ${file.name} — ${sheets.length}个工作表 / ${tableData().length}行数据`);
     renderSheetTabs();
     updDataInfo();
     refreshDoc();
@@ -1445,24 +1446,71 @@ function renderFull(c){
   syncLog();
 }
 
-// --- Stats ---
+// --- Stats (flat detail table: module / dimension / label / count) ---
 function renderStats(c){
   if(!aiFields.length){c.innerHTML='<div class="de"><div class="de-t">暂无 AI 字段统计数据</div></div>';return;}
-  let h='<div class="dsec"><div class="ds-title">标签维度统计</div>';
-  aiFields.forEach(fld=>{
-    if(fld.type==='text'){h+=`<div class="sc"><div class="sc-hdr"><span class="sc-t">${esc(fld.name)}</span><span class="sc-c">文本型</span></div><div style="font-size:11.5px;color:var(--text-tertiary)">自由文本字段</div></div>`;return;}
-    const counts={}, totalT=0;
-    tableData().forEach(r=>{const v=r[fld.name];if(v&&v!=='未提及'&&v!=='[错')String(v).split(',').map(t=>t.trim()).filter(Boolean).forEach(t=>{counts[t]=(counts[t]||0)+1; totalT++;});});
-    const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]), mx=sorted.length?sorted[0][1]:1;
-    h+=`<div class="sc"><div class="sc-hdr"><span class="sc-t">${esc(fld.name)}</span><span class="sc-c">${sorted.length} 种 / ${totalT} 次</span></div><div style="margin-top:8px">`;
-    sorted.forEach(([lbl,cnt])=>{
-      const pct=(cnt/tableData().length*100).toFixed(1), bw=Math.max(cnt/mx*100,8), ci=sorted.findIndex(([l])=>l===lbl);
-      h+=`<div class="sb-item"><span class="sb-lbl" title="${esc(lbl)}">${esc(lbl)}</span><div style="flex:1;background:#eee;border-radius:3px;height:18px;overflow:hidden"><div class="sb-fill ${TC[ci%TC.length]}" style="width:${bw}%">${cnt}</div></div><span class="sb-pct">${pct}%</span></div>`;
+
+  var rows=[]; // {module, dim, label, count}
+  var grandTotal=0;
+
+  aiFields.forEach(function(fld){
+    if(fld.type==='text'){
+      // For text fields, show as single entry
+      var filled=0;
+      tableData().forEach(function(r){
+        var v=r[fld.name]; if(v&&v!=='--'&&v!=='未提及')filled++;
+      });
+      rows.push({module:fld.name, dim:fld.type==='text'?'自由文本':'文本', label:'(已填充)', count:filled});
+      rows.push({module:fld.name, dim:'', label:'(未标记)', count:tableData().length-filled});
+      return;
+    }
+    var counts={}, totalT=0;
+    tableData().forEach(function(r){
+      var v=r[fld.name];
+      if(v&&v!=='未提及'&&v!=='[错'){
+        String(v).split(',').map(function(t){return t.trim();}).filter(Boolean).forEach(function(t){
+          counts[t]=(counts[t]||0)+1; totalT++;
+        });
+      }
     });
-    const unlbl=tableData().filter(r=>!r[fld.name]||r[fld.name]==='未提及'||r[fld.name]=='--').length;
-    if(unlbl) h+=`<div class="sb-item"><span class="sb-lbl">(未标记)</span><div style="flex:1;background:#eee;border-radius:3px;height:18px;overflow:hidden"><div class="sb-fill tc7" style="width:${Math.max(unlbl/tableData().length*100,5)}%">${unlbl}</div></div><span class="sb-pct">${(unlbl/tableData().length*100).toFixed(1)}%</span></div>`;
-    h+='</div></div>';
-  }); c.innerHTML=h+'</div>';
+    // Sort by count desc
+    var sorted=Object.entries(counts).sort(function(a,b){return b[1]-a[1]});
+    sorted.forEach(function(entry){
+      rows.push({module:fld.name, dim:fld.type==='multi'?'多选':'单选', label:entry[0], count:entry[1]});
+      grandTotal+=entry[1];
+    });
+    // Unmarked
+    var unlbl=tableData().filter(function(r){return !r[fld.name]||r[fld.name]==='未提及'||r[fld.name]=='--';}).length;
+    if(unlbl) rows.push({module:fld.name, dim:'', label:'(未标记)', count:unlbl});
+  });
+
+  var html='<div class="dsec">';
+  html+='<div class="ds-title">标签统计明细</div>';
+  html+='<div class="ds-meta"><span>AI 字段: <strong>'+aiFields.length+'</strong></span><span>标签行数: <strong>'+rows.length+'</strong></span><span>总标注次数: <strong>'+grandTotal+'</strong></span></div>';
+
+  // Flat table
+  html+='<div style="overflow-x:auto"><table class="dt"><thead><tr>';
+  html+='<th>模块</th><th>维度</th><th>标签</th><th style="text-align:right;width:80px">数量</th>';
+  html+='</tr></thead><tbody>';
+
+  var currentModule='';
+  rows.forEach(function(row){
+    // Group visual separator
+    if(row.module!==currentModule){
+      if(currentModule!=='') html+='<tr><td colspan="4" style="background:#f8f9fa;height:1px"></td></tr>';
+      currentModule=row.module;
+    }
+    html+='<tr>';
+    html+='<td>'+(row.module!==currentModule?esc(row.module):'<span style="color:var(--text-tertiary)">'+esc(row.module)+'</span>')+'</td>';
+    html+='<td>'+esc(row.dim)+'</td>';
+    html+='<td>'+(row.label.startsWith('(')?'<span style="color:var(--text-tertiary)">'+esc(row.label)+'</span>':esc(row.label))+'</td>';
+    html+='<td style="text-align:right;font-weight:600;color:var(--accent)">'+row.count+'</td>';
+    html+='</tr>';
+  });
+
+  html+='</tbody></table></div>';
+  html+='</div>';
+  c.innerHTML=html;
 }
 
 // --- Validate (FIXED: only fill-rate and stats, no correct/error) ---
@@ -1660,11 +1708,30 @@ async function exportTbl(){
     const dataRows=[cols, ...tableData().map(row=>cols.map(c=>row[c]??''))];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(dataRows), '标注数据');
     if(aiFields.length){
-      // Sheet 2: 标签统计
-      const srows=[['字段','标签','出现次数','占比%']];
-      aiFields.filter(f=>f.type!=='text').forEach(fld=>{
-        const counts={}; tableData().forEach(r=>{const v=r[fld.name]; if(v&&v!=='未提及'&&!String(v).startsWith('[错]'))String(v).split(',').map(t=>t.trim()).filter(Boolean).forEach(t=>counts[t]=(counts[t]||0)+1);});
-        Object.entries(counts).sort((a,b)=>b[1]-a[1]).forEach(([lbl,cnt])=>srows.push([fld.name,lbl,cnt,(cnt/tableData().length*100).toFixed(1)]));
+      // Sheet 2: 标签统计 (flat table matching the stats view)
+      var srows=[['模块','维度','标签','数量']];
+      aiFields.forEach(function(fld){
+        if(fld.type==='text'){
+          var filled=0;
+          tableData().forEach(function(r){var v=r[fld.name];if(v&&v!=='--'&&v!=='未提及')filled++;});
+          srows.push([fld.name,'自由文本','(已填充)',filled]);
+          srows.push([fld.name,'','(未标记)',tableData().length-filled]);
+          return;
+        }
+        var counts={};
+        tableData().forEach(function(r){
+          var v=r[fld.name];
+          if(v&&v!=='未提及'&&!String(v).startsWith('[错]')){
+            String(v).split(',').map(function(t){return t.trim();}).filter(Boolean).forEach(function(t){
+              counts[t]=(counts[t]||0)+1;
+            });
+          }
+        });
+        Object.entries(counts).sort(function(a,b){return b[1]-a[1];}).forEach(function(entry){
+          srows.push([fld.name, fld.type==='multi'?'多选':'单选', entry[0], entry[1]]);
+        });
+        var unlbl=tableData().filter(function(r){return !r[fld.name]||r[fld.name]==='未提及'||r[fld.name]=='--';}).length;
+        if(unlbl) srows.push([fld.name,'','(未标记)',unlbl]);
       });
       if(srows.length>1) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(srows), '标签统计');
       // Sheet 3: 标注概览
@@ -1692,22 +1759,71 @@ function download(content,name,mime){
 }
 
 // ============================================================
-// PERSISTENCE (localStorage)
+// PERSISTENCE (localStorage) - robust version with quota handling
 // ============================================================
+var _saveThrottle=null;
 function saveState(){
+  if(_saveThrottle)return; // debounce rapid calls
+  _saveThrottle=setTimeout(function(){_saveThrottle=null;},300);
   try{
-    const payload={sheets, aiFields, hiddenColNames:[...hiddenColNames], activeSheetIdx, llmValResults};
-    localStorage.setItem('ait-workspace', JSON.stringify(payload));
-  }catch(e){ console.warn('saveState failed', e); }
+    if(!sheets||!sheets.length)return; // nothing to save
+    var payload={
+      v:1, // schema version
+      sheets:sheets,
+      aiFields:aiFields,
+      hiddenColNames:[].slice.call(hiddenColNames),
+      activeSheetIdx:activeSheetIdx,
+      llmValResults:llmValResults,
+      savedAt:Date.now(),
+      fileName:currentFileName||''
+    };
+    var json=JSON.stringify(payload);
+    // Check size (warn if >4MB)
+    if(json.length>4*1024*1024){
+      console.warn('saveState: large payload ('+(json.length/1024/1024).toFixed(1)+'MB), may exceed localStorage limit');
+    }
+    try{
+      localStorage.setItem('ait-workspace', json);
+    }catch(quotaErr){
+      // QuotaExceededError - try to save minimal state
+      console.error('localStorage quota exceeded, attempting slim save');
+      try{
+        var slim={
+          v:1,
+          sheets:sheets.map(function(sh){return{name:sh.name,originalColumns:sh.originalColumns,data:sh.data};}),
+          aiFields:aiFields,
+          hiddenColNames:[].slice.call(hiddenColNames),
+          activeSheetIdx:activeSheetIdx,
+          savedAt:Date.now()
+        };
+        localStorage.setItem('ait-workspace', JSON.stringify(slim));
+        log('warn','数据较大，已保存精简版本（不含 LLM 验证结果）');
+      }catch(e2){
+        log('err','保存失败：浏览器本地存储空间不足。建议导出 Excel 备份后清空部分数据。');
+        return false;
+      }
+    }
+    return true;
+  }catch(e){
+    console.warn('saveState failed',e);
+    return false;
+  }
 }
+var currentFileName='';
 function loadState(){
   try{
-    const raw=localStorage.getItem('ait-workspace'); if(!raw)return false;
-    const d=JSON.parse(raw); if(!d.sheets||!d.sheets.length)return false;
+    var raw=localStorage.getItem('ait-workspace'); if(!raw)return false;
+    var d=JSON.parse(raw); if(!d.sheets||!d.sheets.length)return false;
     sheets=d.sheets; aiFields=d.aiFields||[]; hiddenColNames=new Set(d.hiddenColNames||[]);
     activeSheetIdx=d.activeSheetIdx||0; llmValResults=d.llmValResults||null;
+    currentFileName=d.fileName||'';
     return true;
-  }catch(e){ return false; }
+  }catch(e){
+    console.warn('loadState failed',e);
+    // Corrupted data - clear it
+    localStorage.removeItem('ait-workspace');
+    return false;
+  }
 }
 function clearData(){
   if(!confirm('删除当前所有数据并清空工作区？此操作不可撤销，刷新后将无法恢复。'))return;
@@ -1784,7 +1900,17 @@ document.body.addEventListener('drop',e=>{
 // Restore workspace from localStorage on load
 if(loadState()){
   showTable(); renderSheetTabs(); updDataInfo(); updStatus(); refreshDoc();
-  log('info','已从浏览器本地缓存恢复上次的工作区');
+  var info='已从本地缓存恢复工作区';
+  if(currentFileName) info+=' ('+currentFileName+')';
+  if(sheets.length&&tableData().length) info+=' — '+tableData().length+'行 / '+aiFields.length+'个AI字段';
+  log('info',info);
+  // Show a brief visible toast
+  var toast=document.createElement('div');
+  toast.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#22c55e;color:#fff;padding:8px 20px;border-radius:6px;font-size:12.5px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.15);';
+  toast.textContent=info+' [点击关闭]';
+  toast.onclick=function(){document.body.removeChild(toast);};
+  document.body.appendChild(toast);
+  setTimeout(function(){if(toast.parentNode)document.body.removeChild(toast);},5000);
 }
 
 renderTable();
