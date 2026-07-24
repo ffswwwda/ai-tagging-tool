@@ -324,6 +324,12 @@ body {
 .bao { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border: 1px dashed var(--border); border-radius: var(--radius-sm); background: none; color: var(--accent); font-size: 11.5px; cursor: pointer; margin-top: 4px; }
 .bao:hover { border-color: var(--accent); background: var(--accent-light); }
 
+/* Label system preview */
+.orow .ot { font-size: 12.5px; }
+.orow .otag { font-size: 10px; color: var(--accent); background: var(--accent-light); padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
+.orow .od { font-size: 11px; color: var(--text-secondary); margin-top: 2px; line-height: 1.4; }
+#lsPreviewList .orow { display: block; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 6px; background: #fafbfc; }
+
 .rcs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .rcp { display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; background: var(--accent-light); color: var(--accent); border-radius: 4px; font-size: 11px; font-weight: 500; cursor: pointer; border: none; transition: background 0.1s; }
 .rcp:hover { background: #dbe4ff; }
@@ -379,22 +385,6 @@ body {
   </div>
 
   <div class="sb-section">
-    <div class="sb-label">打标范围</div>
-    <div class="val-row"><label>模式</label>
-      <select class="sb-input" id="tagRangeMode" onchange="toggleRangeInputs()" style="margin-bottom:0">
-        <option value="all">全部行</option>
-        <option value="range">行区间</option>
-        <option value="list">指定行</option>
-      </select>
-    </div>
-    <div id="tagRangeWrap" style="display:none">
-      <input class="sb-input" id="tagRangeFrom" placeholder="起始行 (1起)" style="margin-top:5px">
-      <input class="sb-input" id="tagRangeTo" placeholder="结束行 (含)">
-      <input class="sb-input" id="tagRangeList" placeholder="如 1,3,5 或 1-10" style="display:none">
-    </div>
-  </div>
-
-  <div class="sb-section">
     <div class="val-cfg">
       <div class="val-cfg-label">LLM 抽样验证</div>
       <div class="val-row"><label>抽样数:</label><input type="number" id="valSampleN" value="100" min="5" max="5000"></div>
@@ -423,6 +413,7 @@ body {
   <div class="toolbar" id="toolbar">
     <button class="tbtn" onclick="document.getElementById('fileInput').click()" title="上传数据文件">+ 导入数据</button>
     <button class="tbtn" onclick="openFieldDrawer(-1)" title="新建 AI 字段列">+ 新建字段</button>
+    <button class="tbtn" onclick="openLabelSystemDrawer()" title="导入标签体系，AI 自动建字段写提示词">+ 导入标签体系</button>
     <div class="divider"></div>
     <button class="tbtn" id="vCfgBtn" onclick="doImportExport()">导入/导出配置</button>
     <button class="tbtn" id="showHidBtn" onclick="showAllHiddenCols()" style="display:none">显示隐藏列</button>
@@ -434,6 +425,15 @@ body {
     <button class="tbtn" title="撤销"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10h13a4 4 0 010 8H9"/></svg></button>
     <button class="tbtn" title="重做"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10H8a4 4 0 000 8h7"/></svg></button>
     <div style="flex:1"></div>
+    <label style="font-size:11.5px;color:var(--text-tertiary);margin-right:4px">打标范围</label>
+    <select id="tagRangeSel" onchange="onTagRangeChange()" style="height:30px;border:1px solid var(--border);border-radius:6px;font-size:12px;padding:0 6px;background:#fff">
+      <option value="all">全部行</option>
+      <option value="50">前 50 行</option>
+      <option value="100">前 100 行</option>
+      <option value="200">前 200 行</option>
+      <option value="custom">自定义行数</option>
+    </select>
+    <input id="tagRangeCustom" type="number" min="1" placeholder="行数" style="display:none;width:64px;height:30px;border:1px solid var(--border);border-radius:6px;font-size:12px;padding:0 6px;margin-left:4px">
     <button class="tbtn pri" id="runBtn" onclick="runBatchTagging()" disabled>开始打标</button>
     <button class="tbtn" onclick="exportTbl()" id="exportBtn" disabled>导出 Excel</button>
   </div>
@@ -512,6 +512,46 @@ body {
     <div class="drv-ft">
       <button class="tbtn" onclick="closeDrv()">取消</button>
       <button class="tbtn pri" onclick="saveFld()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Label System Drawer ============ -->
+<div class="drv-overlay" id="lsOverlay">
+  <div class="drv">
+    <div class="drv-hd">
+      <h3>导入标签体系 (AI 自动建字段)</h3>
+      <button class="drv-close" onclick="closeLabelSystem()">&times;</button>
+    </div>
+    <div class="drv-bd">
+      <div class="df">
+        <label>标签体系描述 <span style="color:var(--error)">*</span></label>
+        <textarea id="lsDesc" rows="10" placeholder="每行一个标签维度，格式：标签名: 说明&#10;例如：&#10;使用阻碍: 用户在使用产品时遇到的困难或障碍&#10;购买动机: 用户为什么购买这个产品&#10;产品材质: 产品的核心材质类型&#10;使用场景: 用户在什么场景下使用"></textarea>
+        <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px">也可以直接粘贴自然语言描述，AI 会自动拆分成多个标签维度并写好提示词</div>
+      </div>
+      <div class="df">
+        <label>输出格式偏好</label>
+        <div class="tp" id="lsTypePick">
+          <div class="to on" data-t="multi" onclick="pkLsType('multi')"><span class="tl">多选</span><span class="td">默认多个标签</span></div>
+          <div class="to" data-t="single" onclick="pkLsType('single')"><span class="tl">单选</span><span class="td">默认单标签</span></div>
+          <div class="to" data-t="text" onclick="pkLsType('text')"><span class="tl">文本</span><span class="td">自由输出</span></div>
+        </div>
+      </div>
+      <div class="df">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="lsStrict" style="accent-color:var(--accent)"> 仅限 AI 建议选项
+        </label>
+        <div style="font-size:10.5px;color:var(--text-tertiary);margin-top:3px">开启后每个字段会要求 AI 先生成预设选项，打标时严格从中选择</div>
+      </div>
+      <div id="lsPreview" style="display:none;margin-top:10px">
+        <label style="font-size:12px;font-weight:600;color:var(--text-secondary)">将创建以下字段：</label>
+        <div class="olst" id="lsPreviewList"></div>
+      </div>
+    </div>
+    <div class="drv-ft">
+      <button class="tbtn" onclick="closeLabelSystem()">取消</button>
+      <button class="tbtn" onclick="aiBuildLabelSystem()" id="lsBuildBtn">AI 生成字段</button>
+      <button class="tbtn pri" onclick="confirmLabelSystem()" id="lsConfirmBtn" style="display:none">确认创建</button>
     </div>
   </div>
 </div>
@@ -790,6 +830,7 @@ function showCtxRow(tr,ri,x,y){
     `<div class="ci" onclick="ctxInsertRow('above')">在上方插入行</div>
      <div class="ci" onclick="ctxInsertRow('below')">在下方插入行</div>
      <div class="ci-sep"></div>
+     <div class="ci" onclick="ctxReTagRow()">重新打标此行</div>
      <div class="ci danger" onclick="ctxDeleteRow()">删除行</div>`;
   m.style.display='block'; m.style.left=x+'px'; m.style.top=y+'px';
   const mr=m.getBoundingClientRect();
@@ -928,6 +969,106 @@ function saveFld(){
   } else aiFields.push(fld);
   closeDrv(); renderTable(); updStatus(); updDataInfo(); refreshDoc(); saveState();
   log('info',`${editingIdx>=0?'更新':'创建'}字段: ${name}`);
+}
+
+// ============================================================
+// LABEL SYSTEM IMPORT (AI auto-build fields)
+// ============================================================
+var lsType='multi';
+var lsPendingFields=null; // array of {name, prompt, type, options, strict}
+
+function openLabelSystemDrawer(){
+  document.getElementById('lsDesc').value='';
+  document.getElementById('lsPreview').style.display='none';
+  document.getElementById('lsPreviewList').innerHTML='';
+  document.getElementById('lsBuildBtn').style.display='';
+  document.getElementById('lsConfirmBtn').style.display='none';
+  lsPendingFields=null;
+  document.getElementById('lsOverlay').classList.add('open');
+}
+function closeLabelSystem(){
+  document.getElementById('lsOverlay').classList.remove('open');
+  lsPendingFields=null;
+}
+function pkLsType(t){
+  lsType=t;
+  document.querySelectorAll('#lsTypePick .to').forEach(el=>el.classList.toggle('on',el.dataset.t===t));
+}
+async function aiBuildLabelSystem(){
+  const cfg=apiCfg();
+  if(!cfg.key){alert('先填 API Key');return;}
+  const desc=document.getElementById('lsDesc').value.trim();
+  if(!desc){alert('请填写标签体系描述');return;}
+
+  const btn=document.getElementById('lsBuildBtn');
+  btn.disabled=true; btn.textContent='AI 生成中...';
+  log('info','AI 正在根据标签体系描述生成字段...');
+
+  const sys=`你是一个数据标注体系设计专家。用户会给你一段标签体系描述（可能是多行 "标签名: 说明" 格式，也可能是自然语言段落）。
+你的任务：把它拆分成若干个独立的标注维度（字段），并为每个维度生成完整的标注配置。
+
+## 输出要求
+严格输出一个 JSON 数组，每个元素是一个对象：
+{
+  "name": "字段名称（简洁中文，2-8字）",
+  "prompt": "给 AI 打标时使用的指令（中文，说明要根据哪些数据、识别什么、输出什么格式；可以用 {{列名}} 占位引用数据列）",
+  "type": "multi 或 single 或 text（根据维度性质判断，多选类用 multi，唯一归类用 single，开放描述用 text）",
+  "options": ["建议的预设标签数组，3-10个，具体互斥", "若不适合预设则给空数组 []"],
+  "strict": false
+}
+只输出 JSON 数组，不要任何解释文字或代码块标记。`;
+
+  const userMsg=`数据表已有的列: ${originalColumns().join(', ') || '(未上传数据)'}\n\n标签体系描述:\n${desc}\n\n默认输出格式偏好: ${lsType}\n要求: 拆分出所有合理的标注维度，为每个写好 prompt 和预设选项`;
+
+  try{
+    const raw=await callAPI(sys,userMsg,cfg.key,0.4);
+    const m=raw.match(/\[[\s\S]*\]/);
+    if(!m) throw new Error('无法解析 AI 返回的字段配置');
+    var fields=JSON.parse(m[0]);
+    if(!Array.isArray(fields)||!fields.length) throw new Error('AI 未返回有效字段');
+
+    // filter out duplicates with existing fields
+    var existing=new Set(aiFields.map(f=>f.name));
+    fields=fields.filter(f=>{
+      if(existing.has(f.name)){log('info','跳过重复字段: '+f.name);return false;}
+      existing.add(f.name); return true;
+    });
+
+    lsPendingFields=fields;
+    // render preview
+    var prevList=document.getElementById('lsPreviewList');
+    prevList.innerHTML=fields.map((f,i)=>{
+      var oc=Array.isArray(f.options)?f.options.join(', '):'';
+      return `<div class="orow"><div class="ot"><b>${esc(f.name||'')}</b> <span class="otag">${esc(f.type||'')}</span></div>`+
+        `<div class="od">${esc((f.prompt||'').substring(0,120))}</div>`+
+        (oc?`<div class="od" style="color:var(--text-tertiary)">选项: ${esc(oc.substring(0,80))}</div>`:'')+
+        `</div>`;
+    }).join('');
+    document.getElementById('lsPreview').style.display='block';
+    document.getElementById('lsBuildBtn').style.display='none';
+    document.getElementById('lsConfirmBtn').style.display='';
+    log('info','AI 生成了 '+fields.length+' 个字段，请确认');
+  }catch(err){
+    alert('生成失败: '+err.message);
+    log('err','标签体系生成失败: '+err.message);
+  }
+  btn.disabled=false; btn.textContent='AI 生成字段';
+}
+function confirmLabelSystem(){
+  if(!lsPendingFields||!lsPendingFields.length){alert('没有待创建的字段');return;}
+  lsPendingFields.forEach(f=>{
+    aiFields.push({
+      name:f.name||'字段',
+      prompt:f.prompt||'',
+      type:f.type||lsType,
+      options:Array.isArray(f.options)?f.options:[],
+      strict:!!f.strict && (f.type||lsType)!=='text'
+    });
+  });
+  closeLabelSystem();
+  renderTable(); updStatus(); updDataInfo(); refreshDoc(); saveState();
+  log('info','已创建 '+lsPendingFields.length+' 个 AI 字段');
+  alert('已创建 '+lsPendingFields.length+' 个字段，可直接开始打标');
 }
 
 function buildRefs(){
@@ -1152,31 +1293,96 @@ function markCell(ri,cn,state){
 
 function getTagRows(){
   const total=tableData().length;
-  const mode=document.getElementById('tagRangeMode').value;
-  if(mode==='all') return [...Array(total).keys()];
-  if(mode==='range'){
-    let a=parseInt(document.getElementById('tagRangeFrom').value)||1;
-    let b=parseInt(document.getElementById('tagRangeTo').value)||total;
-    a=Math.max(1,a); b=Math.min(total,b); if(a>b){const t=a;a=b;b=t;}
-    const arr=[]; for(let i=a;i<=b;i++)arr.push(i-1); return arr;
+  if(total<=0) return [];
+  const sel=document.getElementById('tagRangeSel').value;
+  if(sel==='all') return [...Array(total).keys()];
+  if(sel==='custom'){
+    let n=parseInt(document.getElementById('tagRangeCustom').value)||total;
+    n=Math.max(1,Math.min(n,total));
+    return [...Array(n).keys()];
   }
-  if(mode==='list'){
-    const txt=document.getElementById('tagRangeList').value.trim();
-    const set=new Set(); txt.split(/[,\s]+/).forEach(p=>{
-      if(p.includes('-')){const [x,y]=p.split('-').map(Number); if(x&&y){const lo=Math.min(x,y),hi=Math.max(x,y); for(let i=lo;i<=hi;i++) if(i>=1&&i<=total) set.add(i-1);}}
-      else {const n=parseInt(p); if(n>=1&&n<=total) set.add(n-1);}
-    });
-    return [...set].sort((a,b)=>a-b);
-  }
-  return [...Array(total).keys()];
+  let n=parseInt(sel)||total;
+  n=Math.max(1,Math.min(n,total));
+  return [...Array(n).keys()];
 }
-function toggleRangeInputs(){
-  const m=document.getElementById('tagRangeMode').value, wrap=document.getElementById('tagRangeWrap');
-  if(m==='all'){wrap.style.display='none'; return;}
-  wrap.style.display='block';
-  document.getElementById('tagRangeFrom').style.display = m==='range'?'block':'none';
-  document.getElementById('tagRangeTo').style.display = m==='range'?'block':'none';
-  document.getElementById('tagRangeList').style.display = m==='list'?'block':'none';
+function onTagRangeChange(){
+  const sel=document.getElementById('tagRangeSel').value;
+  document.getElementById('tagRangeCustom').style.display = sel==='custom'?'inline-block':'none';
+}
+function ctxReTagRow(){
+  if(!_ctxTarget||_ctxTarget.type!=='row')return;
+  reTagRow(_ctxTarget.idx);
+}
+async function reTagRow(ri){
+  if(isProcessing){alert('正在处理中，请稍候');return;}
+  if(!aiFields.length){alert('先配置 AI 字段');return;}
+  var cfg=apiCfg();
+  if(!cfg.key){alert('填 API Key');return;}
+  if(ri<0||ri>=tableData().length){alert('行号无效');return;}
+  isProcessing=true; setProc(true);
+  var total=aiFields.length, done=0;
+  try{
+    for(var fi=0;fi<aiFields.length;fi++){
+      var fld=aiFields[fi];
+      var rowData=tableData()[ri];
+      var resolved=fld.prompt;
+      var oc=originalColumns();
+      for(var ci2=0;ci2<oc.length;ci2++){
+        var colName=oc[ci2];
+        var pattern=new RegExp('\\{\\{'+colName+'\\}\\}','g');
+        var val=rowData[colName]||'(无)';
+        resolved=resolved.replace(pattern,val);
+      }
+      var sys='你是专业数据标注助手。严格按指令标注。\n\n## 指令\n'+resolved;
+      if(fld.type!=='text'){
+        if(fld.options.length>0){
+          sys+='\n\n## 可选标签\n';
+          for(var oi=0;oi<fld.options.length;oi++){ sys+=(oi+1)+'. '+fld.options[oi]+'\n'; }
+        }
+        if(fld.strict && fld.options.length>0){
+          var multiText=fld.type==='multi'?'多选用逗号分隔':'单选唯一';
+          sys+='\n\n## 约束\n只能从可选标签中选择。'+multiText+'。无匹配则输出"未提及"';
+        } else {
+          var outText=fld.type==='multi'?'多选标签逗号分隔':'单选最匹配的一个';
+          sys+='\n\n## 输出\n'+outText+'。无匹配则"未提及"';
+        }
+      }
+      sys+='\n\n只输出结果，不要解释';
+      markP(ri,true);
+      try{
+        var raw=await callAPI(sys,'',cfg.key,0.2);
+        if(typeof raw!=='string' || !raw){ throw new Error('API返回空或非文本 (type='+(typeof raw)+')'); }
+        var clean='';
+        try{ clean=String(raw).trim().replace(/^["'\u201c]|["'\u201d]$/g,'').replace(/^\d+[.\uff0e\u3001\s]*/gm,'').trim(); }catch(e){ clean=String(raw).trim(); }
+        if(fld.type!=='text' && clean){
+          try{
+            var parts=clean.split(/[,;\uff0c\uff1b\n]/); var tagParts=[];
+            for(var pi=0;pi<parts.length;pi++){
+              var tp=String(parts[pi]).replace(/^["'\s\u3002.]|["'\s\u3002.]$/g,'').trim();
+              if(tp && tp!=='未提及') tagParts.push(tp);
+            }
+            tagParts=tagParts.slice(0, fld.type==='single'?1:20);
+            clean=tagParts.join(', ');
+          }catch(e){}
+          if(!clean) clean='未提及';
+        }
+        rowData[fld.name]=clean; updCellFast(ri,fld.name,clean); markCell(ri,fld.name,'ok');
+        done++; updProg(done,total);
+        log('ok','[重打] ['+fld.name+'] R'+(ri+1)+': '+clean.substring(0,40));
+      }catch(err){
+        var errMsg=String(err.message||err);
+        rowData[fld.name]='[错] '+errMsg; updCellFast(ri,fld.name,rowData[fld.name]); markCell(ri,fld.name,'err');
+        done++; updProg(done,total);
+        log('err','[重打] ['+fld.name+'] R'+(ri+1)+': '+errMsg);
+      }
+      markP(ri,false); await sleep(60);
+    }
+    setSt('done','完成'); log('info','重新打标完成 R'+(ri+1));
+    refreshDoc(); saveState();
+  }catch(e){
+    if(e.name!=='AbortError'){ setSt('error','出错'); log('err','中断: '+e.message); }
+  }
+  isProcessing=false; setProc(false);
 }
 function setProc(on){
   document.getElementById('progTrack').classList.toggle('vis',on);
