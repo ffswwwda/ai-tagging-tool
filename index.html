@@ -168,6 +168,8 @@ body {
 .data-table tr:hover td { background: #fafbfd; }
 .data-table tr.proc td { background: #fffbeb; animation: pulse-row 1.5s ease infinite; }
 @keyframes pulse-row { 0%,100%{background:#fffbeb} 50%{background:#fef9e7} }
+.data-table td.cok { box-shadow: inset 3px 0 0 var(--success); background: #f0fdf4; }
+.data-table td.cerr { box-shadow: inset 3px 0 0 var(--error); background: #fef2f2; }
 
 .cell-txt { line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
 .cell-tags { display: flex; flex-wrap: wrap; gap: 3px; }
@@ -373,6 +375,23 @@ body {
       <span><span id="diRows">0</span> 行 / <span id="diCols">0</span> 列</span>
       <span id="diAi">0 AI字段</span>
     </div>
+    <button class="sb-btn sec" style="margin-top:6px" onclick="clearData()">清空并删除文件</button>
+  </div>
+
+  <div class="sb-section">
+    <div class="sb-label">打标范围</div>
+    <div class="val-row"><label>模式</label>
+      <select class="sb-input" id="tagRangeMode" onchange="toggleRangeInputs()" style="margin-bottom:0">
+        <option value="all">全部行</option>
+        <option value="range">行区间</option>
+        <option value="list">指定行</option>
+      </select>
+    </div>
+    <div id="tagRangeWrap" style="display:none">
+      <input class="sb-input" id="tagRangeFrom" placeholder="起始行 (1起)" style="margin-top:5px">
+      <input class="sb-input" id="tagRangeTo" placeholder="结束行 (含)">
+      <input class="sb-input" id="tagRangeList" placeholder="如 1,3,5 或 1-10" style="display:none">
+    </div>
   </div>
 
   <div class="sb-section">
@@ -414,7 +433,7 @@ body {
     <button class="tbtn" title="重做"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10H8a4 4 0 000 8h7"/></svg></button>
     <div style="flex:1"></div>
     <button class="tbtn pri" id="runBtn" onclick="runBatchTagging()" disabled>开始打标</button>
-    <button class="tbtn" onclick="exportTbl()" id="exportBtn" disabled>导出 CSV</button>
+    <button class="tbtn" onclick="exportTbl()" id="exportBtn" disabled>导出 Excel</button>
   </div>
 
   <!-- Content body -->
@@ -550,7 +569,7 @@ async function parseCSV(file){
   const cols=pr(lines[0]), data=[];
   for(let i=1;i<lines.length;i++){const v=pr(lines[i]),row={}; cols.forEach((c,idx)=>row[c]=v[idx]||''); data.push(row);}
   sheets=[{name:'Sheet1',originalColumns:cols,data}];
-  activeSheetIdx=0;
+  activeSheetIdx=0; saveState();
 }
 
 async function parseExcel(file){
@@ -567,7 +586,7 @@ async function parseExcel(file){
       sheets.push({name:sn,originalColumns:cols,data});
     });
     if(!sheets.length){alert('Excel 无有效工作表');return;}
-    activeSheetIdx=0;
+    activeSheetIdx=0; saveState();
     showTable(); renderSheetTabs(); updDataInfo(); refreshDoc();
     log('info',`Excel 已加载 (${sheets.length} 个工作表)`);
   }; r.readAsArrayBuffer(file);};
@@ -585,7 +604,7 @@ function renderSheetTabs(){
 
 function switchSheet(idx){
   if(idx<0||idx>=sheets.length)return;
-  activeSheetIdx=idx;
+  activeSheetIdx=idx; saveState();
   renderSheetTabs();
   renderTable();
   updDataInfo();
@@ -597,6 +616,7 @@ function removeSheet(idx){
   if(!confirm(`删除工作表 "${sheets[idx].name}"？`))return;
   sheets.splice(idx,1);
   if(activeSheetIdx>=sheets.length)activeSheetIdx=sheets.length-1;
+  saveState();
   renderSheetTabs(); renderTable(); updDataInfo();
 }
 
@@ -719,6 +739,7 @@ function finishCellEdit(inp,rowIdx,colName){
   const newVal=inp.value.trim();
   tableData()[rowIdx][colName]=newVal;
   updCellFast(rowIdx,colName,newVal);
+  saveState();
   log('info',`编辑 R${rowIdx+1} ${colName}: ${newVal.substring(0,30)}`);
 }
 
@@ -903,7 +924,7 @@ function saveFld(){
     if(old!==name) sheets.forEach(s=>s.data.forEach(r=>{if(r.hasOwnProperty(old)){r[name]=r[old];delete r[old];}}));
     aiFields[editingIdx]=fld;
   } else aiFields.push(fld);
-  closeDrv(); renderTable(); updStatus(); updDataInfo(); refreshDoc();
+  closeDrv(); renderTable(); updStatus(); updDataInfo(); refreshDoc(); saveState();
   log('info',`${editingIdx>=0?'更新':'创建'}字段: ${name}`);
 }
 
@@ -961,12 +982,14 @@ async function aiGenOpts(){
 async function runBatchTagging(){
   if(isProcessing)return; if(!aiFields.length){alert('先配置 AI 字段');return;} if(!tableData().length){alert('先上传数据');return;}
   const cfg=apiCfg(); if(!cfg.key){alert('填 API Key');return;}
+  const rows=getTagRows(); if(!rows.length){alert('打标范围无效，请检查行区间/指定行');return;}
   isProcessing=true; setProc(true);
-  const total=tableData().length*aiFields.length, done=0;
+  const total=rows.length*aiFields.length, done=0;
   try{
     for(let fi=0;fi<aiFields.length;fi++){
       const fld=aiFields[fi];
-      for(let ri=0;ri<tableData().length;ri++){
+      for(let r=0;r<rows.length;r++){
+        const ri=rows[r];
         if(!isProcessing)break; const row=tableData()[ri];
         let resolved=fld.prompt;
         originalColumns().forEach(c=>resolved=resolved.replace(new RegExp(`\\{\\{${c}\\}\\}`,'g'),row[c]||'(无)'));
@@ -992,22 +1015,58 @@ async function runBatchTagging(){
             }catch(e){/* keep clean as-is */}
             if(!clean) clean='未提及';
           }
-          row[fld.name]=clean; updCellFast(ri,fld.name,clean); done++; updProg(done,total);
+          row[fld.name]=clean; updCellFast(ri,fld.name,clean); markCell(ri,fld.name,'ok'); done++; updProg(done,total);
           log('ok',`[${fld.name}] R${ri+1}: ${clean.substring(0,40)}`);
         }catch(err){
           const stk=err.stack?err.stack.split('\n').slice(0,5).join(' | '):'no-stack';
-          row[fld.name]=`[错] ${err.message}`; updCellFast(ri,fld.name,row[fld.name]);
-          done++; updProg(done,total); log('err',`[${fld.name}] R${ri+1}: ${err.message} | stack: ${stk} | raw=${typeof raw!=='undefined'?String(raw).substring(0,80):'N/A'}`);
+          row[fld.name]=`[错] ${err.message}`; updCellFast(ri,fld.name,row[fld.name]); markCell(ri,fld.name,'err'); done++; updProg(done,total); log('err',`[${fld.name}] R${ri+1}: ${err.message} | stack: ${stk} | raw=${typeof raw!=='undefined'?String(raw).substring(0,80):'N/A'}`);
         }
         markP(ri,false); await sleep(80);
       }
     }
-    setSt('done','完成'); log('info',`全部完成 ${done}/${total}`); refreshDoc();
+    setSt('done','完成'); log('info',`全部完成 ${done}/${total}`); refreshDoc(); saveState();
   }catch(err){if(err.name!=='AbortError'){setSt('error','出错');log('err','中断: '+err.message);}}
   isProcessing=false; setProc(false);
 }
 
 function markP(ri,on){const tr=document.querySelector(`tr[data-ri="${ri}"]`);if(tr)tr.classList.toggle('proc',on);}
+function markCell(ri,cn,state){
+  const tr=document.querySelector(`tr[data-ri="${ri}"]`); if(!tr)return;
+  const visIdx=getVisibleCols().indexOf(cn); if(visIdx<0)return;
+  const td=tr.children[visIdx+2]; if(!td)return;
+  td.classList.remove('cok','cerr');
+  if(state==='ok')td.classList.add('cok');
+  else if(state==='err')td.classList.add('cerr');
+}
+
+function getTagRows(){
+  const total=tableData().length;
+  const mode=document.getElementById('tagRangeMode').value;
+  if(mode==='all') return [...Array(total).keys()];
+  if(mode==='range'){
+    let a=parseInt(document.getElementById('tagRangeFrom').value)||1;
+    let b=parseInt(document.getElementById('tagRangeTo').value)||total;
+    a=Math.max(1,a); b=Math.min(total,b); if(a>b){const t=a;a=b;b=t;}
+    const arr=[]; for(let i=a;i<=b;i++)arr.push(i-1); return arr;
+  }
+  if(mode==='list'){
+    const txt=document.getElementById('tagRangeList').value.trim();
+    const set=new Set(); txt.split(/[,\s]+/).forEach(p=>{
+      if(p.includes('-')){const [x,y]=p.split('-').map(Number); if(x&&y){const lo=Math.min(x,y),hi=Math.max(x,y); for(let i=lo;i<=hi;i++) if(i>=1&&i<=total) set.add(i-1);}}
+      else {const n=parseInt(p); if(n>=1&&n<=total) set.add(n-1);}
+    });
+    return [...set].sort((a,b)=>a-b);
+  }
+  return [...Array(total).keys()];
+}
+function toggleRangeInputs(){
+  const m=document.getElementById('tagRangeMode').value, wrap=document.getElementById('tagRangeWrap');
+  if(m==='all'){wrap.style.display='none'; return;}
+  wrap.style.display='block';
+  document.getElementById('tagRangeFrom').style.display = m==='range'?'block':'none';
+  document.getElementById('tagRangeTo').style.display = m==='range'?'block':'none';
+  document.getElementById('tagRangeList').style.display = m==='list'?'block':'none';
+}
 function setProc(on){
   document.getElementById('progTrack').classList.toggle('vis',on);
   document.getElementById('ptText').style.display=on?'inline':'none';
@@ -1260,19 +1319,93 @@ function exportLlmVal(){
 
 
 // ============================================================
-// EXPORT
+// EXPORT (multi-sheet Excel)
 // ============================================================
-function exportTbl(){
+let _xlsxLoading=null;
+function ensureXLSX(){
+  if(window.XLSX) return Promise.resolve();
+  if(_xlsxLoading) return _xlsxLoading;
+  _xlsxLoading=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+    s.onload=res; s.onerror=()=>rej(new Error('Excel 库加载失败，请检查网络')); document.head.appendChild(s);
+  });
+  return _xlsxLoading;
+}
+async function exportTbl(){
   if(!tableData().length){alert('无数据');return;}
-  const cols=getCols(), csv=[cols.join(','),...tableData().map(row=>
-    cols.map(c=>{let v=String(row[c]??'');if(v.includes(',')||v.includes('"')||v.includes('\n'))v='"'+v.replace(/"/g,'""')+'"';return v;}).join(',')
-  )].join('\n');
-  download(csv,`tagged-${Date.now()}.csv`,'text/csv'); log('info','已导出 CSV');
+  setSt('running','导出中...');
+  try{
+    await ensureXLSX();
+    const wb=XLSX.utils.book_new();
+    const cols=getCols();
+    // Sheet 1: 标注数据
+    const dataRows=[cols, ...tableData().map(row=>cols.map(c=>row[c]??''))];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(dataRows), '标注数据');
+    if(aiFields.length){
+      // Sheet 2: 标签统计
+      const srows=[['字段','标签','出现次数','占比%']];
+      aiFields.filter(f=>f.type!=='text').forEach(fld=>{
+        const counts={}; tableData().forEach(r=>{const v=r[fld.name]; if(v&&v!=='未提及'&&!String(v).startsWith('[错]'))String(v).split(',').map(t=>t.trim()).filter(Boolean).forEach(t=>counts[t]=(counts[t]||0)+1);});
+        Object.entries(counts).sort((a,b)=>b[1]-a[1]).forEach(([lbl,cnt])=>srows.push([fld.name,lbl,cnt,(cnt/tableData().length*100).toFixed(1)]));
+      });
+      if(srows.length>1) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(srows), '标签统计');
+      // Sheet 3: 标注概览
+      const vrows=[['字段名','类型','总数','已填充','未标记','填充率%']];
+      aiFields.forEach(fld=>{
+        let fTot=0,fFil=0,fUnm=0; tableData().forEach(row=>{fTot++; const v=row[fld.name]; if(!v||v==='--'||v==='')fUnm++; else if(String(v).startsWith('[错]')){}else fFil++;});
+        vrows.push([fld.name, fld.type==='multi'?'多选':fld.type==='single'?'单选':'文本', fTot, fFil, fUnm, fTot?Math.round(fFil/fTot*100):0]);
+      });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(vrows), '标注概览');
+    }
+    // Sheet 4: LLM 验证
+    if(llmValResults){
+      const lrows=[['行','字段','原标签','建议标签','判定','理由']];
+      llmValResults.results.forEach(r=>lrows.push([r.rowIndex,r.fieldName,r.originalTag,r.llmVerdict,r.verdict,r.reason]));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(lrows), 'LLM验证');
+    }
+    XLSX.writeFile(wb, `tagged-${Date.now()}.xlsx`);
+    log('info','已导出 Excel（标注数据 / 标签统计 / 标注概览'+(llmValResults?' / LLM验证':'')+'）');
+    setSt('done','导出完成');
+  }catch(e){ alert('导出失败: '+e.message); setSt('error','导出失败'); }
 }
 function download(content,name,mime){
   const blob=new Blob([content],{type:mime}), url=URL.createObjectURL(blob);
   const a=document.createElement('a'); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url);
 }
+
+// ============================================================
+// PERSISTENCE (localStorage)
+// ============================================================
+function saveState(){
+  try{
+    const payload={sheets, aiFields, hiddenColNames:[...hiddenColNames], activeSheetIdx, llmValResults};
+    localStorage.setItem('ait-workspace', JSON.stringify(payload));
+  }catch(e){ console.warn('saveState failed', e); }
+}
+function loadState(){
+  try{
+    const raw=localStorage.getItem('ait-workspace'); if(!raw)return false;
+    const d=JSON.parse(raw); if(!d.sheets||!d.sheets.length)return false;
+    sheets=d.sheets; aiFields=d.aiFields||[]; hiddenColNames=new Set(d.hiddenColNames||[]);
+    activeSheetIdx=d.activeSheetIdx||0; llmValResults=d.llmValResults||null;
+    return true;
+  }catch(e){ return false; }
+}
+function clearData(){
+  if(!confirm('删除当前所有数据并清空工作区？此操作不可撤销，刷新后将无法恢复。'))return;
+  sheets=[]; aiFields=[]; hiddenColNames=new Set(); activeSheetIdx=0; llmValResults=null; editingIdx=-1;
+  localStorage.removeItem('ait-workspace');
+  document.getElementById('emptyState').style.display='flex';
+  document.getElementById('dt').style.display='none';
+  document.getElementById('dataInfo').style.display='none';
+  document.getElementById('sheetTabs').style.display='none';
+  renderSheetTabs(); updDataInfo(); updStatus();
+  ['docFull','docStats','docValidate','docLlmVal'].forEach(id=>document.getElementById(id).innerHTML='');
+  document.getElementById('runBtn').disabled=true; document.getElementById('exportBtn').disabled=true;
+  log('info','已清空工作区，可上传下一个文件');
+}
+
 
 
 // ============================================================
@@ -1288,7 +1421,7 @@ function handleTplImport(e){
   const r=new FileReader(); r.onload=ev=>{
     try{const d=JSON.parse(ev.target.result); if(!Array.isArray(d)) throw new Error('需数组');
       let n=0; d.forEach(fld=>{if(fld.name&&fld.prompt){aiFields.push({...fld}); n++;}});
-      renderTable(); updStatus(); updDataInfo(); refreshDoc(); log('info',`导入 ${n} 个字段`); alert(`导入 ${n} 个 AI 字段`);
+      renderTable(); updStatus(); updDataInfo(); refreshDoc(); saveState(); log('info',`导入 ${n} 个字段`); alert(`导入 ${n} 个 AI 字段`);
     }catch(err){alert('导入失败: '+err.message);}
   }; r.readAsText(f); e.target.value='';
 }
@@ -1330,6 +1463,12 @@ document.body.addEventListener('dragover',e=>{e.preventDefault();});
 document.body.addEventListener('drop',e=>{
   e.preventDefault(); const f=e.dataTransfer.files[0]; if(f) processFile(f);
 });
+
+// Restore workspace from localStorage on load
+if(loadState()){
+  showTable(); renderSheetTabs(); updDataInfo(); updStatus(); refreshDoc();
+  log('info','已从浏览器本地缓存恢复上次的工作区');
+}
 
 renderTable();
 </script>
