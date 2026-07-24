@@ -407,6 +407,8 @@ body {
     <input class="sb-input" type="password" id="apiKeySm" placeholder="API Key (sk-...)">
     <input class="sb-input" type="text" id="apiBaseSm" placeholder="Base URL" value="https://api.deepseek.com/v1">
     <input class="sb-input" type="text" id="apiModelSm" placeholder="模型" value="deepseek-chat">
+    <button class="tbtn" style="width:100%;margin-top:6px;font-size:11.5px" onclick="testAPIConn()" id="testApiBtn">测试 API 连通性</button>
+    <div id="apiTestResult" style="display:none;margin-top:6px;padding:8px;border-radius:6px;font-size:11px;word-break:break-all"></div>
   </div>
 </div>
 
@@ -961,6 +963,28 @@ async function callAPI(sysMsg,userMsg,apiKey,temp=0.3){
   const d=await r.json(); return d.choices?.[0]?.message?.content||'';
 }
 
+async function testAPIConn(){
+  const btn=document.getElementById('testApiBtn');
+  const resDiv=document.getElementById('apiTestResult');
+  const cfg=apiCfg();
+  if(!cfg.key){resDiv.style.display='block';resDiv.style.background='#fef2f2';resDiv.style.color='#dc2626';resDiv.textContent='请先填写 API Key';return;}
+  btn.disabled=true;btn.textContent='测试中...';
+  resDiv.style.display='block';resDiv.background='#fffbeb';resDiv.color='#d97706';resDiv.textContent='正在连接 API...';
+  try{
+    const t0=Date.now();
+    const resp=await callAPI('你是一个测试接口。只回复"OK"两个字，不要其他内容。','',cfg.key,0.1);
+    const ms=Date.now()-t0;
+    resDiv.style.background='#f0fdf4';resDiv.style.color='#16a34a';
+    resDiv.textContent='连接成功 ('+ms+'ms) | 模型: '+cfg.model+' | 响应: '+(resp||'(空)').substring(0,60);
+    log('info','API 测试通过: '+cfg.model+' ('+ms+'ms)');
+  }catch(e){
+    resDiv.style.background='#fef2f2';resDiv.style.color='#dc2626';
+    resDiv.textContent='连接失败: '+e.message;
+    log('err','API 测试失败: '+e.message);
+  }
+  btn.disabled=false;btn.textContent='测试 API 连通性';
+}
+
 async function aiGenOpts(){
   const cfg=apiCfg(); if(!cfg.key){alert('先填 API Key');return;} if(!originalColumns().length){alert('先上传文件');return;}
   const nm=document.getElementById('dfName').value.trim()||'该字段', pt=document.getElementById('dfPrompt').value.trim();
@@ -980,53 +1004,140 @@ async function aiGenOpts(){
 // BATCH TAGGING
 // ============================================================
 async function runBatchTagging(){
-  if(isProcessing)return; if(!aiFields.length){alert('先配置 AI 字段');return;} if(!tableData().length){alert('先上传数据');return;}
-  const cfg=apiCfg(); if(!cfg.key){alert('填 API Key');return;}
-  const rows=getTagRows(); if(!rows.length){alert('打标范围无效，请检查行区间/指定行');return;}
-  isProcessing=true; setProc(true);
-  const total=rows.length*aiFields.length, done=0;
-  try{
-    for(let fi=0;fi<aiFields.length;fi++){
-      const fld=aiFields[fi];
-      for(let r=0;r<rows.length;r++){
-        const ri=rows[r];
-        if(!isProcessing)break; const row=tableData()[ri];
-        let resolved=fld.prompt;
-        originalColumns().forEach(c=>resolved=resolved.replace(new RegExp(`\\{\\{${c}\\}\\}`,'g'),row[c]||'(无)'));
-        let sys=`你是专业数据标注助手。严格按指令标注。\n\n## 指令\n${resolved}`;
+  if(isProcessing)return;
+  if(!aiFields.length){alert('先配置 AI 字段');return;}
+  if(!tableData().length){alert('先上传数据');return;}
+  var cfg=apiCfg();
+  if(!cfg.key){alert('填 API Key');return;}
+  var rows=getTagRows();
+  if(!rows.length){alert('打标范围无效，请检查行区间/指定行');return;}
+
+  isProcessing=true;
+  setProc(true);
+  var total=rows.length*aiFields.length;
+  var done=0;
+
+  try {
+    for(var fi=0;fi<aiFields.length;fi++){
+      var fld=aiFields[fi];
+      for(var r=0;r<rows.length;r++){
+        if(!isProcessing) break;
+        var ri=rows[r];
+        var rowData=tableData()[ri];
+
+        // Build prompt with field references resolved
+        var resolved=fld.prompt;
+        var oc=originalColumns();
+        for(var ci2=0;ci2<oc.length;ci2++){
+          var colName=oc[ci2];
+          var pattern=new RegExp('\\{\\{'+colName+'\\}\\}','g');
+          var val=rowData[colName]||'(无)';
+          resolved=resolved.replace(pattern,val);
+        }
+
+        // Build system prompt
+        var sys='你是专业数据标注助手。严格按指令标注。\n\n## 指令\n'+resolved;
+
         if(fld.type!=='text'){
-          if(fld.options.length) sys+=`\n\n## 可选标签\n${fld.options.map((o,i)=>`${i+1}. ${o}`).join('\n')}`;
-          if(fld.strict&&fld.options.length) sys+=`\n\n## 约束\n只能从可选标签中选择。${fld.type==='multi'?'多选用逗号分隔':'单选唯一'}。无匹配则输出"未提及"`;
-          else sys+=`\n\n## 输出\n${fld.type==='multi'?'多选标签逗号分隔':'单选最匹配的一个'}。无匹配则"未提及"`;
+          if(fld.options.length>0){
+            sys+='\n\n## 可选标签\n';
+            for(var oi=0;oi<fld.options.length;oi++){
+              sys+=(oi+1)+'. '+fld.options[oi]+'\n';
+            }
+          }
+          if(fld.strict && fld.options.length>0){
+            var multiText=fld.type==='multi'?'多选用逗号分隔':'单选唯一';
+            sys+='\n\n## 约束\n只能从可选标签中选择。'+multiText+'。无匹配则输出"未提及"';
+          } else {
+            var outText=fld.type==='multi'?'多选标签逗号分隔':'单选最匹配的一个';
+            sys+='\n\n## 输出\n'+outText+'。无匹配则"未提及"';
+          }
         }
         sys+='\n\n只输出结果，不要解释';
+
         markP(ri,true);
-        try{
-          let raw=await callAPI(sys,'',cfg.key,0.2);
-          if(typeof raw!=='string'||!raw){throw new Error('API返回空或非文本 (type='+typeof raw+')');}
-          let clean;
-          try{
-            clean=raw.trim().replace(/^["'\u201c]|["'\u201d]$/g,'').replace(/^\d+[.\uff0e\u3001\s]*/gm,'').trim();
-          }catch(e){clean=raw.trim();}
-          if(fld.type!=='text'){
-            try{
-              clean=clean.split(/[,;\uff0c\uff1b\n]/).map(s=>s.replace(/^["'\s\u3002.]|["'\s\u3002.]$/g,'').trim())
-                .filter(s=>s&&s!=='未提及').slice(0,fld.type==='single'?1:20).join(', ');
-            }catch(e){/* keep clean as-is */}
-            if(!clean) clean='未提及';
+
+        try {
+          // Call API
+          var raw=await callAPI(sys,'',cfg.key,0.2);
+
+          if(typeof raw!=='string' || !raw){
+            throw new Error('API返回空或非文本 (type='+(typeof raw)+')');
           }
-          row[fld.name]=clean; updCellFast(ri,fld.name,clean); markCell(ri,fld.name,'ok'); done++; updProg(done,total);
-          log('ok',`[${fld.name}] R${ri+1}: ${clean.substring(0,40)}`);
-        }catch(err){
-          const stk=err.stack?err.stack.split('\n').slice(0,5).join(' | '):'no-stack';
-          row[fld.name]=`[错] ${err.message}`; updCellFast(ri,fld.name,row[fld.name]); markCell(ri,fld.name,'err'); done++; updProg(done,total); log('err',`[${fld.name}] R${ri+1}: ${err.message} | stack: ${stk} | raw=${typeof raw!=='undefined'?String(raw).substring(0,80):'N/A'}`);
+
+          // Clean response - step by step, no chaining
+          var clean='';
+          try {
+            clean=String(raw).trim();
+            clean=clean.replace(/^["'\u201c]/g,'');
+            clean=clean.replace(/["'\u201d]$/g,'');
+            clean=clean.replace(/^\d+[.\uff0e\u3001\s]*/gm,'');
+            clean=clean.trim();
+          } catch(cleanErr){
+            clean=String(raw).trim();
+          }
+
+          // Parse tags for non-text fields
+          if(fld.type!=='text' && clean){
+            try{
+              var parts=clean.split(/[,;\uff0c\uff1b\n]/);
+              var tagParts=[];
+              for(var pi=0;pi<parts.length;pi++){
+                var tp=parts[pi];
+                tp=String(tp).replace(/^["'\s\u3002.]|["'\s\u3002.]$/g,'').trim();
+                if(tp && tp!=='未提及'){
+                  tagParts.push(tp);
+                }
+              }
+              var maxTags=fld.type==='single'?1:20;
+              tagParts=tagParts.slice(0,maxTags);
+              clean=tagParts.join(', ');
+            }catch(parseErr){
+              /* keep clean as-is */
+            }
+            if(!clean){clean='未提及';}
+          }
+
+          // Store result
+          rowData[fld.name]=clean;
+          updCellFast(ri,fld.name,clean);
+          markCell(ri,fld.name,'ok');
+          done++;
+          updProg(done,total);
+          log('ok','['+fld.name+'] R'+(ri+1)+': '+clean.substring(0,40));
+
+        } catch(tagErr) {
+          var errMsg=String(tagErr.message||tagErr);
+          var stkStr=tagErr.stack?String(tagErr.stack).split('\n').slice(0,4).join(' | '):'';
+          var rawPreview=(typeof raw!=='undefined')?String(raw).substring(0,80):'N/A';
+
+          rowData[fld.name]='[错] '+errMsg;
+          updCellFast(ri,fld.name,rowData[fld.name]);
+          markCell(ri,fld.name,'err');
+          done++;
+          updProg(done,total);
+          log('err','['+fld.name+'] R'+(ri+1)+': '+errMsg+' | stack:'+stkStr+' | raw:'+rawPreview);
         }
-        markP(ri,false); await sleep(80);
+
+        markP(ri,false);
+        await sleep(80);
       }
     }
-    setSt('done','完成'); log('info',`全部完成 ${done}/${total}`); refreshDoc(); saveState();
-  }catch(err){if(err.name!=='AbortError'){setSt('error','出错');log('err','中断: '+err.message);}}
-  isProcessing=false; setProc(false);
+
+    setSt('done','完成');
+    log('info','全部完成 '+done+'/'+total);
+    refreshDoc();
+    saveState();
+
+  } catch(outerErr){
+    if(outerErr.name!=='AbortError'){
+      setSt('error','出错');
+      log('err','中断: '+outerErr.message);
+    }
+  }
+
+  isProcessing=false;
+  setProc(false);
 }
 
 function markP(ri,on){const tr=document.querySelector(`tr[data-ri="${ri}"]`);if(tr)tr.classList.toggle('proc',on);}
