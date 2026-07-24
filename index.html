@@ -388,7 +388,11 @@ body {
     <div class="val-cfg">
       <div class="val-cfg-label">LLM 抽样验证</div>
       <div class="val-row"><label>抽样数:</label><input type="number" id="valSampleN" value="100" min="5" max="5000"></div>
-      <button class="sb-btn sec" style="width:100%;font-size:10.5px;padding:5px;margin-top:6px" onclick="runLLMValidation()">运行 LLM 验证</button>
+      <button class="sb-btn sec" id="llmValRunBtn" style="width:100%;font-size:10.5px;padding:5px;margin-top:6px" onclick="runLLMValidation()">运行 LLM 验证</button>
+      <div id="llmValProgress" style="display:none;margin-top:6px">
+        <div style="font-size:10.5px;color:var(--text-secondary);margin-bottom:4px"><span id="llmValProgText">准备中...</span></div>
+        <div style="background:#eee;border-radius:3px;height:6px;overflow:hidden"><div id="llmValProgBar" style="width:0%;height:100%;background:var(--accent);transition:width 0.3s"></div></div>
+      </div>
     </div>
   </div>
 
@@ -1590,60 +1594,121 @@ function renderLlmVal(c){
 }
 
 async function runLLMValidation(){
-  if(isProcessing){alert('正在处理中，请稍后再试');return;}
-  if(!aiFields.length){alert('先配置 AI 字段');return;}
+  // Safety: reset isProcessing if it's stuck (e.g. after a crash)
+  if(isProcessing){
+    var stuckConfirm=confirm('检测到上一个任务可能未完成。是否强制重置状态并开始 LLM 验证？');
+    if(!stuckConfirm) return;
+    isProcessing=false; setProc(false);
+  }
+  if(!aiFields.length){alert('先配置 AI 字段（至少需要1个 AI 字段才能验证）');return;}
   if(!tableData().length){alert('先上传数据');return;}
-  const cfg=apiCfg(); if(!cfg.key){alert('填 API Key');return;}
+  var cfg=apiCfg(); if(!cfg.key){alert('请先在下方 API 配置区填写 API Key');return;}
 
-  const sampleN=Math.min(Math.max(parseInt(document.getElementById('valSampleN').value)||100,5),tableData().length);
+  // Check: do we have any tagged data?
+  var hasTagged=false;
+  tableData().forEach(function(r){
+    aiFields.forEach(function(f){
+      var v=r[f.name];
+      if(v&&v!=='--'&&v!=='未提及'&&!String(v).startsWith('[错]')) hasTagged=true;
+    });
+  });
+  if(!hasTagged){alert('没有已标注的数据可供验证。请先运行"开始打标"对数据进行 AI 标注。');return;}
 
-  const taggedRows=tableData().map((r,i)=>({idx:i,data:r}))
-    .filter(({data})=>aiFields.some(f=>data[f.name]&&data[f.name]!=='--'&&data[f.name]!=='未提及'&&!String(data[f.name]).startsWith('[错]')));
+  var sampleN=Math.min(Math.max(parseInt(document.getElementById('valSampleN').value)||100,5),tableData().length);
 
-  if(taggedRows.length===0){alert('没有已标注的数据可供验证');return;}
+  var taggedRows=[];
+  tableData().forEach(function(r,i){
+    var hasTag=false;
+    aiFields.forEach(function(f){
+      var v=r[f.name];
+      if(v&&v!=='--'&&v!=='未提及'&&!String(v).startsWith('[错]')) hasTag=true;
+    });
+    if(hasTag) taggedRows.push({idx:i,data:r});
+  });
 
-  const shuffled=[...taggedRows].sort(()=>Math.random()-0.5);
-  const sample=shuffled.slice(0,Math.min(sampleN,taggedRows.length));
+  // Fisher-Yates shuffle
+  for(var i=taggedRows.length-1;i>0;i--){
+    var j=Math.floor(Math.random()*(i+1));
+    var tmp=taggedRows[i]; taggedRows[i]=taggedRows[j]; taggedRows[j]=tmp;
+  }
+  var sample=taggedRows.slice(0,Math.min(sampleN,taggedRows.length));
+
+  // Show progress UI
+  var btn=document.getElementById('llmValRunBtn');
+  var progDiv=document.getElementById('llmValProgress');
+  var progText=document.getElementById('llmValProgText');
+  var progBar=document.getElementById('llmValProgBar');
+
+  btn.disabled=true; btn.textContent='验证中...';
+  progDiv.style.display='block'; progBar.style.width='0%';
 
   isProcessing=true; setProc(true); setSt('running','LLM 验证中...');
 
-  const results=[]; let correct=0, incorrect=0;
+  var results=[]; var correct=0; var incorrect=0;
+  var totalTasks=sample.length*aiFields.filter(function(f){return true;}).length;
+  // Recalculate: count actual tasks (only non-empty tags per field)
+  totalTasks=0;
+  sample.forEach(function(sr){
+    aiFields.forEach(function(fld){
+      var tag=sr.data[fld.name];
+      if(tag&&tag!=='--'&&tag!=='未提及'&&!String(tag).startsWith('[错]')) totalTasks++;
+    });
+  });
+  if(totalTasks===0){
+    alert('抽样数据中没有有效的标签值可供验证'); btn.disabled=false; btn.textContent='运行 LLM 验证';
+    progDiv.style.display='none'; isProcessing=false; setProc(false); return;
+  }
+
+  var doneCount=0;
 
   try{
-    for(const {idx:dataIdx,data:row} of sample){
-      for(const fld of aiFields){
-        const tag=row[fld.name];
+    for(var si=0;si<sample.length;si++){
+      var sItem=sample[si];
+      var dataIdx=sItem.idx;
+      var row=sItem.data;
+
+      for(var fi=0;fi<aiFields.length;fi++){
+        var fld=aiFields[fi];
+        var tag=row[fld.name];
         if(!tag||tag==='--'||tag==='未提及'||String(tag).startsWith('[错]')) continue;
 
-        const contextParts=[]; originalColumns().forEach(c=>contextParts.push(`${c}: ${row[c]||'(无)'}`));
-        const context=contextParts.join('\n');
+        var contextParts=[];
+        originalColumns().forEach(function(c){
+          contextParts.push(c+': '+(row[c]||'(无)'));
+        });
+        var context=contextParts.join('\n');
 
-        const userContent=[
-          `## 待验证数据（第 ${dataIdx+1} 行）`,context,``,
-          `## 当前标注`,`字段: ${fld.name}`,`标签值: ${tag}`,'',
-          `## 字段定义`,`用途: ${fld.prompt}`,
-          `${fld.options.length?`可选标签: ${fld.options.join(', ')}`:''}`,
-          `${fld.strict?'(严格模式: 只能从可选标签中选择)':''}`,
+        var userContent=[
+          '## 待验证数据（第 '+(dataIdx+1)+' 行）',context,'',
+          '## 当前标注','字段: '+fld.name,'标签值: '+tag,'',
+          '## 字段定义','用途: '+fld.prompt,
+          (fld.options.length?'可选标签: '+fld.options.join(', '):''),
+          (fld.strict?'(严格模式: 只能从可选标签中选择)':''),
         ].join('\n');
 
-        const systemPrompt=`你是一个专业的数据标注质量审核员。你的任务是独立判断已有的标签是否准确。
+        var systemPrompt='你是一个专业的数据标注质量审核员。你的任务是独立判断已有的标签是否准确。\n\n'+
+          '## 审核标准\n'+
+          '1. 根据原始数据的实际内容，判断当前标签是否语义上正确\n'+
+          '2. 如果标签是多个值的组合，逐个判断是否都合理\n'+
+          '3. 考虑边界情况：是否遗漏了更合适的标签，或包含了不相关的标签\n\n'+
+          '## 输出格式（严格 JSON）\n'+
+          '{"verdict":"correct|incorrect|partial","verdict_tag":"你给出的正确标签(如果原标签不对)","reason":"一句话解释判断理由"}\n\n'+
+          '只输出 JSON，不要其他文字。';
 
-## 审核标准
-1. 根据原始数据的实际内容，判断当前标签是否语义上正确
-2. 如果标签是多个值的组合，逐个判断是否都合理
-3. 考虑边界情况：是否遗漏了更合适的标签，或包含了不相关的标签
-
-## 输出格式（严格 JSON）
-{"verdict":"correct|incorrect|partial","verdict_tag":"你给出的正确标签(如果原标签不对)","reason":"一句话解释判断理由"}
-
-只输出 JSON，不要其他文字。`;
+        // Update progress
+        doneCount++;
+        var pct=Math.round(doneCount/totalTasks*100);
+        progText.textContent='验证中... '+doneCount+'/'+totalTasks+' ('+pct+'%)';
+        progBar.style.width=pct+'%';
+        log('info', '[验证 '+doneCount+'/'+totalTasks+'] R'+(dataIdx+1)+' '+fld.name);
 
         markP(dataIdx,true);
         try{
-          const raw=await callAPI(systemPrompt,userContent,cfg.key,0.1);
-          const jsonMatch=raw.match(/\{[\s\S]*\}/);
-          if(!jsonMatch) throw new Error('无法解析验证结果');
-          const parsed=JSON.parse(jsonMatch[0]);
+          var raw=await callAPI(systemPrompt,userContent,cfg.key,0.1);
+          if(typeof raw!=='string'||!raw) throw new Error('API返回空或非文本');
+          var jsonMatch=raw.match(/\{[\s\S]*\}/);
+          if(!jsonMatch) throw new Error('无法解析验证结果 (raw: '+raw.substring(0,80)+')');
+          var parsed=JSON.parse(jsonMatch[0]);
           results.push({
             rowIndex:dataIdx+1, fieldName:fld.name, originalTag:tag,
             llmVerdict:parsed.verdict_tag||parsed.verdict||'未知',
@@ -1651,24 +1716,39 @@ async function runLLMValidation(){
             reason:parsed.reason||''
           });
           if(parsed.verdict==='correct') correct++; else incorrect++;
-          log('ok',`[验证] R${dataIdx+1} ${fld.name}: ${parsed.verdict}`);
+          log('ok', '[验证] R'+(dataIdx+1)+' '+fld.name+': '+parsed.verdict);
         } catch(err){
-          results.push({rowIndex:dataIdx+1,fieldName:fld.name,originalTag:tag,llmVerdict:'解析失败',verdict:'incorrect',reason:err.message});
+          results.push({rowIndex:dataIdx+1,fieldName:fld.name,originalTag:tag,llmVerdict:'解析失败',verdict:'incorrect',reason:String(err.message)});
           incorrect++;
-          log('err',`[验证] R${dataIdx+1} ${fld.name}: ${err.message}`);
+          log('err', '[验证] R'+(dataIdx+1)+' '+fld.name+': '+err.message);
         }
         markP(dataIdx,false); await sleep(120);
       }
     }
 
-    const totalChecked=results.length;
-    const accuracy=totalChecked?Math.round(correct/totalChecked*100):0;
-    llmValResults={sampleSize:sample.length,fields:aiFields.map(f=>f.name),timestamp:new Date().toLocaleString('zh-CN'),accuracy,correct,incorrect,results};
-    setSt('done','验证完成'); log('info',`LLM 验证完成: ${accuracy}% (${correct}/${totalChecked})`);
+    var totalChecked=results.length;
+    var accuracy=totalChecked?Math.round(correct/totalChecked*100):0;
+    llmValResults={sampleSize:sample.length,fields:aiFields.map(function(f){return f.name;}),timestamp:new Date().toLocaleString('zh-CN'),accuracy:accuracy,correct:correct,incorrect:incorrect,results:results};
+
+    // Complete progress
+    progText.textContent='完成! 准确率 '+accuracy+'% ('+correct+'/'+totalChecked+')';
+    progBar.style.width='100%';
+    setSt('done','验证完成');
+    log('info', 'LLM 验证完成: '+accuracy+'% ('+correct+'/'+totalChecked+')');
     swView('llmval');
+    saveState();
+
   } catch(err){
-    if(err.name!=='AbortError'){setSt('error','验证出错');log('err','验证中断: '+err.message);}
+    if(err.name!=='AbortError'){
+      setSt('error','验证出错');
+      log('err', '验证中断: '+err.message);
+      progText.textContent='出错: '+err.message;
+      progBar.style.background='var(--error)';
+    }
   }
+
+  // Reset button
+  btn.disabled=false; btn.textContent='运行 LLM 验证';
   isProcessing=false; setProc(false);
 }
 
