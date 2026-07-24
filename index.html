@@ -530,8 +530,13 @@ body {
     <div class="drv-bd">
       <div class="df">
         <label>标签体系描述 <span style="color:var(--error)">*</span></label>
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+          <button class="tbtn" style="font-size:11px;padding:5px 9px" onclick="document.getElementById('lsFileInput').click()">上传 .md 文档</button>
+          <button class="tbtn" style="font-size:11px;padding:5px 9px" onclick="document.getElementById('lsDesc').value='';document.getElementById('lsFileName').textContent='';">清空</button>
+          <span id="lsFileName" style="font-size:11px;color:var(--accent);align-self:center"></span>
+        </div>
         <textarea id="lsDesc" rows="10" placeholder="每行一个标签维度，格式：标签名: 说明&#10;例如：&#10;使用阻碍: 用户在使用产品时遇到的困难或障碍&#10;购买动机: 用户为什么购买这个产品&#10;产品材质: 产品的核心材质类型&#10;使用场景: 用户在什么场景下使用"></textarea>
-        <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px">也可以直接粘贴自然语言描述，AI 会自动拆分成多个标签维度并写好提示词</div>
+        <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px">可上传 .md / .txt 文档，或直接粘贴自然语言描述，AI 会自动拆分成多个标签维度并写好提示词</div>
       </div>
       <div class="df">
         <label>输出格式偏好</label>
@@ -561,6 +566,7 @@ body {
 </div>
 
 <input type="file" id="tplFileInput" accept=".json" style="display:none" onchange="handleTplImport(event)">
+<input type="file" id="lsFileInput" accept=".md,.markdown,.txt" style="display:none" onchange="handleLabelSystemFile(event)">
 
 <script>
 // ============================================================
@@ -984,12 +990,30 @@ var lsPendingFields=null; // array of {name, prompt, type, options, strict}
 
 function openLabelSystemDrawer(){
   document.getElementById('lsDesc').value='';
+  document.getElementById('lsFileName').textContent='';
   document.getElementById('lsPreview').style.display='none';
   document.getElementById('lsPreviewList').innerHTML='';
   document.getElementById('lsBuildBtn').style.display='';
   document.getElementById('lsConfirmBtn').style.display='none';
   lsPendingFields=null;
   document.getElementById('lsOverlay').classList.add('open');
+}
+function handleLabelSystemFile(e){
+  const f=e.target.files&&e.target.files[0]; if(!f)return;
+  const ta=document.getElementById('lsDesc'), nameEl=document.getElementById('lsFileName');
+  nameEl.textContent='读取中...';
+  const reader=new FileReader();
+  reader.onload=function(){
+    let txt=String(reader.result||'');
+    // strip front-matter (--- ... ---) if present in md
+    txt=txt.replace(/^---\n[\s\S]*?\n---\n?/,'');
+    ta.value=txt.trim();
+    nameEl.textContent='已载入: '+f.name+' ('+txt.length+' 字)';
+    log('info','从 '+f.name+' 载入标签体系描述 ('+txt.length+' 字)');
+  };
+  reader.onerror=function(){ nameEl.textContent='读取失败'; alert('文件读取失败'); };
+  reader.readAsText(f,'utf-8');
+  e.target.value='';
 }
 function closeLabelSystem(){
   document.getElementById('lsOverlay').classList.remove('open');
