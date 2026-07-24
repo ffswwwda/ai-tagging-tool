@@ -1324,7 +1324,7 @@ async function aiBuildLabelSystem(){
   var userMsg = `【当前数据表的列名】\n${originalColumns().join(', ') || '(尚未上传数据文件)'}\n\n【标签体系文档内容】\n${desc}\n\n【输出格式偏好】默认: ${lsType}\n\n请仔细分析以上文档，提取所有标注维度，为每个维度生成完整的字段配置。确保 prompt 中包含文档中的关键判断规则。`;
 
   try{
-    const raw=await callAPI(sysPrompt,userMsg,cfg.key,0.4);
+    const raw=await callAPI(sysPrompt,userMsg,cfg.key,0.4,8000);
     // 更健壮的 JSON 提取：尝试多种方式
     var jsonStr = raw;
     var m = raw.match(/\[[\s\S]*\]/);
@@ -1332,7 +1332,20 @@ async function aiBuildLabelSystem(){
     // 去掉可能的 markdown 代码块包裹
     jsonStr = jsonStr.replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/\s*```\s*$/,'').trim();
 
-    var fields=JSON.parse(jsonStr);
+    // JSON 截断修复：LLM 输出可能因 max_tokens 不够被截断
+    var fields;
+    try {
+      fields = JSON.parse(jsonStr);
+    } catch(parseErr) {
+      // 尝试修复截断的 JSON
+      var repaired = repairTruncatedJSON(jsonStr);
+      if(repaired) {
+        try { fields = JSON.parse(repaired); }
+        catch(e2) { throw new Error('AI 返回的 JSON 格式不完整，文档可能过长导致输出被截断。建议：缩短标签体系描述内容后重试。\n\n原始错误: '+parseErr.message); }
+      } else {
+        throw new Error('AI 返回的 JSON 格式不完整，文档可能过长导致输出被截断。建议：缩短标签体系描述内容后重试。\n\n原始错误: '+parseErr.message);
+      }
+    }
     if(!Array.isArray(fields)||!fields.length) throw new Error('AI 未返回有效字段');
 
     // filter out duplicates with existing fields
@@ -1376,6 +1389,55 @@ async function aiBuildLabelSystem(){
   }
   btn.disabled=false; btn.textContent='AI 生成字段';
 }
+
+/**
+ * 修复被截断的 JSON 字符串
+ * LLM 输出常因 max_tokens 限制在字符串/数组中间截断
+ * 策略：从末尾回溯，找到最后一个完整对象后截断闭合
+ */
+function repairTruncatedJSON(str){
+  if(!str || typeof str!=='string') return null;
+  var s = str.trim();
+  if(!s.startsWith('[')) return null;
+
+  // 计算括号/引号深度
+  var depth=0, inStr=false, escape=false, lastComplete=-1;
+  for(var i=0;i<s.length;i++){
+    var c=s[i];
+    if(escape){escape=false;continue;}
+    if(c==='\\'){escape=true;continue;}
+    if(inStr){if(c==='"')inStr=false;continue;}
+    if(c==='"')inStr=true;
+    else if(c==='['||c==='{')depth++;
+    else if(c===']'||c==='}'){depth--;if(depth===0)lastComplete=i;}
+  }
+  // 如果已经闭合，不是截断问题
+  if(lastComplete===s.length-1) return null;
+  // 如果从未完成过任何顶层元素
+  if(lastComplete<1) return null;
+
+  // 截断到最后一个完整的顶层元素
+  var truncated = s.substring(0,lastComplete+1);
+  // 尝试补齐：如果最后字符不是 ]，说明在数组中间断了
+  if(!truncated.endsWith(']')){
+    // 检查是否需要关闭当前对象
+    var d2=0,inS2=false,esc2=false;
+    for(var j=0;j<truncated.length;j++){
+      var ch=truncated[j];
+      if(esc2){esc2=false;continue;}
+      if(ch==='\\'){esc2=true;continue;}
+      if(inS2){if(ch==='"')inS2=false;continue;}
+      if(ch==='"')inS2=true;
+      else if(ch==='['||ch==='{')d2++;
+      else if(ch===']'||ch==='}')d2--;
+    }
+    // 如果有未闭合的括号，尝试关闭
+    while(d2>0){truncated+=d2%2?'}':']';d2--;}
+    truncated += ']';
+  }
+  return truncated;
+}
+
 function confirmLabelSystem(){
   if(!lsPendingFields||!lsPendingFields.length){alert('没有待创建的字段');return;}
   lsPendingFields.forEach(f=>{
@@ -1415,12 +1477,12 @@ function apiCfg(){
     model:document.getElementById('apiModelSm').value.trim()||'deepseek-chat'};
 }
 
-async function callAPI(sysMsg,userMsg,apiKey,temp=0.3){
+async function callAPI(sysMsg,userMsg,apiKey,temp=0.3,maxTokens=2000){
   const cfg=apiCfg(), msgs=[{role:'system',content:sysMsg}];
   if(userMsg) msgs.push({role:'user',content:userMsg});
   const r=await fetch(`${cfg.base}/chat/completions`,{
     method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiKey||cfg.key}`},
-    body:JSON.stringify({model:cfg.model,messages:msgs,temperature:temp,max_tokens:2000})
+    body:JSON.stringify({model:cfg.model,messages:msgs,temperature:temp,max_tokens:maxTokens})
   });
   if(!r.ok){const b=await r.text().catch(()=>''); throw new Error(`API ${r.status}: ${b}`);}
   const d=await r.json(); return d.choices?.[0]?.message?.content||'';
