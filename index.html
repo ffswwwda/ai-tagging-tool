@@ -1863,76 +1863,76 @@ function download(content,name,mime){
 }
 
 // ============================================================
-// PERSISTENCE (localStorage) - robust version with quota handling
+// PERSISTENCE (IndexedDB) - large quota, survives refresh even for big files
 // ============================================================
-var _saveThrottle=null;
-function saveState(){
-  if(_saveThrottle)return; // debounce rapid calls
-  _saveThrottle=setTimeout(function(){_saveThrottle=null;},300);
-  try{
-    if(!sheets||!sheets.length)return; // nothing to save
-    var payload={
-      v:1, // schema version
-      sheets:sheets,
-      aiFields:aiFields,
-      hiddenColNames:[].slice.call(hiddenColNames),
-      activeSheetIdx:activeSheetIdx,
-      llmValResults:llmValResults,
-      savedAt:Date.now(),
-      fileName:currentFileName||''
-    };
-    var json=JSON.stringify(payload);
-    // Check size (warn if >4MB)
-    if(json.length>4*1024*1024){
-      console.warn('saveState: large payload ('+(json.length/1024/1024).toFixed(1)+'MB), may exceed localStorage limit');
-    }
-    try{
-      localStorage.setItem('ait-workspace', json);
-    }catch(quotaErr){
-      // QuotaExceededError - try to save minimal state
-      console.error('localStorage quota exceeded, attempting slim save');
-      try{
-        var slim={
-          v:1,
-          sheets:sheets.map(function(sh){return{name:sh.name,originalColumns:sh.originalColumns,data:sh.data};}),
-          aiFields:aiFields,
-          hiddenColNames:[].slice.call(hiddenColNames),
-          activeSheetIdx:activeSheetIdx,
-          savedAt:Date.now()
-        };
-        localStorage.setItem('ait-workspace', JSON.stringify(slim));
-        log('warn','数据较大，已保存精简版本（不含 LLM 验证结果）');
-      }catch(e2){
-        log('err','保存失败：浏览器本地存储空间不足。建议导出 Excel 备份后清空部分数据。');
-        return false;
-      }
-    }
-    return true;
-  }catch(e){
-    console.warn('saveState failed',e);
-    return false;
-  }
-}
 var currentFileName='';
-function loadState(){
-  try{
-    var raw=localStorage.getItem('ait-workspace'); if(!raw)return false;
-    var d=JSON.parse(raw); if(!d.sheets||!d.sheets.length)return false;
-    sheets=d.sheets; aiFields=d.aiFields||[]; hiddenColNames=new Set(d.hiddenColNames||[]);
-    activeSheetIdx=d.activeSheetIdx||0; llmValResults=d.llmValResults||null;
-    currentFileName=d.fileName||'';
-    return true;
-  }catch(e){
-    console.warn('loadState failed',e);
-    // Corrupted data - clear it
-    localStorage.removeItem('ait-workspace');
-    return false;
-  }
+var _dbPromise=null;
+function _openDB(){
+  if(_dbPromise) return _dbPromise;
+  _dbPromise=new Promise(function(res,rej){
+    if(!('indexedDB' in window)){ rej(new Error('no indexedDB')); return; }
+    var req=indexedDB.open('ait-workspace-db',1);
+    req.onupgradeneeded=function(){ var db=req.result; if(!db.objectStoreNames.contains('ws')) db.createObjectStore('ws'); };
+    req.onsuccess=function(){ res(req.result); };
+    req.onerror=function(){ rej(req.error); };
+  });
+  return _dbPromise;
 }
+var _savePending=null, _flushTimer=null;
+function saveState(){
+  if(!sheets||!sheets.length){ return; } // nothing to save
+  _savePending={
+    v:1,
+    sheets:sheets,
+    aiFields:aiFields,
+    hiddenColNames:[].slice.call(hiddenColNames),
+    activeSheetIdx:activeSheetIdx,
+    llmValResults:llmValResults,
+    savedAt:Date.now(),
+    fileName:currentFileName||''
+  };
+  if(_flushTimer) return; // already scheduled
+  _flushTimer=setTimeout(function(){ _flushTimer=null; _doSave(); },200);
+}
+function _doSave(){
+  if(!_savePending) return;
+  var payload=_savePending; _savePending=null;
+  _openDB().then(function(db){
+    return new Promise(function(res,rej){
+      var tx=db.transaction('ws','readwrite');
+      tx.objectStore('ws').put(payload,'current');
+      tx.oncomplete=function(){ res(); };
+      tx.onerror=function(){ rej(tx.error); };
+    });
+  }).then(function(){ /* saved */ }).catch(function(err){
+    log('err','工作区自动保存失败: '+err);
+  });
+}
+function loadState(){
+  return _openDB().then(function(db){
+    return new Promise(function(res,rej){
+      var tx=db.transaction('ws','readonly');
+      var req=tx.objectStore('ws').get('current');
+      req.onsuccess=function(){
+        var d=req.result;
+        if(!d||!d.sheets||!d.sheets.length){ res(false); return; }
+        sheets=d.sheets; aiFields=d.aiFields||[]; hiddenColNames=new Set(d.hiddenColNames||[]);
+        activeSheetIdx=d.activeSheetIdx||0; llmValResults=d.llmValResults||null;
+        currentFileName=d.fileName||'';
+        res(true);
+      };
+      req.onerror=function(){ rej(req.error); };
+    });
+  }).catch(function(){ return false; });
+}
+// Flush pending save immediately before the page is hidden/unloaded
+window.addEventListener('pagehide',function(){ if(_savePending) _doSave(); });
+window.addEventListener('beforeunload',function(){ if(_savePending) _doSave(); });
 function clearData(){
   if(!confirm('删除当前所有数据并清空工作区？此操作不可撤销，刷新后将无法恢复。'))return;
   sheets=[]; aiFields=[]; hiddenColNames=new Set(); activeSheetIdx=0; llmValResults=null; editingIdx=-1;
   localStorage.removeItem('ait-workspace');
+  _openDB().then(function(db){var tx=db.transaction('ws','readwrite'); tx.objectStore('ws').delete('current');}).catch(function(){});
   document.getElementById('emptyState').style.display='flex';
   document.getElementById('dt').style.display='none';
   document.getElementById('dataInfo').style.display='none';
@@ -2001,23 +2001,23 @@ document.body.addEventListener('drop',e=>{
   e.preventDefault(); const f=e.dataTransfer.files[0]; if(f) processFile(f);
 });
 
-// Restore workspace from localStorage on load
-if(loadState()){
-  showTable(); renderSheetTabs(); updDataInfo(); updStatus(); refreshDoc();
-  var info='已从本地缓存恢复工作区';
-  if(currentFileName) info+=' ('+currentFileName+')';
-  if(sheets.length&&tableData().length) info+=' — '+tableData().length+'行 / '+aiFields.length+'个AI字段';
-  log('info',info);
-  // Show a brief visible toast
-  var toast=document.createElement('div');
-  toast.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#22c55e;color:#fff;padding:8px 20px;border-radius:6px;font-size:12.5px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.15);';
-  toast.textContent=info+' [点击关闭]';
-  toast.onclick=function(){document.body.removeChild(toast);};
-  document.body.appendChild(toast);
-  setTimeout(function(){if(toast.parentNode)document.body.removeChild(toast);},5000);
-}
-
-renderTable();
+// Restore workspace from IndexedDB on load (async)
+loadState().then(function(ok){
+  if(ok){
+    showTable(); renderSheetTabs(); updDataInfo(); updStatus(); refreshDoc();
+    var info='已从本地缓存恢复工作区';
+    if(currentFileName) info+=' ('+currentFileName+')';
+    if(sheets.length&&tableData().length) info+=' — '+tableData().length+'行 / '+aiFields.length+'个AI字段';
+    log('info',info);
+    var toast=document.createElement('div');
+    toast.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#22c55e;color:#fff;padding:8px 20px;border-radius:6px;font-size:12.5px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.15);';
+    toast.textContent=info+' [点击关闭]';
+    toast.onclick=function(){document.body.removeChild(toast);};
+    document.body.appendChild(toast);
+    setTimeout(function(){if(toast.parentNode)document.body.removeChild(toast);},5000);
+  }
+  renderTable();
+});
 </script>
 </body>
 </html>
