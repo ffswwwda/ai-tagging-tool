@@ -155,6 +155,8 @@ body {
 }
 .dbl-hint { font-size: 10px; color: var(--text-tertiary); opacity: 0; margin-left: auto; padding-left: 6px; transition: opacity 0.15s; }
 .data-table th:hover .dbl-hint { opacity: 1; }
+.data-table th.col-sel { background: var(--accent-light); box-shadow: inset 0 -3px 0 var(--accent); }
+.data-table th.col-sel .col-name { color: var(--accent); font-weight: 700; }
 
 .col-rn { width: 40px !important; text-align: center !important; padding: 0 !important; color: var(--text-tertiary); font-size: 11.5px; }
 .col-cb { width: 30px !important; text-align: center !important; padding: 0 !important; }
@@ -368,6 +370,9 @@ body {
       <div class="vcard" data-v="llmval" onclick="swView('llmval')" id="vcLlmVal">
         <div class="vci">&#129302;</div><div class="vct">LLM 验证</div><div class="vcd">大模型抽样校验</div>
       </div>
+      <div class="vcard" data-v="think" onclick="swView('think')" id="vcThink">
+        <div class="vci">&#129302;</div><div class="vct">思考过程</div><div class="vcd">AI 分析轮播</div>
+      </div>
     </div>
   </div>
 
@@ -439,6 +444,13 @@ body {
     </select>
     <input id="tagRangeCustom" type="number" min="1" placeholder="行数" style="display:none;width:64px;height:30px;border:1px solid var(--border);border-radius:6px;font-size:12px;padding:0 6px;margin-left:4px">
     <button class="tbtn pri" id="runBtn" onclick="runBatchTagging()" disabled>开始打标</button>
+    <button class="tbtn" id="stopBtn" onclick="stopTagging()" disabled style="color:var(--error);border-color:var(--error)">停止打标</button>
+    <div class="divider"></div>
+    <button class="tbtn" id="hideSelBtn" onclick="hideSelectedCols()" disabled>隐藏选中列</button>
+    <button class="tbtn" id="clearSelBtn" onclick="clearColSelection()" disabled>取消选择</button>
+    <button class="tbtn" onclick="freezeToSelected()" id="freezeBtn" disabled>冻结至选中列</button>
+    <button class="tbtn" onclick="unfreezeAll()" id="unfreezeBtn" style="display:none">取消冻结</button>
+    <div class="divider"></div>
     <button class="tbtn" onclick="exportTbl()" id="exportBtn" disabled>导出 Excel</button>
   </div>
 
@@ -463,8 +475,10 @@ body {
         <div class="sb-left">
           <span><span class="sdot idle" id="sdot"></span><span id="stText">就绪</span></span>
           <span id="rcEl">0 行</span><span id="ccEl">0 列</span><span id="aiEl">0 个 AI 字段</span>
+        <span id="bgText" style="display:none;color:var(--warning)"></span>
         </div>
         <span id="ptText" style="display:none">0/0</span>
+        <span id="etaText" style="display:none;margin-left:10px"></span>
       </div>
     </div>
 
@@ -473,6 +487,7 @@ body {
     <div class="doc-view" id="docStats"></div>
     <div class="doc-view" id="docValidate"></div>
     <div class="doc-view" id="docLlmVal"></div>
+    <div class="doc-view" id="docThink"></div>
   </div>
 </div>
 
@@ -572,13 +587,26 @@ body {
 // ============================================================
 // STATE
 // ============================================================
-let sheets = [];           // [{name, originalColumns[], data[]}]
+let sheets = [];           // [{name, originalColumns[], data[], aiFields[], hiddenColNames:Set, frozenCount:0}]
 let activeSheetIdx = 0;    // current sheet index
-let aiFields = [];         // shared across sheets
-let hiddenColNames = new Set(); // hidden column names
+let aiFields = [];         // reference -> active sheet's aiFields (rebound on switch)
+let hiddenColNames = new Set(); // reference -> active sheet's hiddenColNames
+let frozenCount = 0;       // reference -> active sheet's frozenCount
 let editingIdx = -1, isProcessing = false, curView = 'table';
 let drvType = 'multi';
 let llmValResults = null;
+
+// New: AI thinking carousel (last 10 only, to limit cache pressure)
+let thinkLog = [];         // [{t, sheet, row, field, usedLLM, prompt, raw, clean}]
+const THINK_MAX = 10;
+// Stop signal for any running tag/validation loop
+let stopRequested = false;
+// Per-sheet running state: sheetIdx -> {active, done, total, start, name}
+let sheetProc = {};
+// Multi-column selection (column names)
+let selectedCols = new Set();
+// log throttle accumulator
+let _logAcc = 0;
 
 const TC=['tc0','tc1','tc2','tc3','tc4','tc5','tc6','tc7'];
 
@@ -586,6 +614,24 @@ const TC=['tc0','tc1','tc2','tc3','tc4','tc5','tc6','tc7'];
 function curSheet() { return sheets[activeSheetIdx] || null; }
 function tableData() { const s=curSheet(); return s ? s.data : []; }
 function originalColumns() { const s=curSheet(); return s ? s.originalColumns : []; }
+
+// Rebind the per-sheet references to the active sheet (called on switch / load / parse)
+function bindSheetGlobals(){
+  const s=curSheet();
+  if(!s) return;
+  if(!s.aiFields) s.aiFields=[];
+  if(!s.hiddenColNames) s.hiddenColNames=new Set();
+  if(s.frozenCount===undefined) s.frozenCount=0;
+  aiFields = s.aiFields;
+  hiddenColNames = s.hiddenColNames;
+  frozenCount = s.frozenCount;
+}
+
+// Push a thinking record (keeps only last THINK_MAX)
+function pushThink(rec){
+  thinkLog.push(rec);
+  if(thinkLog.length>THINK_MAX) thinkLog = thinkLog.slice(thinkLog.length-THINK_MAX);
+}
 
 // ============================================================
 // FILE UPLOAD & MULTI-SHEET
@@ -621,8 +667,8 @@ async function parseCSV(file){
     }r.push(cur.trim());return r;};
   const cols=pr(lines[0]), data=[];
   for(let i=1;i<lines.length;i++){const v=pr(lines[i]),row={}; cols.forEach((c,idx)=>row[c]=v[idx]||''); data.push(row);}
-  sheets=[{name:'Sheet1',originalColumns:cols,data}];
-  activeSheetIdx=0; saveState();
+  sheets=[{name:'Sheet1',originalColumns:cols,data,aiFields:[],hiddenColNames:new Set(),frozenCount:0}];
+  activeSheetIdx=0; bindSheetGlobals(); saveState();
 }
 
 async function parseExcel(file){
@@ -636,10 +682,10 @@ async function parseExcel(file){
       if(!j||!j.length)return;
       const cols=j[0].map(c=>String(c||'').trim()), data=[];
       for(let i=1;i<j.length;i++){const row={}; cols.forEach((c,idx)=>row[c]=String(j[i][idx]||'')); data.push(row);}
-      sheets.push({name:sn,originalColumns:cols,data});
+      sheets.push({name:sn,originalColumns:cols,data,aiFields:[],hiddenColNames:new Set(),frozenCount:0});
     });
     if(!sheets.length){alert('Excel 无有效工作表');return;}
-    activeSheetIdx=0; saveState();
+    activeSheetIdx=0; bindSheetGlobals(); saveState();
     showTable(); renderSheetTabs(); updDataInfo(); refreshDoc();
     log('info',`Excel 已加载 (${sheets.length} 个工作表)`);
   }; r.readAsArrayBuffer(file);};
@@ -657,11 +703,12 @@ function renderSheetTabs(){
 
 function switchSheet(idx){
   if(idx<0||idx>=sheets.length)return;
-  activeSheetIdx=idx; saveState();
+  activeSheetIdx=idx; bindSheetGlobals(); selectedCols.clear(); _lastSelCol=null; saveState();
   renderSheetTabs();
   renderTable();
   updDataInfo();
   refreshDoc();
+  updateRunUI(isProcessing); updateBgText();
 }
 
 function removeSheet(idx){
@@ -714,24 +761,30 @@ function renderTable(){
     `<tr data-ri="${ri}"><td class="col-rn">${ri+1}</td><td class="col-cb"><input type="checkbox" class="rcb" data-ri="${ri}"></td>`+
     visCols.map(c=>{
       const hid=hiddenColNames.has(c);
-      return hid?'':renderCell(r,c);
+      return hid?'':renderCell(r,c,allCols.indexOf(c));
     }).join('')+'</tr>'
   ).join('');
 
+  // optional: column header click for multi-select
+  document.querySelectorAll('#dtHead th[data-ci]').forEach(function(th){
+    th.onclick=function(e){ onColHeaderClick(e, parseInt(th.dataset.ci)); };
+  });
+  applyFreeze();
   updateHiddenBar();
   updStatus();
+  updateSelBtns();
 }
 
-function renderCell(row,col){
+function renderCell(row,col,ci){
   const v=row[col], fld=aiFields.find(f=>f.name===col);
-  if(v===undefined||v===null||v==='') return '<td><span class="tag-empty">--</span></td>';
+  if(v===undefined||v===null||v==='') return `<td data-ci="${ci}"><span class="tag-empty">--</span></td>`;
   if(fld&&(fld.type==='multi'||fld.type==='single')){
     const tags=String(v).split(',').map(t=>t.trim()).filter(Boolean);
-    return '<td><div class="cell-tags">'+tags.map((t,i)=>
+    return `<td data-ci="${ci}" ondblclick="startCellEdit(this,${ci},'${escAttr(col)}')"><div class="cell-tags">`+tags.map((t,i)=>
       `<span class="tag-pill ${TC[i%TC.length]}" title="${esc(t)}">${esc(t)}</span>`
     ).join('')+'</div></td>';
   }
-  return `<td ondblclick="startCellEdit(this,${getCols().indexOf(col)},'${escAttr(col)}')"><div class="cell-txt" title="${esc(String(v))}">${esc(String(v))}</div></td>`;
+  return `<td data-ci="${ci}" ondblclick="startCellEdit(this,${ci},'${escAttr(col)}')"><div class="cell-txt" title="${esc(String(v))}">${esc(String(v))}</div></td>`;
 }
 
 function updCellFast(ri,cn,val){
@@ -780,8 +833,6 @@ function openHdrEdit(ci){
 // ============================================================
 function startCellEdit(td,colIdx,colName){
   if(isProcessing)return;
-  const fld=aiFields.find(f=>f.name===colName);
-  if(fld&&fld.type!=='text')return; // only allow editing non-AI-text cells or raw cells
   const rowIdx=parseInt(td.parentElement.dataset.ri);
   const val=tableData()[rowIdx][colName]||'';
   td.innerHTML=`<input class="cedit" value="${escAttr(val)}" onblur="finishCellEdit(this,${rowIdx},'${escAttr(colName)}')" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape'){this.value='${escAttr(val)}';this.blur();}">`;
@@ -824,6 +875,9 @@ function showCtxCol(th,x,y){
   html+=`<div class="ci-sep"></div>`;
   if(!isAI) html+=`<div class="ci" onclick="ctxCreateAIFromCol()">基于此列创建 AI 字段</div>`;
   if(isAI) html+=`<div class="ci" onclick="ctxEditAICol()">编辑 AI 字段</div>`;
+  html+=`<div class="ci-sep"></div>`;
+  html+=`<div class="ci" onclick="freezeToCol()">冻结至此列</div>`;
+  if(frozenCount>0) html+=`<div class="ci" onclick="unfreezeAll()">取消冻结</div>`;
   html+=`<div class="ci danger" onclick="ctxDeleteCol()">删除列</div>`;
 
   const m=document.getElementById('ctxMenu'); m.innerHTML=html;
@@ -929,6 +983,104 @@ function ctxDeleteRow(){
 }
 
 function closeCtx(){document.getElementById('ctxMenu').style.display='none';_ctxTarget=null;}
+
+// ============================================================
+// MULTI-COLUMN SELECT / HIDE / FREEZE
+// ============================================================
+var _lastSelCol=null;
+function onColHeaderClick(e, ci){
+  e.stopPropagation();
+  var cols=getCols();
+  var cn=cols[ci];
+  if(!cn) return;
+  if(e.shiftKey && _lastSelCol!=null){
+    var a=Math.min(_lastSelCol,ci), b=Math.max(_lastSelCol,ci);
+    for(var i=a;i<=b;i++) selectedCols.add(cols[i]);
+  } else if(e.ctrlKey||e.metaKey){
+    if(selectedCols.has(cn)) selectedCols.delete(cn); else selectedCols.add(cn);
+  } else {
+    if(selectedCols.size===1 && selectedCols.has(cn)) selectedCols.clear();
+    else { selectedCols.clear(); selectedCols.add(cn); }
+  }
+  _lastSelCol=ci;
+  paintColSelection();
+}
+function paintColSelection(){
+  document.querySelectorAll('#dtHead th[data-ci]').forEach(function(th){
+    var c=getCols()[parseInt(th.dataset.ci)];
+    th.classList.toggle('col-sel', selectedCols.has(c));
+  });
+  updateSelBtns();
+}
+function updateSelBtns(){
+  var n=selectedCols.size;
+  document.getElementById('hideSelBtn').disabled = n===0;
+  document.getElementById('clearSelBtn').disabled = n===0;
+  document.getElementById('freezeBtn').disabled = n===0;
+  document.getElementById('hideSelBtn').textContent = n>0?('隐藏选中列 ('+n+')'):'隐藏选中列';
+}
+function clearColSelection(){ selectedCols.clear(); _lastSelCol=null; paintColSelection(); }
+function hideSelectedCols(){
+  if(!selectedCols.size) return;
+  var n=selectedCols.size;
+  selectedCols.forEach(function(cn){ hiddenColNames.add(cn); });
+  selectedCols.clear(); _lastSelCol=null;
+  renderTable(); saveState();
+  log('info','已隐藏 '+n+' 列');
+}
+function freezeToSelected(){
+  if(!selectedCols.size) return;
+  var cols=getCols();
+  var maxIdx=-1;
+  selectedCols.forEach(function(cn){ var i=cols.indexOf(cn); if(i>maxIdx) maxIdx=i; });
+  if(maxIdx>=0){ frozenCount=maxIdx+1; if(curSheet()) curSheet().frozenCount=frozenCount; }
+  document.getElementById('unfreezeBtn').style.display = frozenCount>0?'':'none';
+  renderTable(); saveState();
+  log('info','已冻结前 '+frozenCount+' 列（横向滚动时固定）');
+}
+function unfreezeAll(){
+  frozenCount=0; if(curSheet()) curSheet().frozenCount=0;
+  document.getElementById('unfreezeBtn').style.display='none';
+  renderTable(); saveState();
+  log('info','已取消冻结');
+}
+function freezeToCol(){
+  if(!_ctxTarget||_ctxTarget.type!=='col')return;
+  var cols=getCols(); var idx=cols.indexOf(_ctxTarget.name);
+  if(idx>=0){ frozenCount=idx+1; if(curSheet()) curSheet().frozenCount=frozenCount; }
+  document.getElementById('unfreezeBtn').style.display=frozenCount>0?'':'none';
+  closeCtx(); renderTable(); saveState();
+  log('info','已冻结至列: '+_ctxTarget.name);
+}
+// Apply sticky positioning for frozen columns (left-most frozenCount data columns + always-frozen # and checkbox)
+function applyFreeze(){
+  var rnTh=document.querySelector('#dtHead th.col-rn');
+  var cbTh=document.querySelector('#dtHead th.col-cb');
+  var rnW=rnTh?rnTh.offsetWidth:0, cbW=cbTh?cbTh.offsetWidth:0;
+  [rnTh,cbTh].forEach(function(th,i){
+    if(!th) return;
+    th.style.position='sticky'; th.style.left=(i===0?0:rnW)+'px'; th.style.zIndex='18'; th.style.background='#f1f3f6';
+  });
+  document.querySelectorAll('#dtBody tr').forEach(function(tr){
+    var tds=tr.children;
+    if(tds[0]){ tds[0].style.position='sticky'; tds[0].style.left='0px'; tds[0].style.zIndex='8'; tds[0].style.background='#fafbfd'; }
+    if(tds[1]){ tds[1].style.position='sticky'; tds[1].style.left=rnW+'px'; tds[1].style.zIndex='8'; tds[1].style.background='#fff'; }
+  });
+  var left=rnW+cbW, leftMap={};
+  document.querySelectorAll('#dtHead th[data-ci]').forEach(function(th){
+    var ci=parseInt(th.dataset.ci);
+    th.style.position=''; th.style.left=''; th.style.zIndex=''; th.style.background='';
+    if(ci<frozenCount){
+      th.style.position='sticky'; th.style.left=left+'px'; th.style.zIndex='16'; th.style.background='#f1f3f6';
+      leftMap[ci]=left; left+=th.offsetWidth;
+    }
+  });
+  document.querySelectorAll('#dtBody td[data-ci]').forEach(function(td){
+    var ci=parseInt(td.dataset.ci);
+    if(ci<frozenCount){ td.style.position='sticky'; td.style.left=leftMap[ci]+'px'; td.style.zIndex='6'; td.style.background='#fff'; }
+    else { td.style.position=''; td.style.left=''; td.style.zIndex=''; }
+  });
+}
 
 
 // ============================================================
@@ -1174,7 +1326,7 @@ async function aiGenOpts(){
 // BATCH TAGGING
 // ============================================================
 async function runBatchTagging(){
-  if(isProcessing)return;
+  if(isProcessing){alert('已有打标任务进行中，请先停止');return;}
   if(!aiFields.length){alert('先配置 AI 字段');return;}
   if(!tableData().length){alert('先上传数据');return;}
   var cfg=apiCfg();
@@ -1182,132 +1334,123 @@ async function runBatchTagging(){
   var rows=getTagRows();
   if(!rows.length){alert('打标范围无效，请检查行区间/指定行');return;}
 
+  // Anchor to the sheet this run started on (independent per-sheet operation)
+  var targetIdx=activeSheetIdx;
+  var sheet=sheets[targetIdx];
+  var localFields=sheet.aiFields.slice();      // snapshot field config at start
+  if(!localFields.length){alert('当前表没有可打标的 AI 字段');return;}
+  var localData=sheet.data;
+  var sheetName=sheet.name;
+
+  stopRequested=false;
   isProcessing=true;
-  setProc(true);
-  var total=rows.length*aiFields.length;
+  var total=rows.length*localFields.length;
   var done=0;
+  var t0=Date.now();
+  var perTimes=[];
+  sheetProc[targetIdx]={active:true,done:0,total:total,start:t0,name:sheetName};
+  updateRunUI(true);
+  if(targetIdx===activeSheetIdx){ setSt('running','处理中...'); }
 
-  try {
-    for(var fi=0;fi<aiFields.length;fi++){
-      var fld=aiFields[fi];
-      for(var r=0;r<rows.length;r++){
-        if(!isProcessing) break;
-        var ri=rows[r];
-        var rowData=tableData()[ri];
+  // A single field lane: processes its rows vertically (row by row)
+  async function tagField(fld){
+    for(var r=0;r<rows.length;r++){
+      if(stopRequested) break;
+      var ri=rows[r];
+      if(ri>=localData.length) continue;
+      var rowData=localData[ri];
 
-        // Build prompt with field references resolved
-        var resolved=fld.prompt;
-        var oc=originalColumns();
-        for(var ci2=0;ci2<oc.length;ci2++){
-          var colName=oc[ci2];
-          var pattern=new RegExp('\\{\\{'+colName+'\\}\\}','g');
-          var val=rowData[colName]||'(无)';
-          resolved=resolved.replace(pattern,val);
-        }
-
-        // Build system prompt
-        var sys='你是专业数据标注助手。严格按指令标注。\n\n## 指令\n'+resolved;
-
-        if(fld.type!=='text'){
-          if(fld.options.length>0){
-            sys+='\n\n## 可选标签\n';
-            for(var oi=0;oi<fld.options.length;oi++){
-              sys+=(oi+1)+'. '+fld.options[oi]+'\n';
-            }
-          }
-          if(fld.strict && fld.options.length>0){
-            var multiText=fld.type==='multi'?'多选用逗号分隔':'单选唯一';
-            sys+='\n\n## 约束\n只能从可选标签中选择。'+multiText+'。无匹配则输出"未提及"';
-          } else {
-            var outText=fld.type==='multi'?'多选标签逗号分隔':'单选最匹配的一个';
-            sys+='\n\n## 输出\n'+outText+'。无匹配则"未提及"';
-          }
-        }
-        sys+='\n\n只输出结果，不要解释';
-
-        markP(ri,true);
-
-        try {
-          // Call API
-          var raw=await callAPI(sys,'',cfg.key,0.2);
-
-          if(typeof raw!=='string' || !raw){
-            throw new Error('API返回空或非文本 (type='+(typeof raw)+')');
-          }
-
-          // Clean response - step by step, no chaining
-          var clean='';
-          try {
-            clean=String(raw).trim();
-            clean=clean.replace(/^["'\u201c]/g,'');
-            clean=clean.replace(/["'\u201d]$/g,'');
-            clean=clean.replace(/^\d+[.\uff0e\u3001\s]*/gm,'');
-            clean=clean.trim();
-          } catch(cleanErr){
-            clean=String(raw).trim();
-          }
-
-          // Parse tags for non-text fields
-          if(fld.type!=='text' && clean){
-            try{
-              var parts=clean.split(/[,;\uff0c\uff1b\n]/);
-              var tagParts=[];
-              for(var pi=0;pi<parts.length;pi++){
-                var tp=parts[pi];
-                tp=String(tp).replace(/^["'\s\u3002.]|["'\s\u3002.]$/g,'').trim();
-                if(tp && tp!=='未提及'){
-                  tagParts.push(tp);
-                }
-              }
-              var maxTags=fld.type==='single'?1:20;
-              tagParts=tagParts.slice(0,maxTags);
-              clean=tagParts.join(', ');
-            }catch(parseErr){
-              /* keep clean as-is */
-            }
-            if(!clean){clean='未提及';}
-          }
-
-          // Store result
-          rowData[fld.name]=clean;
-          updCellFast(ri,fld.name,clean);
-          markCell(ri,fld.name,'ok');
-          done++;
-          updProg(done,total);
-          log('ok','['+fld.name+'] R'+(ri+1)+': '+clean.substring(0,40));
-
-        } catch(tagErr) {
-          var errMsg=String(tagErr.message||tagErr);
-          var stkStr=tagErr.stack?String(tagErr.stack).split('\n').slice(0,4).join(' | '):'';
-          var rawPreview=(typeof raw!=='undefined')?String(raw).substring(0,80):'N/A';
-
-          rowData[fld.name]='[错] '+errMsg;
-          updCellFast(ri,fld.name,rowData[fld.name]);
-          markCell(ri,fld.name,'err');
-          done++;
-          updProg(done,total);
-          log('err','['+fld.name+'] R'+(ri+1)+': '+errMsg+' | stack:'+stkStr+' | raw:'+rawPreview);
-        }
-
-        markP(ri,false);
-        await sleep(80);
+      // Resolve {{col}} references
+      var resolved=fld.prompt;
+      var oc=sheet.originalColumns;
+      for(var ci2=0;ci2<oc.length;ci2++){
+        var colName=oc[ci2];
+        var safeCol=colName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+        var pattern=new RegExp('\\{\\{'+safeCol+'\\}\\}','g');
+        var val=rowData[colName]||'(无)';
+        resolved=resolved.replace(pattern,val);
       }
-    }
 
-    setSt('done','完成');
-    log('info','全部完成 '+done+'/'+total);
-    refreshDoc();
-    saveState();
+      var sys='你是专业数据标注助手。严格按指令标注。\n\n## 指令\n'+resolved;
+      if(fld.type!=='text'){
+        if(fld.options.length>0){
+          sys+='\n\n## 可选标签\n';
+          for(var oi=0;oi<fld.options.length;oi++){ sys+=(oi+1)+'. '+fld.options[oi]+'\n'; }
+        }
+        if(fld.strict && fld.options.length>0){
+          var multiText=fld.type==='multi'?'多选用逗号分隔':'单选唯一';
+          sys+='\n\n## 约束\n只能从可选标签中选择。'+multiText+'。无匹配则输出"未提及"';
+        } else {
+          var outText=fld.type==='multi'?'多选标签逗号分隔':'单选最匹配的一个';
+          sys+='\n\n## 输出\n'+outText+'。无匹配则"未提及"';
+        }
+      }
+      sys+='\n\n只输出结果，不要解释';
 
-  } catch(outerErr){
-    if(outerErr.name!=='AbortError'){
-      setSt('error','出错');
-      log('err','中断: '+outerErr.message);
+      var onScreen=(targetIdx===activeSheetIdx && curView==='table');
+      if(onScreen) markP(ri,true);
+      var ts=Date.now();
+      try {
+        var raw=await callAPI(sys,'',cfg.key,0.2);
+        if(typeof raw!=='string' || !raw) throw new Error('API返回空或非文本 (type='+(typeof raw)+')');
+
+        var clean='';
+        try {
+          clean=String(raw).trim();
+          clean=clean.replace(/^["'\u201c\u201d]/g,'');
+          clean=clean.replace(/["'\u201c\u201d]$/g,'');
+          clean=clean.replace(/^\d+[.\uff0e\u3001\s]*/gm,'');
+          clean=clean.trim();
+        } catch(cleanErr){ clean=String(raw).trim(); }
+
+        if(fld.type!=='text' && clean){
+          try{
+            var parts=clean.split(/[,;\uff0c\uff1b\n]/);
+            var tagParts=[];
+            for(var pi=0;pi<parts.length;pi++){
+              var tp=String(parts[pi]).replace(/^["'\s\u3002.]|["'\s\u3002.]$/g,'').trim();
+              if(tp && tp!=='未提及') tagParts.push(tp);
+            }
+            tagParts=tagParts.slice(0, fld.type==='single'?1:20);
+            clean=tagParts.join(', ');
+          }catch(parseErr){ /* keep */ }
+          if(!clean) clean='未提及';
+        }
+
+        rowData[fld.name]=clean;
+        if(onScreen){ updCellFast(ri,fld.name,clean); markCell(ri,fld.name,'ok'); }
+        pushThink({t:Date.now(),sheet:sheetName,row:ri,field:fld.name,usedLLM:true,prompt:resolved,raw:String(raw),clean:clean});
+      } catch(tagErr) {
+        var errMsg=String(tagErr.message||tagErr);
+        rowData[fld.name]='[错] '+errMsg;
+        if(onScreen){ updCellFast(ri,fld.name,rowData[fld.name]); markCell(ri,fld.name,'err'); }
+        pushThink({t:Date.now(),sheet:sheetName,row:ri,field:fld.name,usedLLM:true,prompt:resolved,raw:'(调用失败) '+errMsg,clean:'[错] '+errMsg});
+      }
+      if(onScreen) markP(ri,false);
+
+      var el=Date.now()-ts; perTimes.push(el);
+      done++;
+      if(sheetProc[targetIdx]) sheetProc[targetIdx].done=done;
+      if(onScreen) updProg(done,total,t0,perTimes);
+      else if(done%10===0) updateBgText();
+      logThrottled('ok','['+fld.name+'] R'+(ri+1)+': '+String(clean||'').substring(0,40));
+      await sleep(60);
     }
   }
 
+  // Multi-column parallel: run up to CONC field lanes concurrently, each vertical
+  var CONC=Math.min(localFields.length,4);
+  var lanes=[];
+  for(var fi=0;fi<localFields.length;fi++) lanes.push(tagField(localFields[fi]));
+  await Promise.all(lanes);
+
+  if(stopRequested) setSt('done','已停止'); else setSt('done','完成');
+  log('info',(stopRequested?'已停止 ':'全部完成 ')+done+'/'+total+' (表: '+sheetName+')');
+  if(targetIdx===activeSheetIdx){ refreshDoc(); updStatus(); }
+  saveState();
   isProcessing=false;
-  setProc(false);
+  updateRunUI(false);
+  setTimeout(function(){ if(sheetProc[targetIdx]) sheetProc[targetIdx].active=false; updateRunUI(false); }, 2000);
 }
 
 function markP(ri,on){const tr=document.querySelector(`tr[data-ri="${ri}"]`);if(tr)tr.classList.toggle('proc',on);}
@@ -1348,17 +1491,20 @@ async function reTagRow(ri){
   var cfg=apiCfg();
   if(!cfg.key){alert('填 API Key');return;}
   if(ri<0||ri>=tableData().length){alert('行号无效');return;}
-  isProcessing=true; setProc(true);
+  stopRequested=false;
+  isProcessing=true; updateRunUI(true); setSt('running','重新打标...');
   var total=aiFields.length, done=0;
   try{
     for(var fi=0;fi<aiFields.length;fi++){
+      if(stopRequested) break;
       var fld=aiFields[fi];
       var rowData=tableData()[ri];
       var resolved=fld.prompt;
       var oc=originalColumns();
       for(var ci2=0;ci2<oc.length;ci2++){
         var colName=oc[ci2];
-        var pattern=new RegExp('\\{\\{'+colName+'\\}\\}','g');
+        var safeCol=colName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+        var pattern=new RegExp('\\{\\{'+safeCol+'\\}\\}','g');
         var val=rowData[colName]||'(无)';
         resolved=resolved.replace(pattern,val);
       }
@@ -1382,7 +1528,7 @@ async function reTagRow(ri){
         var raw=await callAPI(sys,'',cfg.key,0.2);
         if(typeof raw!=='string' || !raw){ throw new Error('API返回空或非文本 (type='+(typeof raw)+')'); }
         var clean='';
-        try{ clean=String(raw).trim().replace(/^["'\u201c]|["'\u201d]$/g,'').replace(/^\d+[.\uff0e\u3001\s]*/gm,'').trim(); }catch(e){ clean=String(raw).trim(); }
+        try{ clean=String(raw).trim().replace(/^["'\u201c\u201d]|["'\u201d]$/g,'').replace(/^\d+[.\uff0e\u3001\s]*/gm,'').trim(); }catch(e){ clean=String(raw).trim(); }
         if(fld.type!=='text' && clean){
           try{
             var parts=clean.split(/[,;\uff0c\uff1b\n]/); var tagParts=[];
@@ -1396,40 +1542,95 @@ async function reTagRow(ri){
           if(!clean) clean='未提及';
         }
         rowData[fld.name]=clean; updCellFast(ri,fld.name,clean); markCell(ri,fld.name,'ok');
+        pushThink({t:Date.now(),sheet:curSheet()?curSheet().name:'',row:ri,field:fld.name,usedLLM:true,prompt:resolved,raw:String(raw),clean:clean});
         done++; updProg(done,total);
         log('ok','[重打] ['+fld.name+'] R'+(ri+1)+': '+clean.substring(0,40));
       }catch(err){
         var errMsg=String(err.message||err);
         rowData[fld.name]='[错] '+errMsg; updCellFast(ri,fld.name,rowData[fld.name]); markCell(ri,fld.name,'err');
+        pushThink({t:Date.now(),sheet:curSheet()?curSheet().name:'',row:ri,field:fld.name,usedLLM:true,prompt:resolved,raw:'(调用失败) '+errMsg,clean:'[错] '+errMsg});
         done++; updProg(done,total);
         log('err','[重打] ['+fld.name+'] R'+(ri+1)+': '+errMsg);
       }
       markP(ri,false); await sleep(60);
     }
-    setSt('done','完成'); log('info','重新打标完成 R'+(ri+1));
+    if(stopRequested) setSt('done','已停止'); else setSt('done','完成');
+    log('info','重新打标完成 R'+(ri+1)+(stopRequested?' (已停止)':''));
     refreshDoc(); saveState();
   }catch(e){
     if(e.name!=='AbortError'){ setSt('error','出错'); log('err','中断: '+e.message); }
   }
-  isProcessing=false; setProc(false);
+  isProcessing=false; updateRunUI(false);
 }
 function setProc(on){
   document.getElementById('progTrack').classList.toggle('vis',on);
   document.getElementById('ptText').style.display=on?'inline':'none';
   document.getElementById('runBtn').disabled=on; if(on) setSt('running','处理中...');
 }
-function updProg(done,total){document.getElementById('progFill').style.width=Math.round(done/total*100)+'%'; document.getElementById('ptText').textContent=`${done}/${total}`;}
+// Update run/stop button states and progress track visibility (respects per-sheet background runs)
+function updateRunUI(running){
+  document.getElementById('runBtn').disabled=running;
+  document.getElementById('stopBtn').disabled=!running;
+  if(!running) document.getElementById('etaText').style.display='none';
+  var activeRun = sheetProc[activeSheetIdx] && sheetProc[activeSheetIdx].active;
+  document.getElementById('progTrack').classList.toggle('vis', !!activeRun);
+  document.getElementById('ptText').style.display = activeRun?'inline':'none';
+  updateBgText();
+}
+// Show indicator when a non-active sheet is tagging in the background
+function updateBgText(){
+  var bg=document.getElementById('bgText');
+  var parts=[];
+  for(var k in sheetProc){
+    if(sheetProc.hasOwnProperty(k)){
+      var p=sheetProc[k];
+      if(p && p.active && parseInt(k)!==activeSheetIdx){
+        parts.push('后台打标中: '+esc(p.name)+' ('+p.done+'/'+p.total+')');
+      }
+    }
+  }
+  if(parts.length){ bg.style.display=''; bg.textContent=parts.join(' · '); }
+  else bg.style.display='none';
+}
+function stopTagging(){
+  if(!isProcessing){ return; }
+  stopRequested=true;
+  log('info','已请求停止，将在当前单元格完成后中断');
+}
+function fmtDur(sec){
+  if(sec<60) return sec+'秒';
+  var m=Math.floor(sec/60), s=sec%60;
+  if(m<60) return m+'分'+s+'秒';
+  var h=Math.floor(m/60); return h+'时'+(m%60)+'分';
+}
+function updProg(done,total,t0,perTimes){
+  document.getElementById('progFill').style.width=Math.round(done/total*100)+'%';
+  document.getElementById('ptText').textContent=done+'/'+total;
+  var etaEl=document.getElementById('etaText');
+  if(t0 && done>0 && perTimes && perTimes.length){
+    var avg=perTimes.reduce(function(a,b){return a+b;},0)/perTimes.length;
+    var remain=Math.max(0,(total-done))*avg;
+    var sec=Math.round(remain/1000);
+    var finish=new Date(Date.now()+remain);
+    var hh=String(finish.getHours()).padStart(2,'0'),mm=String(finish.getMinutes()).padStart(2,'0'),ss=String(finish.getSeconds()).padStart(2,'0');
+    etaEl.style.display='';
+    etaEl.textContent='预计剩余 '+fmtDur(sec)+' · 预计完成 '+hh+':'+mm+':'+ss;
+  } else { etaEl.style.display='none'; }
+}
 function setSt(type,text){document.getElementById('sdot').className='sdot '+type; document.getElementById('stText').textContent=text;}
+// Throttled logging to reduce DOM churn during heavy tagging
+function logThrottled(type,msg){ _logAcc++; if(_logAcc%8===0) log(type,msg); }
 
 
 // ============================================================
 // VIEW SWITCHING
 // ============================================================
 function swView(v){
+  if(v!=='think' && _thinkTimer){ clearInterval(_thinkTimer); _thinkTimer=null; }
   curView=v;
   document.querySelectorAll('.vcard').forEach(c=>c.classList.toggle('on',c.dataset.v===v));
   const tableView = document.getElementById('tableView');
-  const docViews = ['docFull','docStats','docValidate','docLlmVal'];
+  const docViews = ['docFull','docStats','docValidate','docLlmVal','docThink'];
   if(v === 'table'){
     tableView.style.display = 'flex';
     docViews.forEach(id => document.getElementById(id).classList.remove('active'));
@@ -1437,7 +1638,7 @@ function swView(v){
   } else {
     tableView.style.display = 'none';
     docViews.forEach(id => document.getElementById(id).classList.remove('active'));
-    const map = {full:'docFull', stats:'docStats', validate:'docValidate', llmval:'docLlmVal'};
+    const map = {full:'docFull', stats:'docStats', validate:'docValidate', llmval:'docLlmVal', think:'docThink'};
     if(map[v]) document.getElementById(map[v]).classList.add('active');
     document.getElementById('toolbar').style.display = 'none';
   }
@@ -1456,7 +1657,57 @@ function renderCur(){
   else if(curView==='stats') renderStats(document.getElementById('docStats'));
   else if(curView==='validate') renderValidate(document.getElementById('docValidate'));
   else if(curView==='llmval') renderLlmVal(document.getElementById('docLlmVal'));
+  else if(curView==='think') renderThink(document.getElementById('docThink'));
 }
+
+// --- Think carousel (last THINK_MAX AI runs) ---
+let _thinkTimer=null, _thinkIdx=0;
+function renderThink(c){
+  if(!thinkLog.length){
+    c.innerHTML='<div class="de"><div class="de-i">&#129302;</div><div class="de-t">暂无思考记录</div><div class="de-s">运行打标后，这里会轮播最近 '+THINK_MAX+' 条 AI 的分析过程（提示词 → 原始回复 → 是否调用 LLM）</div></div>';
+    if(_thinkTimer){clearInterval(_thinkTimer);_thinkTimer=null;}
+    return;
+  }
+  _thinkIdx=0;
+  function paint(){
+    if(_thinkIdx>=thinkLog.length)_thinkIdx=0;
+    const r=thinkLog[_thinkIdx];
+    const llmBadge=r.usedLLM
+      ? '<span style="background:#dcfce7;color:#15803d;padding:1px 8px;border-radius:8px;font-size:11px;font-weight:600">已调用 LLM</span>'
+      : '<span style="background:#f3f4f6;color:#6b7280;padding:1px 8px;border-radius:8px;font-size:11px;font-weight:600">未调用 LLM</span>';
+    c.innerHTML=`<div class="dsec"><div class="ds-title">AI 思考过程 (轮播)</div>
+      <div class="ds-meta">
+        <span>第 ${_thinkIdx+1} / ${thinkLog.length} 条</span>
+        <span>工作表: <strong>${esc(r.sheet||'')}</strong></span>
+        <span>行: <strong>${r.row!=null?r.row+1:'-'}</strong></span>
+        <span>字段: <strong>${esc(r.field||'')}</strong></span>
+        ${llmBadge}
+      </div>
+      <div class="sc">
+        <div class="sc-hdr"><span class="sc-t">① 构建的提示词</span></div>
+        <div style="font-family:'SF Mono',Monaco,Consolas,monospace;font-size:11.5px;white-space:pre-wrap;line-height:1.6;max-height:200px;overflow:auto;background:#f8f9fb;border:1px solid var(--border);padding:10px;border-radius:6px">${esc(r.prompt||'')}</div>
+      </div>
+      <div class="sc">
+        <div class="sc-hdr"><span class="sc-t">② AI 原始返回</span></div>
+        <div style="font-family:'SF Mono',Monaco,Consolas,monospace;font-size:11.5px;white-space:pre-wrap;line-height:1.6;max-height:200px;overflow:auto;background:#0f172a;color:#e2e8f0;border:1px solid var(--border);padding:10px;border-radius:6px">${esc(r.raw||'(空)')}</div>
+      </div>
+      <div class="sc">
+        <div class="sc-hdr"><span class="sc-t">③ 清洗后写入单元格</span></div>
+        <div style="font-size:12.5px;padding:8px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;color:#166534">${esc(r.clean||'')}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:8px">
+      <button class="tbtn" onclick="thinkStep(-1)">上一条</button>
+      <button class="tbtn" onclick="thinkStep(1)">下一条</button>
+      <button class="tbtn" onclick="thinkToggle()">${_thinkTimer?'暂停轮播':'自动轮播'}</button>
+    </div>`;
+  }
+  paint();
+  if(_thinkTimer)clearInterval(_thinkTimer);
+  _thinkTimer=setInterval(function(){ _thinkIdx++; paint(); }, 3500);
+}
+function thinkStep(d){ _thinkIdx+=d; if(_thinkIdx<0)_thinkIdx=thinkLog.length-1; if(_thinkIdx>=thinkLog.length)_thinkIdx=0; if(_thinkTimer){clearInterval(_thinkTimer);_thinkTimer=null;} renderThink(document.getElementById('docThink')); }
+function thinkToggle(){ if(_thinkTimer){clearInterval(_thinkTimer);_thinkTimer=null;} else { _thinkTimer=setInterval(function(){ _thinkIdx++; renderThink(document.getElementById('docThink')); }, 3500);} if(curView==='think') renderThink(document.getElementById('docThink')); }
 
 // --- Full ---
 function renderFull(c){
@@ -1667,6 +1918,7 @@ async function runLLMValidation(){
   progDiv.style.display='block'; progBar.style.width='0%';
 
   isProcessing=true; setProc(true); setSt('running','LLM 验证中...');
+  stopRequested=false;
 
   var results=[]; var correct=0; var incorrect=0;
   var totalTasks=sample.length*aiFields.filter(function(f){return true;}).length;
@@ -1692,6 +1944,7 @@ async function runLLMValidation(){
       var row=sItem.data;
 
       for(var fi=0;fi<aiFields.length;fi++){
+        if(stopRequested) break;
         var fld=aiFields[fi];
         var tag=row[fld.name];
         if(!tag||tag==='--'||tag==='未提及'||String(tag).startsWith('[错]')) continue;
@@ -1748,6 +2001,7 @@ async function runLLMValidation(){
         }
         markP(dataIdx,false); await sleep(120);
       }
+      if(stopRequested) break;
     }
 
     var totalChecked=results.length;
@@ -1755,9 +2009,9 @@ async function runLLMValidation(){
     llmValResults={sampleSize:sample.length,fields:aiFields.map(function(f){return f.name;}),timestamp:new Date().toLocaleString('zh-CN'),accuracy:accuracy,correct:correct,incorrect:incorrect,results:results};
 
     // Complete progress
-    progText.textContent='完成! 准确率 '+accuracy+'% ('+correct+'/'+totalChecked+')';
-    progBar.style.width='100%';
-    setSt('done','验证完成');
+    progText.textContent=(stopRequested?'已停止 · ':'完成! ')+'准确率 '+accuracy+'% ('+correct+'/'+totalChecked+')';
+    progBar.style.width=stopRequested?'60%':'100%';
+    setSt('done', stopRequested?'已停止':'验证完成');
     log('info', 'LLM 验证完成: '+accuracy+'% ('+correct+'/'+totalChecked+')');
     swView('llmval');
     saveState();
@@ -1888,6 +2142,7 @@ function saveState(){
     hiddenColNames:[].slice.call(hiddenColNames),
     activeSheetIdx:activeSheetIdx,
     llmValResults:llmValResults,
+    thinkLog:thinkLog,
     savedAt:Date.now(),
     fileName:currentFileName||''
   };
@@ -1919,6 +2174,10 @@ function loadState(){
         sheets=d.sheets; aiFields=d.aiFields||[]; hiddenColNames=new Set(d.hiddenColNames||[]);
         activeSheetIdx=d.activeSheetIdx||0; llmValResults=d.llmValResults||null;
         currentFileName=d.fileName||'';
+        thinkLog=d.thinkLog||[];
+        // Migration: old payloads stored aiFields at top level
+        if(d.aiFields && (!sheets[0].aiFields || !sheets[0].aiFields.length)) sheets[0].aiFields=d.aiFields;
+        bindSheetGlobals();
         res(true);
       };
       req.onerror=function(){ rej(req.error); };
@@ -1931,6 +2190,7 @@ window.addEventListener('beforeunload',function(){ if(_savePending) _doSave(); }
 function clearData(){
   if(!confirm('删除当前所有数据并清空工作区？此操作不可撤销，刷新后将无法恢复。'))return;
   sheets=[]; aiFields=[]; hiddenColNames=new Set(); activeSheetIdx=0; llmValResults=null; editingIdx=-1;
+  thinkLog=[]; selectedCols=new Set(); frozenCount=0; sheetProc={};
   localStorage.removeItem('ait-workspace');
   _openDB().then(function(db){var tx=db.transaction('ws','readwrite'); tx.objectStore('ws').delete('current');}).catch(function(){});
   document.getElementById('emptyState').style.display='flex';
@@ -1971,14 +2231,20 @@ function exportFieldConfig(){
 // ============================================================
 // UTILS
 // ============================================================
-function esc(s){const d=document.createElement('div'); d.textContent=s; return d.innerHTML;}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function escAttr(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 function toggleAll(ck){document.querySelectorAll('.rcb').forEach(cb=>cb.checked=ck);}
 
 const _logs=[];
+let _syncTimer=null;
 function log(type,msg){_logs.push({t:new Date().toLocaleTimeString('zh-CN',{hour12:false}),type,msg}); syncLog();}
+// Throttle log DOM rendering to reduce reflow churn during heavy tagging
 function syncLog(){
+  if(_syncTimer) return;
+  _syncTimer=setTimeout(function(){ _syncTimer=null; _renderLog(); }, 350);
+}
+function _renderLog(){
   const la=document.getElementById('docLog'); if(!la)return; la.classList.add('vis');
   la.innerHTML=_logs.slice(-100).map(l=>`<div class="ll ${l.type}">${l.t} ${l.msg}</div>`).join('');
   la.scrollTop=la.scrollHeight;
@@ -2016,6 +2282,7 @@ loadState().then(function(ok){
     document.body.appendChild(toast);
     setTimeout(function(){if(toast.parentNode)document.body.removeChild(toast);},5000);
   }
+  document.getElementById('unfreezeBtn').style.display = frozenCount>0?'':'none';
   renderTable();
 });
 </script>
