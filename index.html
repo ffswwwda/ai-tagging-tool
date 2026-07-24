@@ -407,9 +407,6 @@ body {
       <div class="vcard on" data-v="table" onclick="swView('table')">
         <div class="vci">&#128203;</div><div class="vct">数据表格</div><div class="vcd">查看和编辑全部数据</div>
       </div>
-      <div class="vcard" data-v="full" onclick="swView('full')">
-        <div class="vci">&#128196;</div><div class="vct">全量文档</div><div class="vcd">完整标注结果预览</div>
-      </div>
       <div class="vcard" data-v="stats" onclick="swView('stats')">
         <div class="vci">&#128202;</div><div class="vct">标签统计</div><div class="vcd">各维度分布与占比</div>
       </div>
@@ -534,7 +531,6 @@ body {
     </div>
 
     <!-- Doc Views -->
-    <div class="doc-view" id="docFull"></div>
     <div class="doc-view" id="docStats"></div>
     <div class="doc-view" id="docValidate"></div>
     <div class="doc-view" id="docLlmVal"></div>
@@ -1550,11 +1546,19 @@ async function runBatchTagging(){
   isProcessing=true;
   var total=rows.length*localFields.length;
   var done=0;
+  var skipped=0;
   var t0=Date.now();
   var perTimes=[];
   sheetProc[targetIdx]={active:true,done:0,total:total,start:t0,name:sheetName};
   updateRunUI(true);
   if(targetIdx===activeSheetIdx){ setSt('running','处理中...'); }
+
+  function isFieldDone(rowData,fldName){
+    var v=rowData[fldName];
+    if(v===undefined||v===null||v===''||v==='--') return false;
+    if(typeof v==='string'&&v.indexOf('[错]')===0) return false; // 失败需重试
+    return true;
+  }
 
   // A single field lane: processes its rows vertically (row by row)
   async function tagField(fld){
@@ -1563,6 +1567,17 @@ async function runBatchTagging(){
       var ri=rows[r];
       if(ri>=localData.length) continue;
       var rowData=localData[ri];
+      var onScreen=(targetIdx===activeSheetIdx && curView==='table');
+
+      // 续打模式：已成功打标（非错误/非空）的字段跳过，直接计入完成
+      if(isFieldDone(rowData,fld.name)){
+        skipped++;
+        done++;
+        if(sheetProc[targetIdx]) sheetProc[targetIdx].done=done;
+        if(onScreen) bufProg(done,total,t0,perTimes); else if(done%10===0) updateBgText();
+        continue;
+      }
+
 
       var bp=buildPrompt(fld,rowData,sheet.originalColumns);
       var sys=bp.sys, resolved=bp.resolved, srcMap=bp.srcMap, instr=bp.instr;
@@ -1570,7 +1585,6 @@ async function runBatchTagging(){
         sys+='\n\n请严格只输出一个 JSON 对象（不要代码块标记、不要任何解释文字）：{"分析":"你对上述原文的语义识别过程与判断依据","标签":"最终标签，多值用英文逗号分隔"}';
       }
 
-      var onScreen=(targetIdx===activeSheetIdx && curView==='table');
       if(onScreen) bufProc(ri,true);
       var ts=Date.now();
       try {
@@ -1619,7 +1633,8 @@ async function runBatchTagging(){
   await Promise.all(lanes);
 
   if(stopRequested) setSt('done','已停止'); else setSt('done','完成');
-  log('info',(stopRequested?'已停止 ':'全部完成 ')+done+'/'+total+' (表: '+sheetName+')');
+  var resumeNote = skipped>0 ? '（续打模式：跳过 '+skipped+' 条已完成的字段标注）' : '';
+  log('info',(stopRequested?'已停止 ':'全部完成 ')+done+'/'+total+' (表: '+sheetName+')'+resumeNote);
   if(targetIdx===activeSheetIdx){ refreshDoc(); updStatus(); }
   saveState();
   isProcessing=false;
@@ -1848,7 +1863,7 @@ function swView(v){
   curView=v;
   document.querySelectorAll('.vcard').forEach(c=>c.classList.toggle('on',c.dataset.v===v));
   const tableView = document.getElementById('tableView');
-  const docViews = ['docFull','docStats','docValidate','docLlmVal','docThink'];
+  const docViews = ['docStats','docValidate','docLlmVal','docThink'];
   if(v === 'table'){
     tableView.style.display = 'flex';
     docViews.forEach(id => document.getElementById(id).classList.remove('active'));
@@ -1856,7 +1871,7 @@ function swView(v){
   } else {
     tableView.style.display = 'none';
     docViews.forEach(id => document.getElementById(id).classList.remove('active'));
-    const map = {full:'docFull', stats:'docStats', validate:'docValidate', llmval:'docLlmVal', think:'docThink'};
+    const map = {stats:'docStats', validate:'docValidate', llmval:'docLlmVal', think:'docThink'};
     if(map[v]) document.getElementById(map[v]).classList.add('active');
     document.getElementById('toolbar').style.display = 'none';
   }
@@ -1867,12 +1882,11 @@ function refreshDoc(){renderCur();}
 function renderCur(){
   if(!tableData().length&&!aiFields.length){
     const emptyHtml = `<div class="de"><div class="de-i">&#128196;</div><div class="de-t">暂无数据</div><div class="de-s">上传文件并配置 AI 字段后查看文档</div></div>`;
-    ['docFull','docStats','docValidate','docLlmVal'].forEach(id=>{document.getElementById(id).innerHTML=emptyHtml;});
+    ['docStats','docValidate','docLlmVal'].forEach(id=>{document.getElementById(id).innerHTML=emptyHtml;});
     return;
   }
   if(curView==='table') return;
-  if(curView==='full') renderFull(document.getElementById('docFull'));
-  else if(curView==='stats') renderStats(document.getElementById('docStats'));
+  if(curView==='stats') renderStats(document.getElementById('docStats'));
   else if(curView==='validate') renderValidate(document.getElementById('docValidate'));
   else if(curView==='llmval') renderLlmVal(document.getElementById('docLlmVal'));
   else if(curView==='think') renderThink(document.getElementById('docThink'));
@@ -1949,21 +1963,6 @@ function thinkSelect(idx){ stopThinkTimer(); _thinkPlaying=false; _thinkIdx=idx;
 function thinkToggle(){ _thinkPlaying=!_thinkPlaying; if(_thinkPlaying)startThinkTimer(); else stopThinkTimer(); paintThink(); }
 
 // --- Full ---
-function renderFull(c){
-  const cols=getCols();
-  c.innerHTML=`<div class="dsec"><div class="ds-title">标注结果总览</div><div class="ds-meta">
-    <span>总行数: <strong>${tableData().length}</strong></span><span>总列数: <strong>${cols.length}</strong></span>
-    <span>AI 字段: <strong>${aiFields.length}</strong></span><span>时间: <strong>${new Date().toLocaleString('zh-CN')}</strong></span></div>
-    <div style="overflow-x:auto"><table class="dt"><thead><tr>${cols.map(col=>`<th>${esc(col)}${aiFields.find(f=>f.name===col)?'<span style="color:var(--accent);font-size:9px;margin-left:3px">AI</span>':''}</th>`).join('')}</tr></thead>
-    <tbody>${tableData().slice(0,200).map(row=>`<tr>${cols.map(c=>{
-      const v=row[c];
-      if(aiFields.find(f=>f.name===c)&&(v&&v!=='--')){const tags=String(v).split(',').map(t=>t.trim()).filter(Boolean);return`<td>${tags.map(t=>`<span class="tag-pill ${TC[tags.indexOf(t)%TC.length]}">${esc(t)}</span>`).join(' ')}</td>`;}
-      return`<td title="${esc(String(v??''))}">${esc(String(v??''))}</td>`;
-    }).join('')}</tr>`).join('')}${tableData().length>200?`<tr><td colspan="${cols.length}" style="text-align:center;color:var(--text-tertiary);font-size:11px">... 共 ${tableData().length} 行（前 200）</td></tr>`:''}</tbody></table></div></div>
-    <div class="log-area" id="docLog"></div>`;
-  syncLog();
-}
-
 // --- Stats (flat detail table: module / dimension / label / count) ---
 function renderStats(c){
   if(!aiFields.length){c.innerHTML='<div class="de"><div class="de-t">暂无 AI 字段统计数据</div></div>';return;}
@@ -2437,7 +2436,7 @@ function clearData(){
   document.getElementById('dataInfo').style.display='none';
   document.getElementById('sheetTabs').style.display='none';
   renderSheetTabs(); updDataInfo(); updStatus();
-  ['docFull','docStats','docValidate','docLlmVal'].forEach(id=>document.getElementById(id).innerHTML='');
+  ['docStats','docValidate','docLlmVal'].forEach(id=>document.getElementById(id).innerHTML='');
   document.getElementById('runBtn').disabled=true; document.getElementById('exportBtn').disabled=true;
   log('info','已清空工作区，可上传下一个文件');
 }
