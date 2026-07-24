@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Tag Tool</title>
+<style>
+:root {
+  --bg: #f5f6f8; --surface: #ffffff; --border: #e0e2e6;
+  --accent: #4a6cf7; --accent-light: #eef1fe; --accent-soft: #f0f3ff;
+  --text-primary: #1a1d23; --text-secondary: #5f6672; --text-tertiary: #9ba0a9;
+  --success: #22c55e; --warning: #f59e0b; --error: #ef4444;
+  --row-h: 36px; --th-h: 38px; --radius-sm: 5px; --radius-md: 8px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+  background: var(--bg); color: var(--text-primary);
+  font-size: 13px; line-height: 1.45; overflow: hidden; height: 100vh;
+}
+
+/* ===== LAYOUT ===== */
+.app { display: flex; height: 100vh; overflow: hidden; }
+
+/* ===== LEFT SIDEBAR ===== */
+.sidebar {
+  width: 220px; min-width: 200px; background: #fafbfc;
+  border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto;
+  flex-shrink: 0;
+}
+.sb-head { padding: 16px 16px 12px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); }
+.sb-logo { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.sb-ver { font-size: 10px; color: var(--text-tertiary); background: var(--bg); padding: 2px 6px; border-radius: 3px; }
+.sb-section { padding: 12px 14px; }
+.sb-label { font-size: 10px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+
+/* View cards */
+.vlist { display: flex; flex-direction: column; gap: 5px; }
+.vcard {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: 11px 12px; cursor: pointer; transition: all 0.15s;
+}
+.vcard:hover { border-color: #ccc; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+.vcard.on { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent); }
+.vci { font-size: 16px; margin-bottom: 5px; opacity: 0.45; }
+.vct { font-size: 12.5px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
+.vcd { font-size: 10.5px; color: var(--text-tertiary); line-height: 1.35; }
+.vcard.on .vct { color: var(--accent); } .vcard.on .vci { opacity: 0.75; }
+
+/* Import zone */
+.imp-zone {
+  border: 1.5px dashed var(--border); border-radius: var(--radius-md);
+  padding: 14px; text-align: center; cursor: pointer; transition: all 0.18s;
+  background: var(--surface); margin-top: 4px;
+}
+.imp-zone:hover { border-color: var(--accent); background: var(--accent-light); }
+.imp-icon { font-size: 24px; opacity: 0.25; margin-bottom: 6px; }
+.imp-title { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+.imp-sub { font-size: 10px; color: var(--text-tertiary); margin-top: 3px; }
+
+/* Sidebar inputs */
+.sb-input {
+  width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 11.5px; outline: none; margin-bottom: 5px; font-family: inherit; background: var(--surface);
+}
+.sb-input:focus { border-color: var(--accent); }
+
+/* Data info */
+.data-info {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: 10.5px; color: var(--text-secondary); margin-top: 6px;
+}
+.data-info strong { color: var(--text-primary); }
+
+/* Val cfg */
+.val-cfg { background: var(--accent-soft); border: 1px solid var(--accent-light); border-radius: var(--radius-md); padding: 10px 12px; margin-top: 4px; }
+.val-cfg-label { font-size: 10.5px; font-weight: 600; color: var(--accent); margin-bottom: 6px; }
+.val-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+.val-row label { font-size: 10.5px; color: var(--text-secondary); white-space: nowrap; }
+.val-row input { flex: 1; padding: 4px 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 10.5px; outline: none; font-family: inherit; }
+.val-row input:focus { border-color: var(--accent); }
+
+.sb-btn {
+  width: 100%; padding: 7px; border: none; border-radius: var(--radius-sm);
+  font-size: 11.5px; cursor: pointer; font-family: inherit; transition: all 0.12s;
+  background: var(--accent); color: #fff; font-weight: 500; margin-top: 4px;
+}
+.sb-btn:hover { background: #3b5de7; } .sb-btn.disabled { opacity: 0.4; cursor: not-allowed; }
+.sb-btn.sec { background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border); }
+.sb-btn.sec:hover { border-color: #bbb; color: var(--text-primary); }
+
+
+/* ===== RIGHT MAIN ===== */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--surface); min-width: 0; }
+
+/* Sheet tabs */
+.sheet-tabs {
+  display: flex; align-items: center; gap: 3px; padding: 6px 14px;
+  border-bottom: 1px solid var(--border); background: #fafbfc; flex-shrink: 0; overflow-x: auto;
+}
+.stab {
+  padding: 4px 12px; border: 1px solid transparent; border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  font-size: 11.5px; cursor: pointer; white-space: nowrap; color: var(--text-secondary);
+  background: transparent; transition: all 0.1s; position: relative;
+}
+.stab:hover { background: #eee; color: var(--text-primary); }
+.stab.on { background: var(--surface); border-color: var(--border) var(--border) transparent var(--border); color: var(--text-primary); font-weight: 600; }
+.stab .sclose {
+  display: none; margin-left: 4px; font-size: 13px; line-height: 1; color: var(--text-tertiary); cursor: pointer;
+}
+.stab.on .sclose { display: inline; } .stab .sclose:hover { color: var(--error); }
+
+/* Toolbar */
+.toolbar {
+  display: flex; align-items: center; gap: 6px; padding: 7px 14px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0; background: #fafbfc; flex-wrap: wrap;
+}
+.tbtn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 5px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text-secondary); font-size: 12px;
+  cursor: pointer; white-space: nowrap; transition: all 0.12s; font-family: inherit;
+}
+.tbtn:hover { border-color: #bbb; color: var(--text-primary); }
+.tbtn.pri { background: var(--accent); color: #fff; border-color: var(--accent); }
+.tbtn.pri:hover { background: #3b5de7; }
+.tbtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.divider { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
+
+.content-body { flex: 1; overflow: auto; position: relative; }
+
+/* ===== TABLE VIEW ===== */
+.table-view { display: flex; flex-direction: column; height: 100%; }
+.table-wrap { flex: 1; overflow: auto; position: relative; }
+
+.prog-track { height: 2px; position: absolute; top:0; left:0; right:0; z-index: 20; opacity: 0; transition: opacity 0.2s; }
+.prog-track.vis { opacity: 1; background: var(--border); }
+.prog-fill { height: 100%; background: linear-gradient(90deg,var(--accent),#7c93f5); width: 0%; transition: width 0.25s ease; }
+
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: auto; }
+.data-table th {
+  height: var(--th-h); padding: 0 10px; text-align: left; font-weight: 600;
+  font-size: 11.5px; color: var(--text-secondary); background: #f7f8fa;
+  border-bottom: 1px solid var(--border); border-right: 1px solid #eee;
+  white-space: nowrap; position: sticky; top: 0; z-index: 10;
+  user-select: none; vertical-align: middle; cursor: default;
+}
+.data-table th:hover { background: #eef0f3; }
+.th-inner { display: inline-flex; align-items: center; gap: 5px; max-width: 200px; }
+.col-name { overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+.ai-badge {
+  font-size: 10px; font-weight: 500; color: var(--accent); background: var(--accent-light);
+  padding: 1px 6px; border-radius: 3px; white-space: nowrap; flex-shrink: 0;
+}
+.dbl-hint { font-size: 10px; color: var(--text-tertiary); opacity: 0; margin-left: auto; padding-left: 6px; transition: opacity 0.15s; }
+.data-table th:hover .dbl-hint { opacity: 1; }
+
+.col-rn { width: 40px !important; text-align: center !important; padding: 0 !important; color: var(--text-tertiary); font-size: 11.5px; }
+.col-cb { width: 30px !important; text-align: center !important; padding: 0 !important; }
+.col-cb input { accent-color: var(--accent); cursor: pointer; }
+
+.data-table td {
+  height: var(--row-h); padding: 0 8px; border-bottom: 1px solid #f0f1f3;
+  border-right: 1px solid #f0f1f3; vertical-align: middle; font-size: 11.5px;
+  max-width: 240px; overflow: hidden;
+}
+.data-table tr:hover td { background: #fafbfd; }
+.data-table tr.proc td { background: #fffbeb; animation: pulse-row 1.5s ease infinite; }
+@keyframes pulse-row { 0%,100%{background:#fffbeb} 50%{background:#fef9e7} }
+
+.cell-txt { line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+.cell-tags { display: flex; flex-wrap: wrap; gap: 3px; }
+.tag-pill {
+  display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 3px;
+  font-size: 11px; font-weight: 500; line-height: 1.5; white-space: nowrap;
+  max-width: 120px; overflow: hidden; text-overflow: ellipsis;
+}
+.tc0{background:#dbeafe;color:#1d4ed8} .tc1{background:#dcfce7;color:#15803d}
+.tc2{background:#fef3c7;color:#b45309} .tc3{background:#ede9fe;color:#6d28d9}
+.tc4{background:#ffe4e6;color:#be123c} .tc5{background:#ccfbf1;color:#0f766e}
+.tc6{background:#fed7aa;color:#c2410c} .tc7{background:#e2e8f0;color:#475569}
+.tag-empty { color: var(--text-tertiary); font-style: italic; font-size: 11px; }
+
+/* Inline cell editor */
+.cedit {
+  width: 100%; height: calc(var(--row-h) - 2px); border: 1.5px solid var(--accent);
+  border-radius: 2px; padding: 0 6px; font-size: 11.5px; outline: none;
+  font-family: inherit; background: var(--surface); box-sizing: content-box;
+}
+
+.status-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 14px; border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--text-tertiary); background: #fafbfc; flex-shrink: 0;
+}
+.sb-left { display: flex; align-items: center; gap: 14px; }
+.sdot { display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px; }
+.sdot.idle{background:var(--text-tertiary)} .sdot.run{background:var(--warning);animation:blink .8s infinite}
+.sdot.done{background:var(--success)} .sdot.err{background:var(--error)}
+@keyframes blink{50%{opacity:.3}}
+
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; gap: 14px; color: var(--text-tertiary);
+}
+.empty-icon { font-size: 48px; opacity: 0.15; }
+.empty-title { font-size: 15px; color: var(--text-secondary); font-weight: 500; }
+.empty-sub { font-size: 12px; max-width: 300px; text-align: center; line-height: 1.5; }
+
+/* ===== CONTEXT MENU ===== */
+.ctx-menu {
+  position: fixed; z-index: 300; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-md); box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+  min-width: 160px; padding: 4px 0; display: none; animation: ctxIn 0.1s;
+}
+@keyframes ctxIn { from{opacity:0;transform:scale(0.95)} to{opacity:1;transform:scale(1)} }
+.ci {
+  display: flex; align-items: center; gap: 8px; padding: 7px 14px; font-size: 12px;
+  color: var(--text-primary); cursor: pointer; white-space: nowrap;
+}
+.ci:hover { background: var(--accent-light); color: var(--accent); }
+.ci.danger { color: var(--error); }
+.ci.danger:hover { background: #fef2f2; }
+.ci-sep { height: 1px; background: var(--border); margin: 4px 0; }
+.ci-dis { color: var(--text-tertiary); pointer-events: none; }
+
+/* Hidden columns indicator */
+.hid-cols-bar {
+  display: flex; align-items: center; gap: 6px; padding: 4px 14px;
+  background: #fefce8; border-bottom: 1px solid #fde68a; font-size: 11px; color: #92400e; flex-shrink: 0;
+}
+.hid-tag {
+  display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px;
+  background: #fff; border: 1px solid #fde68a; border-radius: 3px; cursor: pointer; font-size: 11px;
+}
+.hid-tag:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ===== DOC VIEWS ===== */
+.doc-view { display: none; padding: 20px 28px; }
+.doc-view.active { display: block; }
+
+.dsec { margin-bottom: 28px; }
+.ds-title {
+  font-size: 15px; font-weight: 700; color: var(--text-primary);
+  margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); display: inline-block;
+}
+.ds-meta { font-size: 11.5px; color: var(--text-tertiary); margin-bottom: 16px; display: flex; gap: 16px; flex-wrap: wrap; }
+
+.dt { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+.dt th { background: #f7f8fa; padding: 7px 10px; text-align: left; font-weight: 600; font-size: 11.5px; color: var(--text-secondary); border: 1px solid #eee; white-space: nowrap; }
+.dt td { padding: 6px 10px; border: 1px solid #eee; font-size: 11.5px; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dt tr:nth-child(even) td { background: #fafbfd; }
+
+.sc { background: #fafbfc; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 14px; }
+.sc-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.sc-t { font-size: 13px; font-weight: 600; }
+.sc-c { font-size: 11px; color: var(--text-tertiary); background: #f0f1f5; padding: 2px 8px; border-radius: 10px; }
+.sb-item { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 11.5px; }
+.sb-fill { height: 18px; border-radius: 3px; display: flex; align-items: center; padding: 0 8px; color: #fff; font-size: 11px; font-weight: 500; min-width: 40px; transition: width 0.4s; }
+.sb-lbl { width: 80px; flex-shrink: 0; font-size: 11.5px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-pct { width: 36px; text-align: right; font-size: 11px; color: var(--text-tertiary); flex-shrink: 0; }
+
+.vs { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 20px; }
+.vm { background: #fafbfc; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; text-align: center; }
+.vm-v { font-size: 26px; font-weight: 700; color: var(--accent); line-height: 1; margin-bottom: 4px; }
+.vm-l { font-size: 11px; color: var(--text-tertiary); }
+
+.de { display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-tertiary); gap: 10px; padding: 60px 20px; }
+.de-i { font-size: 40px; opacity: 0.2; }
+.de-t { font-size: 13px; }
+.de-s { font-size: 11.5px; }
+
+.log-area {
+  margin-top: 16px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: #1a1d23; max-height: 180px; overflow-y: auto; display: none;
+}
+.log-area.vis { display: block; }
+.ll { font-family:'SF Mono',Monaco,Consolas,monospace; font-size: 11px; padding: 3px 12px; color: #9ba0a9; line-height: 1.6; white-space: pre; }
+.ll.ok { color: #4ade80; } .ll.err { color: #f87171; } .ll.info { color: #60a5fa; }
+
+/* ===== DRAWER ===== */
+.drv-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.25); z-index: 200;
+  display: none; align-items: flex-end; justify-content: flex-end; animation: fi 0.15s;
+}
+.drv-overlay.open { display: flex; }
+@keyframes fi { from{opacity:0} to{opacity:1} }
+.drv {
+  width: 480px; max-width: 90vw; height: 100vh; background: var(--surface);
+  box-shadow: -8px 0 32px rgba(0,0,0,0.15); display: flex; flex-direction: column;
+  animation: sir 0.2s ease; overflow: hidden;
+}
+@keyframes sir { from{transform:translateX(100%)} to{transform:translateX(0)} }
+.drv-hd { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.drv-hd h3 { font-size: 15px; font-weight: 600; }
+.drv-close { background:none; border:none; font-size: 20px; color: var(--text-tertiary); cursor: pointer; padding: 4px; line-height: 1; }
+.drv-bd { flex: 1; overflow-y: auto; padding: 20px; }
+.df { margin-bottom: 18px; }
+.df label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+.df label .h { font-weight: 400; color: var(--text-tertiary); font-size: 11px; margin-left: 4px; }
+.df input[type="text"], .df textarea, .df select {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 13px; color: var(--text-primary); outline: none; font-family: inherit; transition: border-color 0.15s;
+}
+.df input:focus, .df textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(74,108,247,0.08); }
+.df textarea { resize: vertical; min-height: 72px; line-height: 1.55; }
+
+.tp { display: flex; gap: 6px; margin-top: 4px; }
+.to { flex: 1; padding: 9px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); text-align: center; cursor: pointer; transition: all 0.12s; background: var(--surface); }
+.to:hover { border-color: var(--text-tertiary); }
+.to.on { border-color: var(--accent); background: var(--accent-light); }
+.to .tl { font-size: 12px; font-weight: 600; display: block; }
+.to .td { font-size: 10px; color: var(--text-tertiary); margin-top: 2px; }
+
+.olst { margin-top: 6px; }
+.orow { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+.orow input { flex: 1; padding: 6px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; outline: none; }
+.orow input:focus { border-color: var(--accent); }
+.odl { background: none; border: none; color: var(--text-tertiary); cursor: pointer; font-size: 16px; padding: 0 2px; }
+.odl:hover { color: var(--error); }
+.bao { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border: 1px dashed var(--border); border-radius: var(--radius-sm); background: none; color: var(--accent); font-size: 11.5px; cursor: pointer; margin-top: 4px; }
+.bao:hover { border-color: var(--accent); background: var(--accent-light); }
+
+.rcs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.rcp { display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; background: var(--accent-light); color: var(--accent); border-radius: 4px; font-size: 11px; font-weight: 500; cursor: pointer; border: none; transition: background 0.1s; }
+.rcp:hover { background: #dbe4ff; }
+
+.drv-ft { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; background: #fafbfc; }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #bbb; }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+
+<!-- ======================== LEFT SIDEBAR ======================== -->
+<div class="sidebar">
+  <div class="sb-head"><span class="sb-logo">AI Tag Tool</span><span class="sb-ver">v3</span></div>
+
+  <div class="sb-section">
+    <div class="sb-label">视图</div>
+    <div class="vlist" id="vList">
+      <div class="vcard on" data-v="table" onclick="swView('table')">
+        <div class="vci">&#128203;</div><div class="vct">数据表格</div><div class="vcd">查看和编辑全部数据</div>
+      </div>
+      <div class="vcard" data-v="full" onclick="swView('full')">
+        <div class="vci">&#128196;</div><div class="vct">全量文档</div><div class="vcd">完整标注结果预览</div>
+      </div>
+      <div class="vcard" data-v="stats" onclick="swView('stats')">
+        <div class="vci">&#128202;</div><div class="vct">标签统计</div><div class="vcd">各维度分布与占比</div>
+      </div>
+      <div class="vcard" data-v="validate" onclick="swView('validate')">
+        <div class="vci">&#128196;</div><div class="vct">标注概览</div><div class="vcd">填充率与未标记统计</div>
+      </div>
+      <div class="vcard" data-v="llmval" onclick="swView('llmval')" id="vcLlmVal">
+        <div class="vci">&#129302;</div><div class="vct">LLM 验证</div><div class="vcd">大模型抽样校验</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sb-section">
+    <div class="sb-label">数据</div>
+    <div class="imp-zone" id="sbImpZone" onclick="document.getElementById('fileInput').click()">
+      <div class="imp-icon">&#128196;</div><div class="imp-title">导入数据文件</div><div class="imp-sub">CSV / Excel (.xlsx, .xls)</div>
+    </div>
+    <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleFileUpload(event)">
+    <div class="data-info" id="dataInfo" style="display:none">
+      <span><span id="diRows">0</span> 行 / <span id="diCols">0</span> 列</span>
+      <span id="diAi">0 AI字段</span>
+    </div>
+  </div>
+
+  <div class="sb-section">
+    <div class="val-cfg">
+      <div class="val-cfg-label">LLM 抽样验证</div>
+      <div class="val-row"><label>抽样数:</label><input type="number" id="valSampleN" value="100" min="5" max="5000"></div>
+      <button class="sb-btn sec" style="width:100%;font-size:10.5px;padding:5px;margin-top:6px" onclick="runLLMValidation()">运行 LLM 验证</button>
+    </div>
+  </div>
+
+  <div class="sb-section" style="margin-top:auto">
+    <div class="sb-label">API 配置</div>
+    <input class="sb-input" type="password" id="apiKeySm" placeholder="API Key (sk-...)">
+    <input class="sb-input" type="text" id="apiBaseSm" placeholder="Base URL" value="https://api.deepseek.com/v1">
+    <input class="sb-input" type="text" id="apiModelSm" placeholder="模型" value="deepseek-chat">
+  </div>
+</div>
+
+
+<!-- ======================== RIGHT MAIN ======================== -->
+<div class="main">
+
+  <!-- Sheet tabs -->
+  <div class="sheet-tabs" id="sheetTabs" style="display:none"></div>
+
+  <!-- Toolbar -->
+  <div class="toolbar" id="toolbar">
+    <button class="tbtn" onclick="document.getElementById('fileInput').click()" title="上传数据文件">+ 导入数据</button>
+    <button class="tbtn" onclick="openFieldDrawer(-1)" title="新建 AI 字段列">+ 新建字段</button>
+    <div class="divider"></div>
+    <button class="tbtn" id="vCfgBtn" onclick="doImportExport()">导入/导出配置</button>
+    <button class="tbtn" id="showHidBtn" onclick="showAllHiddenCols()" style="display:none">显示隐藏列</button>
+    <div class="divider"></div>
+    <button class="tbtn" id="filtBtn">筛选</button>
+    <button class="tbtn" id="grpBtn">分组</button>
+    <button class="tbtn" id="sortBtn">排序</button>
+    <div class="divider"></div>
+    <button class="tbtn" title="撤销"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10h13a4 4 0 010 8H9"/></svg></button>
+    <button class="tbtn" title="重做"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10H8a4 4 0 000 8h7"/></svg></button>
+    <div style="flex:1"></div>
+    <button class="tbtn pri" id="runBtn" onclick="runBatchTagging()" disabled>开始打标</button>
+    <button class="tbtn" onclick="exportTbl()" id="exportBtn" disabled>导出 CSV</button>
+  </div>
+
+  <!-- Content body -->
+  <div class="content-body" id="contentBody">
+
+    <!-- Table View -->
+    <div class="table-view" id="tableView">
+      <!-- Hidden cols bar -->
+      <div class="hid-cols-bar" id="hidBar" style="display:none">
+        <span>已隐藏:</span><span id="hidTags"></span>
+      </div>
+      <div class="table-wrap" id="tableWrap">
+        <div class="prog-track" id="progTrack"><div class="prog-fill" id="progFill"></div></div>
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon">&#128203;</div><div class="empty-title">暂无数据</div>
+          <div class="empty-sub">从左侧面板导入 CSV 或 Excel 文件开始使用</div>
+        </div>
+        <table class="data-table" id="dt" style="display:none"><thead id="dtHead"></thead><tbody id="dtBody"></tbody></table>
+      </div>
+      <div class="status-bar">
+        <div class="sb-left">
+          <span><span class="sdot idle" id="sdot"></span><span id="stText">就绪</span></span>
+          <span id="rcEl">0 行</span><span id="ccEl">0 列</span><span id="aiEl">0 个 AI 字段</span>
+        </div>
+        <span id="ptText" style="display:none">0/0</span>
+      </div>
+    </div>
+
+    <!-- Doc Views -->
+    <div class="doc-view" id="docFull"></div>
+    <div class="doc-view" id="docStats"></div>
+    <div class="doc-view" id="docValidate"></div>
+    <div class="doc-view" id="docLlmVal"></div>
+  </div>
+</div>
+
+
+<!-- Context Menu -->
+<div class="ctx-menu" id="ctxMenu"></div>
+
+
+<!-- Field Editor Drawer -->
+<div class="drv-overlay" id="drvOverlay">
+  <div class="drv">
+    <div class="drv-hd">
+      <h3 id="drvTitle">新建 AI 字段</h3>
+      <button class="drv-close" onclick="closeDrv()">&times;</button>
+    </div>
+    <div class="drv-bd">
+      <div class="df"><label>字段名称 <span style="color:var(--error)">*</span></label>
+        <input type="text" id="dfName" placeholder="例如：内部纹理、用户画像、购买动机"></div>
+      <div class="df"><label>输出格式</label>
+        <div class="tp" id="tpPick">
+          <div class="to on" data-t="multi" onclick="pkType('multi')"><span class="tl">多选</span><span class="td">多个标签</span></div>
+          <div class="to" data-t="single" onclick="pkType('single')"><span class="tl">单选</span><span class="td">仅一个</span></div>
+          <div class="to" data-t="text" onclick="pkType('text')"><span class="tl">文本</span><span class="td">自由输出</span></div>
+        </div>
+      </div>
+      <div class="df" id="optsField">
+        <label>预设选项 <span class="h">(可选)</span></label>
+        <div class="olst" id="optsList"></div>
+        <button class="bao" onclick="addORow()">+ 添加选项</button>
+        <div style="margin-top:8px"><button class="tbtn" style="font-size:11px;padding:4px 8px" onclick="aiGenOpts()">AI 生成选项</button></div>
+      </div>
+      <div class="df"><label>提示词指令 <span style="color:var(--error)">*</span> <span class="h">({{列名}} 引用)</span></label>
+        <textarea id="dfPrompt" rows="5" placeholder="请根据{{标题}}和{{卖点}}的内容，识别产品的内部纹理特征..."></textarea>
+        <div class="rcs" id="refChips"></div>
+      </div>
+      <div class="df"><label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="dfStrict" style="accent-color:var(--accent)"> 仅限预设选项
+      </label>
+      <div style="font-size:10.5px;color:var(--text-tertiary);margin-top:3px">开启后 AI 只能从预设选项中选择</div></div>
+    </div>
+    <div class="drv-ft">
+      <button class="tbtn" onclick="closeDrv()">取消</button>
+      <button class="tbtn pri" onclick="saveFld()">保存</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="tplFileInput" accept=".json" style="display:none" onchange="handleTplImport(event)">
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+let sheets = [];           // [{name, originalColumns[], data[]}]
+let activeSheetIdx = 0;    // current sheet index
+let aiFields = [];         // shared across sheets
+let hiddenColNames = new Set(); // hidden column names
+let editingIdx = -1, isProcessing = false, curView = 'table';
+let drvType = 'multi';
+let llmValResults = null;
+
+const TC=['tc0','tc1','tc2','tc3','tc4','tc5','tc6','tc7'];
+
+// Current sheet accessors
+function curSheet() { return sheets[activeSheetIdx] || null; }
+function tableData() { const s=curSheet(); return s ? s.data : []; }
+function originalColumns() { const s=curSheet(); return s ? s.originalColumns : []; }
+
+// ============================================================
+// FILE UPLOAD & MULTI-SHEET
+// ============================================================
+const sbImpZone=document.getElementById('sbImpZone');
+['dragenter','dragover'].forEach(e=>sbImpZone.addEventListener(e,ev=>{ev.preventDefault();sbImpZone.style.borderColor='var(--accent)';sbImpZone.style.background='var(--accent-light)';}));
+['dragleave','drop'].forEach(e=>sbImpZone.addEventListener(e,ev=>{ev.preventDefault();sbImpZone.style.borderColor='';sbImpZone.style.background='';}));
+sbImpZone.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)processFile(f);});
+function handleFileUpload(e){const f=e.target.files[0];if(f)processFile(f);}
+
+async function processFile(file){
+  const ext=file.name.split('.').pop().toLowerCase();
+  try{
+    if(ext==='csv'){await parseCSV(file);}
+    else if(/^xlsx?$/.test(ext)){await parseExcel(file);}
+    else{alert('不支持此格式');return;}
+    showTable();
+    log('info',`已加载 ${file.name} — ${sheets.length}个工作表`);
+    renderSheetTabs();
+    updDataInfo();
+    refreshDoc();
+  }catch(err){alert('解析失败: '+err.message);}
+}
+
+async function parseCSV(file){
+  const t=await file.text(), lines=t.split('\n').filter(l=>l.trim());
+  if(!lines.length) throw new Error('空');
+  const pr=line=>{const r=[],cur='',q=false;
+    for(let i=0;i<line.length;i++){const c=line[i];
+      if(q){if(c==='"'&&line[i+1]==='"'){cur+='"';i++}else if(c==='"')q=false;else cur+=c;}
+      else{if(c==='"')q=true;else if(c===','){r.push(cur.trim());cur='';}else cur+=c;}
+    }r.push(cur.trim());return r;};
+  const cols=pr(lines[0]), data=[];
+  for(let i=1;i<lines.length;i++){const v=pr(lines[i]),row={}; cols.forEach((c,idx)=>row[c]=v[idx]||''); data.push(row);}
+  sheets=[{name:'Sheet1',originalColumns:cols,data}];
+  activeSheetIdx=0;
+}
+
+async function parseExcel(file){
+  const s=document.createElement('script');
+  s.src='https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+  s.onload=()=>{const r=new FileReader();r.onload=e=>{
+    const wb=XLSX.read(e.target.result,{type:'array'});
+    sheets=[];
+    wb.SheetNames.forEach(sn=>{
+      const ws=wb.Sheets[sn], j=XLSX.utils.sheet_to_json(ws,{header:1});
+      if(!j||!j.length)return;
+      const cols=j[0].map(c=>String(c||'').trim()), data=[];
+      for(let i=1;i<j.length;i++){const row={}; cols.forEach((c,idx)=>row[c]=String(j[i][idx]||'')); data.push(row);}
+      sheets.push({name:sn,originalColumns:cols,data});
+    });
+    if(!sheets.length){alert('Excel 无有效工作表');return;}
+    activeSheetIdx=0;
+    showTable(); renderSheetTabs(); updDataInfo(); refreshDoc();
+    log('info',`Excel 已加载 (${sheets.length} 个工作表)`);
+  }; r.readAsArrayBuffer(file);};
+  s.onerror=()=>alert('Excel 库加载失败'); document.head.appendChild(s);
+}
+
+function renderSheetTabs(){
+  const el=document.getElementById('sheetTabs');
+  if(sheets.length<=1){el.style.display='none';return;}
+  el.style.display='flex';
+  el.innerHTML=sheets.map((sh,i)=>
+    `<div class="stab ${i===activeSheetIdx?'on':''}" onclick="switchSheet(${i})">${esc(sh.name)}${sheets.length>1?`<span class="sclose" onclick="event.stopPropagation();removeSheet(${i})">&times;</span>`:''}</div>`
+  ).join('');
+}
+
+function switchSheet(idx){
+  if(idx<0||idx>=sheets.length)return;
+  activeSheetIdx=idx;
+  renderSheetTabs();
+  renderTable();
+  updDataInfo();
+  refreshDoc();
+}
+
+function removeSheet(idx){
+  if(sheets.length<=1){alert('至少保留一个工作表');return;}
+  if(!confirm(`删除工作表 "${sheets[idx].name}"？`))return;
+  sheets.splice(idx,1);
+  if(activeSheetIdx>=sheets.length)activeSheetIdx=sheets.length-1;
+  renderSheetTabs(); renderTable(); updDataInfo();
+}
+
+function showTable(){
+  document.getElementById('emptyState').style.display='none';
+  document.getElementById('dt').style.display='table';
+  renderTable();
+}
+
+function updDataInfo(){
+  const el=document.getElementById('dataInfo'), td=tableData();
+  if(td.length){
+    el.style.display='flex';
+    document.getElementById('diRows').textContent=td.length;
+    document.getElementById('diCols').textContent=getVisibleCols().length;
+    document.getElementById('diAi').textContent=aiFields.length+' AI字段';
+  } else { el.style.display='none'; }
+}
+
+
+// ============================================================
+// TABLE RENDERING (with hidden col support)
+// ============================================================
+function getCols(){return [...originalColumns(),...aiFields.map(f=>f.name)];}
+function getVisibleCols(){return getCols().filter(c=>!hiddenColNames.has(c));}
+
+function renderTable(){
+  const th=document.getElementById('dtHead'), tb=document.getElementById('dtBody');
+  const visCols=getVisibleCols(), allCols=getCols();
+
+  th.innerHTML='<tr><th class="col-rn">#</th><th class="col-cb"><input type="checkbox" id="cbAll" onchange="toggleAll(this.checked)"></th>'+
+    visCols.map((c,i)=>{
+      const ci=allCols.indexOf(c), isAI=aiFields.find(f=>f.name===c), hid=hiddenColNames.has(c);
+      return `<th ondblclick="openHdrEdit(${ci})" data-ci="${ci}" data-cn="${escAttr(c)}"
+        ${hid?'style="display:none"':''}
+        title="双击编辑${isAI?' AI 字段':'新建AI字段'} | 右键操作列">
+        <div class="th-inner"><span class="col-name">${esc(c)}</span>${isAI?'<span class="ai-badge">AI</span>':''}<span class="dbl-hint">双击编辑 / 右键</span></div></th>`;
+    }).join('')+'</tr>';
+
+  const td=tableData();
+  tb.innerHTML=td.map((r,ri)=>
+    `<tr data-ri="${ri}"><td class="col-rn">${ri+1}</td><td class="col-cb"><input type="checkbox" class="rcb" data-ri="${ri}"></td>`+
+    visCols.map(c=>{
+      const hid=hiddenColNames.has(c);
+      return hid?'':renderCell(r,c);
+    }).join('')+'</tr>'
+  ).join('');
+
+  updateHiddenBar();
+  updStatus();
+}
+
+function renderCell(row,col){
+  const v=row[col], fld=aiFields.find(f=>f.name===col);
+  if(v===undefined||v===null||v==='') return '<td><span class="tag-empty">--</span></td>';
+  if(fld&&(fld.type==='multi'||fld.type==='single')){
+    const tags=String(v).split(',').map(t=>t.trim()).filter(Boolean);
+    return '<td><div class="cell-tags">'+tags.map((t,i)=>
+      `<span class="tag-pill ${TC[i%TC.length]}" title="${esc(t)}">${esc(t)}</span>`
+    ).join('')+'</div></td>';
+  }
+  return `<td ondblclick="startCellEdit(this,${getCols().indexOf(col)},'${escAttr(col)}')"><div class="cell-txt" title="${esc(String(v))}">${esc(String(v))}</div></td>`;
+}
+
+function updCellFast(ri,cn,val){
+  const tr=document.querySelector(`tr[data-ri="${ri}"]`); if(!tr)return;
+  const visIdx=getVisibleCols().indexOf(cn); if(visIdx<0)return;
+  const td=tr.children[visIdx+2]; if(!td)return;
+  const fld=aiFields.find(f=>f.name===cn);
+  if(fld&&(fld.type==='multi'||fld.type==='single')){
+    const tags=String(val).split(',').map(t=>t.trim()).filter(Boolean);
+    td.innerHTML='<div class="cell-tags">'+tags.map((t,i)=>
+      `<span class="tag-pill ${TC[i%TC.length]}" title="${esc(t)}">${esc(t)}</span>`
+    ).join('')+'</div>';
+  } else td.innerHTML=`<div class="cell-txt" title="${esc(String(val))}">${esc(String(val))}</div>`;
+}
+
+function updateHiddenBar(){
+  const bar=document.getElementById('hidBar'), tagsEl=document.getElementById('hidTags');
+  const btn=document.getElementById('showHidBtn');
+  const hidArr=getCols().filter(c=>hiddenColNames.has(c));
+  if(hidArr.length){
+    bar.style.display='flex'; btn.style.display='';
+    tagsEl.innerHTML=hidArr.map(c=>`<span class="hid-tag" onclick="unhideCol('${escAttr(c)}')">${esc(c)} x</span>`).join('');
+  } else { bar.style.display='none'; btn.style.display='none'; }
+}
+
+function updStatus(){
+  const c=getVisibleCols(), td=tableData();
+  document.getElementById('rcEl').textContent=td.length+' 行';
+  document.getElementById('ccEl').textContent=c.length+' 列';
+  document.getElementById('aiEl').textContent=aiFields.length+' 个 AI 字段';
+  document.getElementById('runBtn').disabled=!aiFields.length||!td.length;
+  document.getElementById('exportBtn').disabled=!td.length;
+  updDataInfo();
+}
+
+function openHdrEdit(ci){
+  const cols=getCols(); if(ci<0||ci>=cols.length)return;
+  const cn=cols[ci], aiIdx=aiFields.findIndex(f=>f.name===cn);
+  if(aiIdx>=0){editingIdx=aiIdx; openDrvEdit(aiFields[aiIdx]);}
+  else{editingIdx=-1; openDrvNew(cn);}
+}
+
+
+// ============================================================
+// INLINE CELL EDITING
+// ============================================================
+function startCellEdit(td,colIdx,colName){
+  if(isProcessing)return;
+  const fld=aiFields.find(f=>f.name===colName);
+  if(fld&&fld.type!=='text')return; // only allow editing non-AI-text cells or raw cells
+  const rowIdx=parseInt(td.parentElement.dataset.ri);
+  const val=tableData()[rowIdx][colName]||'';
+  td.innerHTML=`<input class="cedit" value="${escAttr(val)}" onblur="finishCellEdit(this,${rowIdx},'${escAttr(colName)}')" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape'){this.value='${escAttr(val)}';this.blur();}">`;
+  const inp=td.firstChild; inp.focus(); inp.select();
+}
+
+function finishCellEdit(inp,rowIdx,colName){
+  const newVal=inp.value.trim();
+  tableData()[rowIdx][colName]=newVal;
+  updCellFast(rowIdx,colName,newVal);
+  log('info',`编辑 R${rowIdx+1} ${colName}: ${newVal.substring(0,30)}`);
+}
+
+
+// ============================================================
+// CONTEXT MENU (Column + Row operations)
+// ============================================================
+let _ctxTarget=null; // {type:'col'|'row', idx, name/ri}
+
+document.addEventListener('contextmenu',e=>{
+  const th=e.target.closest('th[data-ci]');
+  const tr=e.target.closest('tr[data-ri]');
+  if(th){e.preventDefault(); showCtxCol(th,e.clientX,e.clientY);}
+  else if(tr&&!e.target.closest('.cedit')){e.preventDefault(); showCtxRow(tr,tr.dataset.ri,e.clientX,e.clientY);}
+});
+
+document.addEventListener('click',()=>{document.getElementById('ctxMenu').style.display='none';});
+
+function showCtxCol(th,x,y){
+  const ci=parseInt(th.dataset.ci), cn=th.dataset.cn;
+  _ctxTarget={type:'col',idx:ci,name:cn};
+  const isAI=aiFields.find(f=>f.name===cn);
+  const isHid=hiddenColNames.has(cn);
+
+  let html='';
+  if(!isHid) html+=`<div class="ci" onclick="ctxInsertCol('left')">在左侧插入列</div>`;
+  if(!isHid) html+=`<div class="ci" onclick="ctxInsertCol('right')">在右侧插入列</div>`;
+  html+=`<div class="ci ${isHid?'':'danger'}" onclick="ctxToggleHideCol()">${isHid?'显示列':'隐藏列'}</div>`;
+  html+=`<div class="ci-sep"></div>`;
+  if(!isAI) html+=`<div class="ci" onclick="ctxCreateAIFromCol()">基于此列创建 AI 字段</div>`;
+  if(isAI) html+=`<div class="ci" onclick="ctxEditAICol()">编辑 AI 字段</div>`;
+  html+=`<div class="ci danger" onclick="ctxDeleteCol()">删除列</div>`;
+
+  const m=document.getElementById('ctxMenu'); m.innerHTML=html;
+  m.style.display='block'; m.style.left=x+'px'; m.style.top=y+'px';
+  // keep within viewport
+  const mr=m.getBoundingClientRect();
+  if(mr.right>window.innerWidth)m.style.left=(window.innerWidth-mr.width-8)+'px';
+  if(mr.bottom>window.innerHeight)m.style.top=(window.innerHeight-mr.height-8)+'px';
+}
+
+function showCtxRow(tr,ri,x,y){
+  _ctxTarget={type:'row',idx:parseInt(ri)};
+  const m=document.getElementById('ctxMenu');
+  m.innerHTML=
+    `<div class="ci" onclick="ctxInsertRow('above')">在上方插入行</div>
+     <div class="ci" onclick="ctxInsertRow('below')">在下方插入行</div>
+     <div class="ci-sep"></div>
+     <div class="ci danger" onclick="ctxDeleteRow()">删除行</div>`;
+  m.style.display='block'; m.style.left=x+'px'; m.style.top=y+'px';
+  const mr=m.getBoundingClientRect();
+  if(mr.right>window.innerWidth)m.style.left=(window.innerWidth-mr.width-8)+'px';
+  if(mr.bottom>window.innerHeight)m.style.top=(window.innerHeight-mr.height-8)+'px';
+}
+
+// --- Column ops ---
+function ctxInsertCol(dir){
+  if(!_ctxTarget||_ctxTarget.type!=='col')return;
+  const allCols=getCols(), pos=_ctxTarget.idx+(dir==='right'?1:0);
+  const newName=prompt('新列名称:', '新列'+(allCols.length+1));
+  if(!newName||!newName.trim())return;
+  const nn=newName.trim();
+  if(allCols.includes(nn)){alert('列名重复');return;}
+
+  // Determine if inserting into originalColumns or aiFields
+  const origLen=originalColumns().length;
+  if(pos<=origLen){
+    // insert into original columns
+    curSheet().originalColumns.splice(pos,0,nn);
+    tableData().forEach(r=>r[nn]='');
+  } else {
+    // would be after original columns - just add as empty original column at end of originals
+    curSheet().originalColumns.push(nn);
+    tableData().forEach(r=>r[nn]='');
+  }
+  closeCtx(); renderTable(); log('info',`插入列: ${nn}`);
+}
+
+function ctxToggleHideCol(){
+  if(!_ctxTarget||_ctxTarget.type!=='col')return;
+  const cn=_ctxTarget.name;
+  if(hiddenColNames.has(cn)) hiddenColNames.delete(cn);
+  else hiddenColNames.add(cn);
+  closeCtx(); renderTable(); log('info',hiddenColNames.has(cn)?`隐藏列: ${cn}`:`显示列: ${cn}`);
+}
+
+function unhideCol(cn){hiddenColNames.delete(cn); renderTable();}
+function showAllHiddenCols(){hiddenColNames.clear(); renderTable(); log('info','已显示所有隐藏列');}
+
+function ctxDeleteCol(){
+  if(!_ctxTarget||_ctxTarget.type!=='col')return;
+  const cn=_ctxTarget.name;
+  if(!confirm(`确认删除列 "${cn}"？\n该列所有数据将被清除。`))return;
+  const aiIdx=aiFields.findIndex(f=>f.name===cn);
+  if(aiIdx>=0) aiFields.splice(aiIdx,1);
+  else{
+    const oi=originalColumns().indexOf(cn);
+    if(oi>=0) curSheet().originalColumns.splice(oi,1);
+  }
+  hiddenColNames.delete(cn);
+  tableData().forEach(r=>delete r[cn]);
+  closeCtx(); renderTable(); updStatus(); log('info',`删除列: ${cn}`);
+}
+
+function ctxCreateAIFromCol(){
+  if(!_ctxTarget||_ctxTarget.type!=='col')return;
+  closeCtx();
+  editingIdx=-1; openDrvNew(_ctxTarget.name);
+}
+
+function ctxEditAICol(){
+  if(!_ctxTarget||_ctxTarget.type!=='col')return;
+  const aiIdx=aiFields.findIndex(f=>f.name===_ctxTarget.name);
+  if(aiIdx<0)return;
+  closeCtx(); editingIdx=aiIdx; openDrvEdit(aiFields[aiIdx]);
+}
+
+// --- Row ops ---
+function ctxInsertRow(dir){
+  if(!_ctxTarget||_ctxTarget.type!=='row')return;
+  const ri=_ctxTarget.idx, newPos=dir==='above'?ri:ri+1;
+  const newRow={};
+  getCols().forEach(c=>newRow[c]='');
+  tableData().splice(newPos,0,newRow);
+  closeCtx(); renderTable(); updStatus(); log('info',`在第 ${newPos+1} 行插入空行`);
+}
+
+function ctxDeleteRow(){
+  if(!_ctxTarget||_ctxTarget.type!=='row')return;
+  if(!confirm('确认删除该行？'))return;
+  tableData().splice(_ctxTarget.idx,1);
+  closeCtx(); renderTable(); updStatus(); log('info',`删除第 ${_ctxTarget.idx+1} 行`);
+}
+
+function closeCtx(){document.getElementById('ctxMenu').style.display='none';_ctxTarget=null;}
+
+
+// ============================================================
+// DRAWER
+// ============================================================
+function openFieldDrawer(idx){editingIdx=-1; openDrvNew('');}
+
+function openDrvNew(hint){
+  document.getElementById('drvTitle').textContent='新建 AI 字段';
+  document.getElementById('dfName').value=hint||''; document.getElementById('dfPrompt').value='';
+  document.getElementById('dfStrict').checked=false; pkType('multi');
+  document.getElementById('optsList').innerHTML='';
+  document.getElementById('drvOverlay').classList.add('open'); buildRefs();
+}
+
+function openDrvEdit(f){
+  document.getElementById('drvTitle').textContent='编辑 AI 字段: '+f.name;
+  document.getElementById('dfName').value=f.name; document.getElementById('dfPrompt').value=f.prompt;
+  document.getElementById('dfStrict').checked=!!f.strict; pkType(f.type||'multi');
+  const ol=document.getElementById('optsList'); ol.innerHTML='';
+  if(f.options&&f.options.length) f.options.forEach(o=>addORow(o));
+  document.getElementById('drvOverlay').classList.add('open'); buildRefs();
+}
+
+function closeDrv(){document.getElementById('drvOverlay').classList.remove('open'); editingIdx=-1;}
+
+function pkType(t){
+  drvType=t; document.querySelectorAll('#tpPick .to').forEach(el=>el.classList.toggle('on',el.dataset.t===t));
+  document.getElementById('optsField').style.display=t==='text'?'none':'block';
+}
+
+function addORow(v=''){
+  const d=document.createElement('div'); d.className='orow';
+  d.innerHTML=`<input type="text" value="${esc(v)}" placeholder="选项"><button class="odl" onclick="this.parentElement.remove()">&times;</button>`;
+  document.getElementById('optsList').appendChild(d);
+}
+function getOpts(){return Array.from(document.querySelectorAll('#optsList input')).map(i=>i.value.trim()).filter(Boolean);}
+
+function saveFld(){
+  const name=document.getElementById('dfName').value.trim(), prompt=document.getElementById('dfPrompt').value.trim();
+  if(!name){alert('填字段名');return;} if(!prompt){alert('填提示词');return;}
+  const dup=aiFields.findIndex((f,i)=>f.name===name&&i!==editingIdx);
+  if(dup>=0){alert('字段名重复');return;}
+  const fld={name,prompt,type:drvType,options:drvType==='text'?[]:getOpts(),strict:document.getElementById('dfStrict').checked};
+  if(editingIdx>=0){
+    const old=aiFields[editingIdx].name;
+    if(old!==name) sheets.forEach(s=>s.data.forEach(r=>{if(r.hasOwnProperty(old)){r[name]=r[old];delete r[old];}}));
+    aiFields[editingIdx]=fld;
+  } else aiFields.push(fld);
+  closeDrv(); renderTable(); updStatus(); updDataInfo(); refreshDoc();
+  log('info',`${editingIdx>=0?'更新':'创建'}字段: ${name}`);
+}
+
+function buildRefs(){
+  const c=document.getElementById('refChips');
+  const oc=originalColumns();
+  if(!oc.length){c.innerHTML='<span style="font-size:11px;color:var(--text-tertiary)">上传文件后可引用字段</span>';return;}
+  c.innerHTML='<span style="font-size:11px;color:var(--text-tertiary);margin-right:4px">引用:</span>'+
+    oc.map(col=>`<button class="rcp" onclick="insRef('${escAttr(col)}')">@${esc(col)}</button>`).join('');
+}
+function insRef(col){
+  const ta=document.getElementById('dfPrompt'), s=ta.selectionStart, e=ta.selectionEnd, r=`{{${col}}}`;
+  ta.value=ta.value.substring(0,s)+r+ta.value.substring(e); ta.focus(); ta.selectionStart=ta.selectionEnd=s+r.length;
+}
+
+
+// ============================================================
+// API
+// ============================================================
+function apiCfg(){
+  return {key:document.getElementById('apiKeySm').value.trim(),
+    base:(document.getElementById('apiBaseSm').value.trim()||'https://api.deepseek.com/v1').replace(/\/$/,''),
+    model:document.getElementById('apiModelSm').value.trim()||'deepseek-chat'};
+}
+
+async function callAPI(sysMsg,userMsg,apiKey,temp=0.3){
+  const cfg=apiCfg(), msgs=[{role:'system',content:sysMsg}];
+  if(userMsg) msgs.push({role:'user',content:userMsg});
+  const r=await fetch(`${cfg.base}/chat/completions`,{
+    method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiKey||cfg.key}`},
+    body:JSON.stringify({model:cfg.model,messages:msgs,temperature:temp,max_tokens:2000})
+  });
+  if(!r.ok){const b=await r.text().catch(()=>''); throw new Error(`API ${r.status}: ${b}`);}
+  const d=await r.json(); return d.choices?.[0]?.message?.content||'';
+}
+
+async function aiGenOpts(){
+  const cfg=apiCfg(); if(!cfg.key){alert('先填 API Key');return;} if(!originalColumns().length){alert('先上传文件');return;}
+  const nm=document.getElementById('dfName').value.trim()||'该字段', pt=document.getElementById('dfPrompt').value.trim();
+  const sys=`你是标签体系设计专家。根据字段用途和数据列结构，生成5-10个合适的预设标签。
+要求：具体、互斥、覆盖全面；每个标签2-6字。直接输出JSON数组如 ["标签1","标签2"]，不要其他文字。
+字段名: ${nm}\n用途: ${pt||'(未提供)'}\n数据列: ${originalColumns().join(', ')}`;
+  try{
+    const resp=await callAPI(sys,'',cfg.key,0.3), m=resp.match(/\[[\s\S]*?\]/);
+    if(!m) throw new Error('解析失败');
+    const opts=JSON.parse(m[0]), ol=document.getElementById('optsList'); ol.innerHTML='';
+    opts.forEach(o=>addORow(String(o))); log('info',`AI 生成了 ${opts.length} 个选项`);
+  }catch(err){alert('生成失败: '+err.message);}
+}
+
+
+// ============================================================
+// BATCH TAGGING
+// ============================================================
+async function runBatchTagging(){
+  if(isProcessing)return; if(!aiFields.length){alert('先配置 AI 字段');return;} if(!tableData().length){alert('先上传数据');return;}
+  const cfg=apiCfg(); if(!cfg.key){alert('填 API Key');return;}
+  isProcessing=true; setProc(true);
+  const total=tableData().length*aiFields.length, done=0;
+  try{
+    for(let fi=0;fi<aiFields.length;fi++){
+      const fld=aiFields[fi];
+      for(let ri=0;ri<tableData().length;ri++){
+        if(!isProcessing)break; const row=tableData()[ri];
+        let resolved=fld.prompt;
+        originalColumns().forEach(c=>resolved=resolved.replace(new RegExp(`\\{\\{${c}\\}\\}`,'g'),row[c]||'(无)'));
+        let sys=`你是专业数据标注助手。严格按指令标注。\n\n## 指令\n${resolved}`;
+        if(fld.type!=='text'){
+          if(fld.options.length) sys+=`\n\n## 可选标签\n${fld.options.map((o,i)=>`${i+1}. ${o}`).join('\n')}`;
+          if(fld.strict&&fld.options.length) sys+=`\n\n## 约束\n只能从可选标签中选择。${fld.type==='multi'?'多选用逗号分隔':'单选唯一'}。无匹配则输出"未提及"`;
+          else sys+=`\n\n## 输出\n${fld.type==='multi'?'多选标签逗号分隔':'单选最匹配的一个'}。无匹配则"未提及"`;
+        }
+        sys+='\n\n只输出结果，不要解释';
+        markP(ri,true);
+        try{
+          let raw=await callAPI(sys,'',cfg.key,0.2);
+          let clean=raw.trim().replace(/^["'\u201c]|["'\u201d]$/g,'').replace(/^\d+[.\uff0e\u3001\s]*/gm,'').trim();
+          if(fld.type!=='text'){
+            clean=clean.split(/[,;\uff0c\uff1b\n]/).map(s=>s.replace(/^["'\s\u3002.]|["'\s\u3002.]$/g,'').trim())
+              .filter(s=>s&&s!=='未提及').slice(0,fld.type==='single'?1:20).join(', ');
+            if(!clean) clean='未提及';
+          }
+          row[fld.name]=clean; updCellFast(ri,fld.name,clean); done++; updProg(done,total);
+          log('ok',`[${fld.name}] R${ri+1}: ${clean.substring(0,40)}`);
+        }catch(err){
+          row[fld.name]=`[错] ${err.message}`; updCellFast(ri,fld.name,row[fld.name]);
+          done++; updProg(done,total); log('err',`[${fld.name}] R${ri+1}: ${err.message}`);
+        }
+        markP(ri,false); await sleep(80);
+      }
+    }
+    setSt('done','完成'); log('info',`全部完成 ${done}/${total}`); refreshDoc();
+  }catch(err){if(err.name!=='AbortError'){setSt('error','出错');log('err','中断: '+err.message);}}
+  isProcessing=false; setProc(false);
+}
+
+function markP(ri,on){const tr=document.querySelector(`tr[data-ri="${ri}"]`);if(tr)tr.classList.toggle('proc',on);}
+function setProc(on){
+  document.getElementById('progTrack').classList.toggle('vis',on);
+  document.getElementById('ptText').style.display=on?'inline':'none';
+  document.getElementById('runBtn').disabled=on; if(on) setSt('running','处理中...');
+}
+function updProg(done,total){document.getElementById('progFill').style.width=Math.round(done/total*100)+'%'; document.getElementById('ptText').textContent=`${done}/${total}`;}
+function setSt(type,text){document.getElementById('sdot').className='sdot '+type; document.getElementById('stText').textContent=text;}
+
+
+// ============================================================
+// VIEW SWITCHING
+// ============================================================
+function swView(v){
+  curView=v;
+  document.querySelectorAll('.vcard').forEach(c=>c.classList.toggle('on',c.dataset.v===v));
+  const tableView = document.getElementById('tableView');
+  const docViews = ['docFull','docStats','docValidate','docLlmVal'];
+  if(v === 'table'){
+    tableView.style.display = 'flex';
+    docViews.forEach(id => document.getElementById(id).classList.remove('active'));
+    document.getElementById('toolbar').style.display = '';
+  } else {
+    tableView.style.display = 'none';
+    docViews.forEach(id => document.getElementById(id).classList.remove('active'));
+    const map = {full:'docFull', stats:'docStats', validate:'docValidate', llmval:'docLlmVal'};
+    if(map[v]) document.getElementById(map[v]).classList.add('active');
+    document.getElementById('toolbar').style.display = 'none';
+  }
+  refreshDoc();
+}
+function refreshDoc(){renderCur();}
+
+function renderCur(){
+  if(!tableData().length&&!aiFields.length){
+    const emptyHtml = `<div class="de"><div class="de-i">&#128196;</div><div class="de-t">暂无数据</div><div class="de-s">上传文件并配置 AI 字段后查看文档</div></div>`;
+    ['docFull','docStats','docValidate','docLlmVal'].forEach(id=>{document.getElementById(id).innerHTML=emptyHtml;});
+    return;
+  }
+  if(curView==='table') return;
+  if(curView==='full') renderFull(document.getElementById('docFull'));
+  else if(curView==='stats') renderStats(document.getElementById('docStats'));
+  else if(curView==='validate') renderValidate(document.getElementById('docValidate'));
+  else if(curView==='llmval') renderLlmVal(document.getElementById('docLlmVal'));
+}
+
+// --- Full ---
+function renderFull(c){
+  const cols=getCols();
+  c.innerHTML=`<div class="dsec"><div class="ds-title">标注结果总览</div><div class="ds-meta">
+    <span>总行数: <strong>${tableData().length}</strong></span><span>总列数: <strong>${cols.length}</strong></span>
+    <span>AI 字段: <strong>${aiFields.length}</strong></span><span>时间: <strong>${new Date().toLocaleString('zh-CN')}</strong></span></div>
+    <div style="overflow-x:auto"><table class="dt"><thead><tr>${cols.map(col=>`<th>${esc(col)}${aiFields.find(f=>f.name===col)?'<span style="color:var(--accent);font-size:9px;margin-left:3px">AI</span>':''}</th>`).join('')}</tr></thead>
+    <tbody>${tableData().slice(0,200).map(row=>`<tr>${cols.map(c=>{
+      const v=row[c];
+      if(aiFields.find(f=>f.name===c)&&(v&&v!=='--')){const tags=String(v).split(',').map(t=>t.trim()).filter(Boolean);return`<td>${tags.map(t=>`<span class="tag-pill ${TC[tags.indexOf(t)%TC.length]}">${esc(t)}</span>`).join(' ')}</td>`;}
+      return`<td title="${esc(String(v??''))}">${esc(String(v??''))}</td>`;
+    }).join('')}</tr>`).join('')}${tableData().length>200?`<tr><td colspan="${cols.length}" style="text-align:center;color:var(--text-tertiary);font-size:11px">... 共 ${tableData().length} 行（前 200）</td></tr>`:''}</tbody></table></div></div>
+    <div class="log-area" id="docLog"></div>`;
+  syncLog();
+}
+
+// --- Stats ---
+function renderStats(c){
+  if(!aiFields.length){c.innerHTML='<div class="de"><div class="de-t">暂无 AI 字段统计数据</div></div>';return;}
+  let h='<div class="dsec"><div class="ds-title">标签维度统计</div>';
+  aiFields.forEach(fld=>{
+    if(fld.type==='text'){h+=`<div class="sc"><div class="sc-hdr"><span class="sc-t">${esc(fld.name)}</span><span class="sc-c">文本型</span></div><div style="font-size:11.5px;color:var(--text-tertiary)">自由文本字段</div></div>`;return;}
+    const counts={}, totalT=0;
+    tableData().forEach(r=>{const v=r[fld.name];if(v&&v!=='未提及'&&v!=='[错')String(v).split(',').map(t=>t.trim()).filter(Boolean).forEach(t=>{counts[t]=(counts[t]||0)+1; totalT++;});});
+    const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]), mx=sorted.length?sorted[0][1]:1;
+    h+=`<div class="sc"><div class="sc-hdr"><span class="sc-t">${esc(fld.name)}</span><span class="sc-c">${sorted.length} 种 / ${totalT} 次</span></div><div style="margin-top:8px">`;
+    sorted.forEach(([lbl,cnt])=>{
+      const pct=(cnt/tableData().length*100).toFixed(1), bw=Math.max(cnt/mx*100,8), ci=sorted.findIndex(([l])=>l===lbl);
+      h+=`<div class="sb-item"><span class="sb-lbl" title="${esc(lbl)}">${esc(lbl)}</span><div style="flex:1;background:#eee;border-radius:3px;height:18px;overflow:hidden"><div class="sb-fill ${TC[ci%TC.length]}" style="width:${bw}%">${cnt}</div></div><span class="sb-pct">${pct}%</span></div>`;
+    });
+    const unlbl=tableData().filter(r=>!r[fld.name]||r[fld.name]==='未提及'||r[fld.name]=='--').length;
+    if(unlbl) h+=`<div class="sb-item"><span class="sb-lbl">(未标记)</span><div style="flex:1;background:#eee;border-radius:3px;height:18px;overflow:hidden"><div class="sb-fill tc7" style="width:${Math.max(unlbl/tableData().length*100,5)}%">${unlbl}</div></div><span class="sb-pct">${(unlbl/tableData().length*100).toFixed(1)}%</span></div>`;
+    h+='</div></div>';
+  }); c.innerHTML=h+'</div>';
+}
+
+// --- Validate (FIXED: only fill-rate and stats, no correct/error) ---
+function renderValidate(c){
+  if(!aiFields.length||!tableData().length){c.innerHTML='<div class="de"><div class="de-t">需要数据和 AI 字段</div></div>';return;}
+
+  let totCells=0, filled=0, unmarked=0, apiErr=0, textFilled=0;
+  const fieldStats=[];
+
+  aiFields.forEach(fld=>{
+    let fTot=0, fFil=0, fUnm=0, fErr=0, fTxt=0;
+    tableData().forEach((row)=>{
+      totCells++; fTot++;
+      const v=row[fld.name];
+      if(!v||v==='--'||v===''){unmarked++; fUnm++;}
+      else if(String(v).startsWith('[错]')){apiErr++; fErr++;}
+      else{filled++; fFil++;
+        if(fld.type==='text') textFilled++, fTxt++;
+      }
+    });
+    fieldStats.push({name:fld.name,type:fld.type,total:fTot,fill:fFil,unmark:fUnm,err:fTxt,text:fTxt,
+      pct:fTot?Math.round(fFil/fTot*100):0});
+  });
+
+  const overallPct=totCells?Math.round(filled/totCells*100):0;
+
+  c.innerHTML=`<div class="dsec"><div class="ds-title">标注概览</div><div class="vs">
+    <div class="vm"><div class="vm-v">${overallPct}%</div><div class="vm-l">总体填充率</div></div>
+    <div class="vm"><div class="vm-v">${filled}</div><div class="vm-l">已填充单元格</div></div>
+    <div class="vm"><div class="vm-v" style="color:var(--text-tertiary)">${unmarked}</div><div class="vm-l">未标记</div></div>
+  </div></div>
+
+  <div class="dsec"><div class="ds-title">各字段详情</div>
+  <table class="dt"><thead><tr>
+    <th>字段名</th><th>类型</th><th>总数</th><th>已填充</th><th>未标记</th><th>填充率</th>
+  </tr></thead><tbody>
+  ${fieldStats.map(fs=>`<tr>
+    <td>${esc(fs.name)}${aiFields.find(f=>f.name===fs.name)?'<span style="color:var(--accent);font-size:9px;margin-left:3px">AI</span>':''}</td>
+    <td>${fs.type==='multi'?'多选':fs.type==='single'?'单选':'文本'}</td>
+    <td>${fs.total}</td><td>${fs.fill}</td><td>${fs.unmark}</td>
+    <td><strong>${fs.pct}%</strong></td>
+  </tr>`).join('')}
+  </tbody></table></div>
+
+  ${apiErr>0?`<div class="dsec"><div class="ds-title">API 错误记录</div><div style="font-size:11.5px;color:var(--error)">
+    共 ${apiErr} 个单元格因 API 错误未能打标。这些单元格值以 [错] 开头。<br>
+    建议：检查 API 配置后重新运行"开始打标"，仅对错误行进行补标。
+  </div></div>`:''}`;
+}
+
+// --- LLM Validation ---
+function renderLlmVal(c){
+  if(!llmValResults){c.innerHTML=`<div class="de"><div class="de-i">&#129302;</div><div class="de-t">尚未运行 LLM 验证</div><div class="de-s">设置抽样数量后点击"运行 LLM 验证"</div></div>`;return;}
+  const R=llmValResults;
+  c.innerHTML=`<div class="dsec"><div class="ds-title">LLM 抽样验证报告</div><div class="ds-meta">
+    <span>抽样数量: <strong>${R.sampleSize}</strong></span>
+    <span>验证时间: <strong>${R.timestamp}</strong></span>
+    <span>验证字段: <strong>${R.fields.join(', ')}</strong></span></div>
+
+    <div class="vs">
+      <div class="vm"><div class="vm-v" style="color:${R.accuracy>=80?'var(--success)':R.accuracy>=60?'var(--warning)':'var(--error)'}">${R.accuracy}%</div><div class="vm-l">准确率</div></div>
+      <div class="vm"><div class="vm-v" style="color:var(--success)">${R.correct}</div><div class="vm-l">判定正确</div></div>
+      <div class="vm"><div class="vm-v" style="color:var(--error)">${R.incorrect}</div><div class="vm-l">需调整</div></div>
+    </div></div>
+
+    <div class="dsec"><div class="ds-title">逐条验证明细</div><div class="vilist">
+      ${R.results.map(res=>
+        `<div class="vi ${res.verdict==='correct'?'w':res.verdict==='incorrect'?'e':''}">
+          <span class="vi-i">${res.verdict==='correct'?'&#9989;':res.verdict==='incorrect'?'&#10060;':'&#9888;'}</span>
+          <div>
+            <div class="vi-t"><strong>行 ${res.rowIndex}</strong> · ${esc(res.fieldName)} — 原标签: <strong>${esc(res.originalTag)}</strong> → 建议: <strong>${esc(res.llmVerdict)}</strong></div>
+            <div class="vi-r" style="margin-top:4px;line-height:1.5">${esc(res.reason)}</div>
+          </div>
+        </div>`
+      ).join('')}
+    </div></div>`;
+}
+
+async function runLLMValidation(){
+  if(isProcessing){alert('正在处理中，请稍后再试');return;}
+  if(!aiFields.length){alert('先配置 AI 字段');return;}
+  if(!tableData().length){alert('先上传数据');return;}
+  const cfg=apiCfg(); if(!cfg.key){alert('填 API Key');return;}
+
+  const sampleN=Math.min(Math.max(parseInt(document.getElementById('valSampleN').value)||100,5),tableData().length);
+
+  const taggedRows=tableData().map((r,i)=>({idx:i,data:r}))
+    .filter(({data})=>aiFields.some(f=>data[f.name]&&data[f.name]!=='--'&&data[f.name]!=='未提及'&&!String(data[f.name]).startsWith('[错]')));
+
+  if(taggedRows.length===0){alert('没有已标注的数据可供验证');return;}
+
+  const shuffled=[...taggedRows].sort(()=>Math.random()-0.5);
+  const sample=shuffled.slice(0,Math.min(sampleN,taggedRows.length));
+
+  isProcessing=true; setProc(true); setSt('running','LLM 验证中...');
+
+  const results=[]; let correct=0, incorrect=0;
+
+  try{
+    for(const {idx:dataIdx,data:row} of sample){
+      for(const fld of aiFields){
+        const tag=row[fld.name];
+        if(!tag||tag==='--'||tag==='未提及'||String(tag).startsWith('[错]')) continue;
+
+        const contextParts=[]; originalColumns().forEach(c=>contextParts.push(`${c}: ${row[c]||'(无)'}`));
+        const context=contextParts.join('\n');
+
+        const userContent=[
+          `## 待验证数据（第 ${dataIdx+1} 行）`,context,``,
+          `## 当前标注`,`字段: ${fld.name}`,`标签值: ${tag}`,'',
+          `## 字段定义`,`用途: ${fld.prompt}`,
+          `${fld.options.length?`可选标签: ${fld.options.join(', ')}`:''}`,
+          `${fld.strict?'(严格模式: 只能从可选标签中选择)':''}`,
+        ].join('\n');
+
+        const systemPrompt=`你是一个专业的数据标注质量审核员。你的任务是独立判断已有的标签是否准确。
+
+## 审核标准
+1. 根据原始数据的实际内容，判断当前标签是否语义上正确
+2. 如果标签是多个值的组合，逐个判断是否都合理
+3. 考虑边界情况：是否遗漏了更合适的标签，或包含了不相关的标签
+
+## 输出格式（严格 JSON）
+{"verdict":"correct|incorrect|partial","verdict_tag":"你给出的正确标签(如果原标签不对)","reason":"一句话解释判断理由"}
+
+只输出 JSON，不要其他文字。`;
+
+        markP(dataIdx,true);
+        try{
+          const raw=await callAPI(systemPrompt,userContent,cfg.key,0.1);
+          const jsonMatch=raw.match(/\{[\s\S]*\}/);
+          if(!jsonMatch) throw new Error('无法解析验证结果');
+          const parsed=JSON.parse(jsonMatch[0]);
+          results.push({
+            rowIndex:dataIdx+1, fieldName:fld.name, originalTag:tag,
+            llmVerdict:parsed.verdict_tag||parsed.verdict||'未知',
+            verdict:parsed.verdict==='correct'?'correct':(parsed.verdict==='partial'?'partial':'incorrect'),
+            reason:parsed.reason||''
+          });
+          if(parsed.verdict==='correct') correct++; else incorrect++;
+          log('ok',`[验证] R${dataIdx+1} ${fld.name}: ${parsed.verdict}`);
+        } catch(err){
+          results.push({rowIndex:dataIdx+1,fieldName:fld.name,originalTag:tag,llmVerdict:'解析失败',verdict:'incorrect',reason:err.message});
+          incorrect++;
+          log('err',`[验证] R${dataIdx+1} ${fld.name}: ${err.message}`);
+        }
+        markP(dataIdx,false); await sleep(120);
+      }
+    }
+
+    const totalChecked=results.length;
+    const accuracy=totalChecked?Math.round(correct/totalChecked*100):0;
+    llmValResults={sampleSize:sample.length,fields:aiFields.map(f=>f.name),timestamp:new Date().toLocaleString('zh-CN'),accuracy,correct,incorrect,results};
+    setSt('done','验证完成'); log('info',`LLM 验证完成: ${accuracy}% (${correct}/${totalChecked})`);
+    swView('llmval');
+  } catch(err){
+    if(err.name!=='AbortError'){setSt('error','验证出错');log('err','验证中断: '+err.message);}
+  }
+  isProcessing=false; setProc(false);
+}
+
+function exportLlmVal(){
+  if(!llmValResults){alert('没有可导出的验证结果');return;}
+  const R=llmValResults;
+  let csv='Row,Field,Original Tag,Suggestion,Verdict,Reason\n';
+  R.results.forEach(r=>{
+    csv+=`${r.rowIndex},"${r.fieldName}","${r.originalTag.replace(/"/g,'""')}","${r.llmVerdict.replace(/"/g,'""')}","${r.verdict}","${r.reason.replace(/"/g,'""')}"\n`;
+  });
+  download(csv,`llm-validation-${Date.now()}.csv`,'text/csv'); log('info','已导出 LLM 验证结果 CSV');
+}
+
+
+// ============================================================
+// EXPORT
+// ============================================================
+function exportTbl(){
+  if(!tableData().length){alert('无数据');return;}
+  const cols=getCols(), csv=[cols.join(','),...tableData().map(row=>
+    cols.map(c=>{let v=String(row[c]??'');if(v.includes(',')||v.includes('"')||v.includes('\n'))v='"'+v.replace(/"/g,'""')+'"';return v;}).join(',')
+  )].join('\n');
+  download(csv,`tagged-${Date.now()}.csv`,'text/csv'); log('info','已导出 CSV');
+}
+function download(content,name,mime){
+  const blob=new Blob([content],{type:mime}), url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url);
+}
+
+
+// ============================================================
+// IMPORT / EXPORT CONFIG
+// ============================================================
+function doImportExport(){
+  const action=confirm('导入字段配置 JSON?\n确定=导入\n取消=导出当前配置');
+  if(action) document.getElementById('tplFileInput').click();
+  else exportFieldConfig();
+}
+function handleTplImport(e){
+  const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader(); r.onload=ev=>{
+    try{const d=JSON.parse(ev.target.result); if(!Array.isArray(d)) throw new Error('需数组');
+      let n=0; d.forEach(fld=>{if(fld.name&&fld.prompt){aiFields.push({...fld}); n++;}});
+      renderTable(); updStatus(); updDataInfo(); refreshDoc(); log('info',`导入 ${n} 个字段`); alert(`导入 ${n} 个 AI 字段`);
+    }catch(err){alert('导入失败: '+err.message);}
+  }; r.readAsText(f); e.target.value='';
+}
+function exportFieldConfig(){
+  if(!aiFields.length){alert('无字段');return;}
+  download(JSON.stringify(aiFields,null,2),'ai-fields.json','application/json'); log('info','已导出字段配置');
+}
+
+
+// ============================================================
+// UTILS
+// ============================================================
+function esc(s){const d=document.createElement('div'); d.textContent=s; return d.innerHTML;}
+function escAttr(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function toggleAll(ck){document.querySelectorAll('.rcb').forEach(cb=>cb.checked=ck);}
+
+const _logs=[];
+function log(type,msg){_logs.push({t:new Date().toLocaleTimeString('zh-CN',{hour12:false}),type,msg}); syncLog();}
+function syncLog(){
+  const la=document.getElementById('docLog'); if(!la)return; la.classList.add('vis');
+  la.innerHTML=_logs.slice(-100).map(l=>`<div class="ll ${l.type}">${l.t} ${l.msg}</div>`).join('');
+  la.scrollTop=la.scrollHeight;
+}
+
+
+// ============================================================
+// INIT
+// ============================================================
+['apiKeySm','apiBaseSm','apiModelSm'].forEach(id=>{
+  const s=localStorage.getItem('ait-'+id); if(s) document.getElementById(id).value=s;
+});
+['apiKeySm','apiBaseSm','apiModelSm'].forEach(id=>{
+  document.getElementById(id).addEventListener('change',e=>localStorage.setItem('ait-'+id,e.target.value));
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape') closeDrv();});
+
+document.body.addEventListener('dragover',e=>{e.preventDefault();});
+document.body.addEventListener('drop',e=>{
+  e.preventDefault(); const f=e.dataTransfer.files[0]; if(f) processFile(f);
+});
+
+renderTable();
+</script>
+</body>
+</html>
