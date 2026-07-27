@@ -3982,7 +3982,7 @@ loadState().then(function(ok){
   <div class="ac-body" id="acBody"></div>
   <div class="ac-hint">可用指令：新建字段 / 删除字段 / 改名 / 改提示词 / 导入标签体系（粘贴体系描述自动建字段）</div>
   <div class="ac-input">
-    <textarea id="acInput" placeholder="例如：新建一个字段叫「价格敏感度」，多选，提示词写：判断消费者对价格的高低敏感程度"></textarea>
+    <textarea id="acInput" placeholder="例如：新建一个字段叫「价格敏感度」，多选，提示词写：判断消费者对价格的高低敏感程度" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();if(!event.isComposing)sendChat();}"></textarea>
     <div class="ac-actions">
       <button class="ac-btn ghost" onclick="clearChat()">清空</button>
       <button class="ac-btn" id="acSend" onclick="sendChat()">发送</button>
