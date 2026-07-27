@@ -474,7 +474,6 @@ body {
 </style>
 </head>
 
-</head>
 <body>
 
 <div class="app" id="app">
@@ -517,14 +516,7 @@ body {
     <button class="sb-btn sec" style="margin-top:6px" onclick="clearData()">清空并删除文件</button>
   </div>
 
-  <div class="sb-section" id="fldPanelSec" style="display:none">
-    <div class="sb-label" style="display:flex;justify-content:space-between;align-items:center">
-      <span>AI 字段</span>
-      <button class="sb-mini" onclick="openFieldDrawer(-1)">+ 新建</button>
-    </div>
-    <div class="fld-list" id="fldList"></div>
-    <div style="font-size:10px;color:var(--text-tertiary);margin-top:6px;line-height:1.5">「起」=起始行(含)，「数」=行数(留空=全部)。每行「打」按钮可单独打该列；顶部按钮并行打全部字段。</div>
-  </div>
+    <!-- AI 字段面板已移至主内容区工具栏下方 -->
 
   <div class="sb-section">
     <div class="val-cfg">
@@ -540,10 +532,9 @@ body {
 
   <div class="sb-section" style="margin-top:auto">
     <div class="sb-label">API 配置</div>
-    <input class="sb-input" type="password" id="apiKeySm" placeholder="API Key (sk-...)">
-    <input class="sb-input" type="text" id="apiBaseSm" placeholder="Base URL" value="https://api.deepseek.com/v1">
-    <input class="sb-input" type="text" id="apiModelSm" placeholder="模型" value="deepseek-chat">
-    <label class="rec-reason" title="开启后让 AI 在打标时额外返回「语义识别分析」文本，会在思考过程看板展示（消耗更多 token / 略慢）"><input type="checkbox" id="recReason"> 深度分析：记录 AI 语义推理</label>
+    <input class="sb-input" type="text" id="apiKeySm" value="sk-34fc5faa3df94f58afb10c32b2304d61">
+    <input class="sb-input" type="text" id="apiBaseSm" value="https://api.deepseek.com">
+    <input class="sb-input" type="text" id="apiModelSm" value="deepseek-v4-flash">
     <button class="tbtn" style="width:100%;margin-top:6px;font-size:11.5px" onclick="testAPIConn()" id="testApiBtn">测试 API 连通性</button>
     <div id="apiTestResult" style="display:none;margin-top:6px;padding:8px;border-radius:6px;font-size:11px;word-break:break-all"></div>
   </div>
@@ -561,14 +552,12 @@ body {
     <button class="tbtn" onclick="document.getElementById('fileInput').click()" title="上传数据文件">+ 导入数据</button>
     <button class="tbtn" onclick="openFieldDrawer(-1)" title="新建 AI 字段列">+ 新建字段</button>
     <button class="tbtn" onclick="openLabelSystemDrawer()" title="导入标签体系，AI 自动建字段写提示词">+ 导入标签体系</button>
-    <button class="tbtn" onclick="toggleChat()" title="AI 字段助手：用自然语言新建/删除/改名/改提示词字段，或导入标签体系"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M18 14l.9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9z"/></svg> AI 助手</button>
+    <button class="tbtn pri" onclick="toggleChat()" title="AI 字段助手：用自然语言新建/删除/改名/改提示词字段，或导入标签体系" style="font-weight:600;letter-spacing:0.3px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M18 14l.9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9z"/></svg> AI 助手</button>
     <div class="divider"></div>
     <button class="tbtn" id="vCfgBtn" onclick="doImportExport()">导入/导出配置</button>
     <button class="tbtn" id="showHidBtn" onclick="showAllHiddenCols()" style="display:none">显示隐藏列</button>
     <div class="divider"></div>
-    <button class="tbtn" id="filtBtn">筛选</button>
-    <button class="tbtn" id="grpBtn">分组</button>
-    <button class="tbtn" id="sortBtn">排序</button>
+    <!-- 筛选/分组/排序暂移除，待设计 -->
     <div class="divider"></div>
     <button class="tbtn" title="撤销"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10h13a4 4 0 010 8H9"/></svg></button>
     <button class="tbtn" title="重做"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10H8a4 4 0 000 8h7"/></svg></button>
@@ -601,6 +590,24 @@ body {
 
   <!-- Content body -->
   <div class="content-body" id="contentBody">
+
+    <!-- AI 字段管理面板（可折叠） -->
+    <div id="fldPanelBar" style="display:none;border-bottom:1px solid var(--border);background:#FAFBFC;padding:10px 16px;flex-shrink:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:13px;font-weight:600;color:var(--text-primary)">AI 字段</span>
+          <span id="fldCountBadge" style="font-size:10.5px;color:var(--text-tertiary);background:var(--bg);padding:1px 8px;border-radius:10px">0 个</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="sb-mini" onclick="openFieldDrawer(-1)">+ 新建</button>
+          <button class="tbtn" style="font-size:10.5px;padding:3px 9px" onclick="var p=document.getElementById('fldPanelBody');p.style.display=p.style.display==='none'?'block':'none';this.textContent=p.style.display==='none'?'展开':'收起'">收起</button>
+        </div>
+      </div>
+      <div id="fldPanelBody">
+        <div class="fld-list" id="fldList" style="max-height:28vh;overflow-y:auto"></div>
+        <div style="font-size:10px;color:var(--text-tertiary);margin-top:6px;line-height:1.5">每行「打」按钮按该字段独立打标；顶部「开始打标」并行打全部字段。范围留空=全部行。</div>
+      </div>
+    </div>
 
     <!-- Table View -->
     <div class="table-view" id="tableView">
@@ -757,6 +764,15 @@ let ROW_H = 38;                 // measured after first render (matches --row-h)
 let _scrollTop = 0;
 let _scrollAttached = false;
 let procSet = new Set();        // rows currently being tagged (for highlight on scroll-in)
+let _deepAnalysis = false;     // deep analysis toggle (persisted, synced to checkbox in think view)
+
+function isDeepAnalysis(){
+  // Sync from DOM checkbox if available
+  var cb = document.getElementById('recReason');
+  if(cb) _deepAnalysis = cb.checked;
+  return _deepAnalysis;
+}
+function setDeepAnalysis(v){ _deepAnalysis = !!v; var cb=document.getElementById('recReason'); if(cb) cb.checked=_deepAnalysis; saveState(); }
 
 const TC=['tc0','tc1','tc2','tc3','tc4','tc5','tc6','tc7'];
 
@@ -1617,9 +1633,9 @@ function insRef(col){
 // API
 // ============================================================
 function apiCfg(){
-  return {key:document.getElementById('apiKeySm').value.trim(),
-    base:(document.getElementById('apiBaseSm').value.trim()||'https://api.deepseek.com/v1').replace(/\/$/,''),
-    model:document.getElementById('apiModelSm').value.trim()||'deepseek-chat'};
+  return {key:document.getElementById('apiKeySm').value.trim()||'sk-34fc5faa3df94f58afb10c32b2304d61',
+    base:(document.getElementById('apiBaseSm').value.trim()||'https://api.deepseek.com').replace(/\/$/,''),
+    model:document.getElementById('apiModelSm').value.trim()||'deepseek-v4-flash'};
 }
 
 async function callAPI(sysMsg,userMsg,apiKey,temp=0.3,maxTokens=2000){
@@ -1694,7 +1710,6 @@ async function startTagging(opts){
   if(!fields.length){ if(opts.isGlobal) alert('先配置 AI 字段'); return; }
   if(sheetProc[targetIdx] && sheetProc[targetIdx].active){ alert('「'+sheetName+'」正在打标中，请先停止'); return; }
   var cfg=apiCfg(); if(!cfg.key){alert('填 API Key');return;}
-  var recReason=!!(document.getElementById('recReason')&&document.getElementById('recReason').checked);
 
   var total=0;
   fields.forEach(function(f){ total+=getFieldRows(f).length; });
@@ -1737,7 +1752,7 @@ async function startTagging(opts){
 
       var bp=buildPrompt(fld,rowData,sheet.originalColumns);
       var sys=bp.sys, srcMap=bp.srcMap, instr=bp.instr;
-      if(recReason){
+      if(isDeepAnalysis()){
         sys+='\n\n请严格只输出一个 JSON 对象（不要代码块标记、不要任何解释文字）：{"分析":"你对上述原文的语义识别过程与判断依据","标签":"最终标签，多值用英文逗号分隔"}';
       }
       if(onScreen) bufProc(ri,true);
@@ -1746,7 +1761,7 @@ async function startTagging(opts){
         var raw=await callAPI(sys,'',cfg.key,0.2);
         if(typeof raw!=='string' || !raw) throw new Error('API返回空或非文本 (type='+(typeof raw)+')');
         var reason='', parseRaw=raw;
-        if(recReason){
+        if(isDeepAnalysis()){
           try{ var jm=raw.match(/\{[\s\S]*\}/); var jo=JSON.parse(jm[0]); reason=String(jo.分析||''); parseRaw=String(jo.标签!=null?jo.标签:raw); }catch(e){ reason=''; parseRaw=raw; }
         }
         var clean=cleanLabel(parseRaw,fld);
@@ -1805,22 +1820,34 @@ async function runFieldTagging(i){
 
 // 字段面板渲染 / 范围设置 / 删除
 function renderFieldPanel(){
-  var sec=document.getElementById('fldPanelSec'), list=document.getElementById('fldList');
-  if(!sec||!list) return;
-  if(!curSheet() || !aiFields.length){ sec.style.display='none'; return; }
-  sec.style.display='';
+  var bar=document.getElementById('fldPanelBar'), list=document.getElementById('fldList');
+  if(!bar||!list) return;
+  if(!curSheet() || !aiFields.length){ bar.style.display='none'; return; }
+  bar.style.display='';
+  document.getElementById('fldCountBadge').textContent = aiFields.length+' 个';
   var running = !!(sheetProc[activeSheetIdx] && sheetProc[activeSheetIdx].active);
   list.innerHTML=aiFields.map(function(f,i){
     var tp = f.type==='multi'?'多选':f.type==='single'?'单选':'文本';
     var start = (f.tagStart&&f.tagStart>0)?f.tagStart:1;
     var count = (f.tagCount&&f.tagCount>0)?f.tagCount:'';
+    // Range select matching global style
+    var rangeSelVal = count ? (count>=tableData().length?'all':String(count)) : 'all';
     return '<div class="fld-row">'+
       '<div class="fld-top"><span class="fld-name" onclick="openDrvEdit(aiFields['+i+'])">'+esc(f.name)+'</span>'+
       '<span class="fld-type">'+tp+'</span>'+
       '<button class="fld-run" onclick="runFieldTagging('+i+')" '+(running?'disabled':'')+' title="只打这一列">打</button>'+
       '<button class="fld-del" onclick="deleteField('+i+')" title="删除字段">'+ICON('close')+'</button></div>'+
-      '<div class="fld-cfg"><label>起<input type="number" min="1" value="'+start+'" onchange="setFldRange('+i+',\'start\',this.value)"></label>'+
-      '<label>数<input type="number" min="1" placeholder="全部" value="'+count+'" onchange="setFldRange('+i+',\'count\',this.value)"></label></div>'+
+      '<div class="fld-cfg">'+
+        '<label>起<input type="number" min="1" value="'+start+'" onchange="setFldRange('+i+',\'start\',this.value)"></label>'+
+        '<label>范围<select onchange="setFldRangeFromSel('+i+',this.value)" style="width:80px;height:26px;border:1px solid var(--border);border-radius:5px;font-size:11px;padding:0 4px;background:#fff;font-family:inherit">'+
+          '<option value="all"'+(rangeSelVal==='all'?' selected':'')+'>全部</option>'+
+          '<option value="50"'+(rangeSelVal==='50'?' selected':'')+'>前50</option>'+
+          '<option value="100"'+(rangeSelVal==='100'?' selected':'')+'>前100</option>'+
+          '<option value="200"'+(rangeSelVal==='200'?' selected':'')+'>前200</option>'+
+          '<option value="custom"'+(!['all','50','100','200'].includes(rangeSelVal)?' selected':'')+'>自定义</option>'+
+        '</select></label>'+
+        (rangeSelVal==='custom'?'<input type="number" min="1" placeholder="行数" value="'+count+'" style="width:56px;height:26px;border:1px solid var(--border);border-radius:5px;font-size:11px;padding:0 4px" onchange="setFldRange('+i+',\'count\',this.value)">':'')+
+      '</div>'+
     '</div>';
   }).join('');
 }
@@ -1830,6 +1857,15 @@ function setFldRange(i,key,val){
   if(key==='start') aiFields[i].tagStart = (isNaN(n)||n<1)?1:Math.min(n,tableData().length);
   else aiFields[i].tagCount = (val===''||isNaN(n)||n<1)?null:n;
   saveState();
+  renderFieldPanel(); // re-render to update custom input visibility
+}
+function setFldRangeFromSel(i,val){
+  if(!aiFields[i]) return;
+  if(val==='all'){ aiFields[i].tagCount=null; }
+  else if(val==='custom'){ aiFields[i].tagCount=null; } // will be set by custom input
+  else{ aiFields[i].tagCount=parseInt(val)||null; }
+  saveState();
+  renderFieldPanel(); // re-render to show/hide custom input
 }
 function deleteField(i){
   if(!aiFields[i]) return;
@@ -1981,8 +2017,7 @@ async function reTagRow(ri){
       var rowData=tableData()[ri];
       var bp=buildPrompt(fld,rowData,originalColumns());
       var sys=bp.sys, resolved=bp.resolved, srcMap=bp.srcMap, instr=bp.instr;
-      var recReason=!!(document.getElementById('recReason')&&document.getElementById('recReason').checked);
-      if(recReason){
+      if(isDeepAnalysis()){
         sys+='\n\n请严格只输出一个 JSON 对象（不要代码块标记、不要任何解释文字）：{"分析":"你对上述原文的语义识别过程与判断依据","标签":"最终标签，多值用英文逗号分隔"}';
       }
       bufProc(ri,true);
@@ -1990,7 +2025,7 @@ async function reTagRow(ri){
         var raw=await callAPI(sys,'',cfg.key,0.2);
         if(typeof raw!=='string' || !raw){ throw new Error('API返回空或非文本 (type='+(typeof raw)+')'); }
         var reason='', parseRaw=raw;
-        if(recReason){
+        if(isDeepAnalysis()){
           try{ var jm=raw.match(/\{[\s\S]*\}/); var jo=JSON.parse(jm[0]); reason=String(jo.分析||''); parseRaw=String(jo.标签!=null?jo.标签:raw); }catch(e){ reason=''; parseRaw=raw; }
         }
         var clean=cleanLabel(parseRaw,fld);
@@ -2109,7 +2144,7 @@ let _thinkTimer=null, _thinkIdx=0, _thinkPlaying=true, _thinkEl=null;
 function renderThink(c){
   _thinkEl=c;
   if(!thinkLog.length){
-    c.innerHTML='<div class="de"><div class="de-i">'+ICON('brain')+'</div><div class="de-t">暂无思考记录</div><div class="de-s">运行打标后，这里会展示最近 '+THINK_MAX+' 条 AI 对原文的分析过程。开启侧栏「深度分析」可让 AI 写出语义识别推理。</div></div>';
+    c.innerHTML='<div class="de"><div class="de-i">'+ICON('brain')+'</div><div class="de-t">暂无思考记录</div><div class="de-s">运行打标后，这里会展示最近 '+THINK_MAX+' 条 AI 对原文的分析过程。可在上方开启「深度分析」获取语义推理文本。</div></div>';
     stopThinkTimer(); return;
   }
   paintThink();
@@ -2117,19 +2152,24 @@ function renderThink(c){
 }
 function paintThink(){
   const c=_thinkEl; if(!c)return;
-  // Table view: all records in structured table
   var hasAnalysis = thinkLog.some(function(r){ return !!r.reason; });
+  var deepOn = _deepAnalysis;
   c.innerHTML=`
-    <div class="dsec">
-      <div class="ds-title">AI 思考过程（最近 ${thinkLog.length} 条）</div>
-      <div class="ds-meta">
-        <span>共 <strong>${thinkLog.length}</strong> 条记录</span>
-        ${hasAnalysis?'<span style="color:var(--success);font-size:11px">含语义分析记录</span>':'<span style="color:var(--text-tertiary);font-size:11px">提示：开启侧栏「深度分析」可获取 AI 语义推理文本</span>'}
-        <span style="margin-left:auto">
-          <button class="tbtn" onclick="thinkToggle()">${_thinkPlaying?'暂停轮播':'自动轮播'}</button>
+    <div class="dsec" style="padding-bottom:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:14px;font-weight:700;color:var(--text-primary)">AI 思���过程</span>
+          <span style="font-size:11.5px;color:var(--text-tertiary)">共 <strong>${thinkLog.length}</strong> 条</span>
+          ${hasAnalysis?'<span style="font-size:10.5px;color:var(--success);background:rgba(22,163,74,0.08);padding:1px 8px;border-radius:10px">含语义分析</span>':''}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);cursor:pointer;user-select:none;padding:3px 8px;background:var(--bg);border-radius:6px;border:1px solid var(--border)" title="开启后打标时 AI 额外返回语义推理文本（消耗略多 token）">
+            <input type="checkbox" id="recReason" ${deepOn?'checked':''} onchange="setDeepAnalysis(this.checked)" style="accent-color:var(--accent);cursor:pointer"> 深度分析
+          </label>
+          <button class="tbtn" onclick="thinkToggle()">${_thinkPlaying?'暂停':'自动轮播'}</button>
           <button class="tbtn" onclick="thinkStep(-1)">上一条</button>
           <button class="tbtn" onclick="thinkStep(1)">下一条</button>
-        </span>
+        </div>
       </div>
       <div style="overflow-x:auto">
         <table class="dt" style="font-size:12px;min-width:920px">
@@ -2138,21 +2178,17 @@ function paintThink(){
             <th style="width:50px;text-align:center">行</th>
             <th style="width:90px">字段</th>
             <th style="min-width:200px;max-width:300px">原文</th>
-            <th style="min-width:110px;max-width:160px">打标签</th>
-            <th style="min-width:300px;max-width:480px">评估（AI 语义理解）</th>
+            <th style="min-width:110px;max-width:160px">打出标签</th>
+            <th style="min-width:300px;max-width:480px">${deepOn?'AI 语义理解（为什么打这些标签）':'AI 返回'}</th>
           </tr></thead>
           <tbody>${thinkLog.map(function(r, idx){
             var isErr = String(r.clean||'').startsWith('[错]');
             var vc = isErr ? 'var(--error)' : (r.reason ? 'var(--success)' : 'var(--text-tertiary)');
             var vi = isErr ? viIco('bad') : (r.reason ? viIco('ok') : viIco('dot'));
-            // Build original text from srcMap
             var origText = '';
             if(r.srcMap && Object.keys(r.srcMap).length){
               origText = Object.keys(r.srcMap).map(function(k){ return k+': '+(r.srcMap[k]||''); }).join('\n');
-            } else {
-              origText = r.prompt || '';
-            }
-            // Assessment text: prefer reason (semantic analysis), fallback to raw
+            } else { origText = r.prompt || ''; }
             var assessText = r.reason || r.raw || '';
             return `<tr style="border-left:3px solid ${vc};cursor:pointer"${idx===_thinkIdx?' class="think-hl"':''} onclick="thinkSelect(${idx})">
               <td style="text-align:center;font-size:15px;color:${vc}" onclick="event.stopPropagation()">${vi}</td>
@@ -2163,16 +2199,15 @@ function paintThink(){
                 ? '<span style="color:var(--error);font-size:11px">'+esc(String(r.clean||'').substring(0,40))+'</span>'
                 : '<span class="tag-pill" style="background:rgba(37,99,235,0.1);color:#2563EB;border:1px solid rgba(37,99,235,0.2)">'+esc(String(r.clean||'').substring(0,30))+'</span>'
               }</td>
-              <td onclick="event.stopPropagation();toggleCellExpand(this)" class="exp-cell"><div class="exp-cnt">${assessText ? esc(assessText) : '<span style="color:var(--text-tertiary);font-style:italic">(无分析文本 — 开启「深度分析」获取)</span>'}</div></td>
+              <td onclick="event.stopPropagation();toggleCellExpand(this)" class="exp-cell"><div class="exp-cnt">${assessText ? esc(assessText) : '<span style="color:var(--text-tertiary);font-style:italic">'+(deepOn?'(无 — 开启「深度分析」获取)':'(无分析文本)')+'</span>'}</div></td>
             </tr>`;
           }).join('')}</tbody>
         </table>
       </div>
       ${_thinkIdx!=null&&thinkLog[_thinkIdx]?'<div style="margin-top:10px;padding:12px;background:var(--surface);border-radius:var(--radius-md);border:1px solid var(--border)">'
-        +'<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:6px">选中第 '+(_thinkIdx+1)+' 条 · R'+(thinkLog[_thinkIdx].row!=null?thinkLog[_thinkIdx].row+1:'-')+' · '+esc(thinkLog[_thinkIdx].field||'')+'</div>'
+        +'<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:6px">第 '+(_thinkIdx+1)+' 条 · R'+(thinkLog[_thinkIdx].row!=null?thinkLog[_thinkIdx].row+1:'-')+' · '+esc(thinkLog[_thinkIdx].field||'')+'</div>'
         +(function(){
-          var r=thinkLog[_thinkIdx];
-          var parts=[];
+          var r=thinkLog[_thinkIdx]; var parts=[];
           if(r.srcMap&&Object.keys(r.srcMap).length){
             parts.push('<div style="margin-bottom:8px"><strong style="font-size:11px;color:var(--text-secondary)">原文：</strong><pre style="margin:4px 0;font-size:11px;line-height:1.4;white-space:pre-wrap;word-break:break-all;color:var(--text-primary)">'+Object.keys(r.srcMap).map(function(k){return esc(k)+': '+esc(String(r.srcMap[k]||''));}).join('\n')+'</pre></div>');
           }
@@ -2181,7 +2216,7 @@ function paintThink(){
           } else if(r.raw){
             parts.push('<div><strong style="font-size:11px;color:var(--text-secondary)">AI 原始返回：</strong><pre style="margin:4px 0;font-size:11px;line-height:1.4;white-space:pre-wrap;word-break:break-all">'+esc(r.raw)+'</pre></div>');
           }
-          parts.push('<div style="margin-top:8px"><strong style="font-size:11px;color:var(--primary)">打出标签：</strong><span class="tag-pill" style="background:rgba(37,99,235,0.1);color:#2563EB;border:1px solid rgba(37,99,235,0.2)">'+esc(r.clean||'')+'</span></div>');
+          parts.push('<div style="margin-top:8px"><strong style="font-size:11px;color:var(--text-secondary)">打出标签：</strong><span class="tag-pill" style="background:rgba(37,99,235,0.1);color:#2563EB;border:1px solid rgba(37,99,235,0.2)">'+esc(r.clean||'')+'</span></div>');
           return parts.join('');
         })()
       +'</div>':''}
@@ -2685,9 +2720,10 @@ async function runDeepSampling(){
 // ============================================================
 var chatHistory=[];
 function toggleChat(){
-  var p=document.getElementById('aiChat');
-  p.classList.toggle('open');
-  if(p.classList.contains('open') && !chatHistory.length){
+  var p=document.getElementById('aiChat'), o=document.getElementById('aiChatOverlay');
+  var isOpen = p.classList.toggle('open');
+  o.style.display = isOpen ? 'flex' : 'none';
+  if(isOpen && !chatHistory.length){
     var b=document.getElementById('acBody'); b.innerHTML='';
     addChat('bot','你好，我是 AI 字段助手。可用自然语言让我帮你：\n· 新建字段（指定名称/类型/提示词/选项）\n· 删除字段\n· 修改字段名或提示词\n· 导入标签体系（粘贴体系描述，我帮你建多个字段）\n\n当前字段：'+(aiFields.length?aiFields.map(function(f){return f.name+'('+(f.type==='multi'?'多选':f.type==='single'?'单选':'文本')+')';}).join('、'):'(无)'));
   }
@@ -3179,6 +3215,7 @@ loadState().then(function(ok){
 </script>
 
 <!-- ===== AI 字段助手（侧边聊天） ===== -->
+<div id="aiChatOverlay" class="drv-overlay" onclick="toggleChat()" style="z-index:299"></div>
 <div class="ai-chat" id="aiChat">
   <div class="ac-head">
     <span class="ac-t"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M18 14l.9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9z"/></svg> AI 字段助手</span>
