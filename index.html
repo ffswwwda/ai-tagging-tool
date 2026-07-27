@@ -2934,27 +2934,72 @@ function parseTagDimension(tag){
   return {dim:'(未分类)', label:t};
 }
 
+// L4 suggestion caches (so AI results survive re-render)
+var _l4AiCache={};      // dimKey -> {groups:[...]}
+var _l4TagsCache={};    // dimKey -> tags array (for AI call)
+
 /**
- * Analyze tags under a dimension and suggest whether to add L4 sub-categories.
- * Rules: >=5 distinct tags, diverse content, meaningful distinction.
+ * Lightweight L4 suggestion.
+ * Core rule (per product spec): a dimension is worth splitting into L4 when
+ *   (1) its total hit count is high (>=15), AND
+ *   (2) it contains several distinct label types (>=3), e.g. 质量差/不好用/垃圾.
+ * Returns null when not worth splitting (cell shows "—").
  */
 function suggestL4(dimension, tagsWithCounts){
   var tags=tagsWithCounts;
-  if(tags.length<5) return null;
-  var labels=tags.map(function(t){return t.label;});
-  var uniqueLabels=new Set(labels).size;
-  var avgLen=0;
-  labels.forEach(function(l){avgLen+=l.length;});
-  avgLen/=labels.length;
-  if(uniqueLabels>=4 && avgLen>=2){
-    var topTags=tags.slice(0,3).map(function(t){return t.label+'('+t.count+')';}).join('、');
+  var dimTotal=0; tags.forEach(function(t){dimTotal+=t.count;});
+  var distinct=tags.length;
+  if(dimTotal>=15 && distinct>=3){
+    var top=tags.slice(0,4).map(function(t){return t.label+'('+t.count+')';});
     return {
-      reason: '该维度下有 '+tags.length+' 个标签，内容多样可区分',
-      example: '如：'+topTags+(tags.length>3?' 等':''),
-      action: '建议按语义相近性拆分为子类'
+      reason:'该维度共命中 '+dimTotal+' 次，含 '+distinct+' 类标签',
+      example: top.join('、'),
+      action:'可下拆为 L4 子类（点右侧 AI 聚类）'
     };
   }
   return null;
+}
+
+// Render AI clustering result into the L4 cell
+function renderL4AiHtml(groups){
+  if(!groups||!groups.length) return '<span style="color:var(--text-tertiary);font-size:10.5px">AI 未返回有效分组</span>';
+  return '<div style="display:flex;flex-direction:column;gap:5px;max-width:260px">'
+    + groups.map(function(g){
+        var mem=(g.members||[]).map(function(x){return typeof x==='string'?x:String(x);});
+        return '<div style="padding:5px 9px;background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.18);border-radius:6px;font-size:10.5px;line-height:1.5">'
+          +'<span style="font-weight:600;color:var(--accent)">'+esc(g.group||'(未命名)')+'</span>'
+          +'<span style="color:var(--text-secondary)"> ← '+esc(mem.join('、'))+'</span>'
+          + (g.reason?'<br><span style="color:var(--text-tertiary);font-size:10px">'+esc(g.reason)+'</span>':'')
+          +'</div>';
+      }).join('')
+    + '</div>';
+}
+
+// AI deep-cluster: call LLM to group the dimension's labels into L4 sub-classes
+async function aiClusterL4(field, dim, cellId){
+  var cfg=apiCfg();
+  if(!cfg.key){alert('请先在左侧配置面板填写 API Key');return;}
+  var cell=document.getElementById(cellId); if(!cell)return;
+  var resEl=document.getElementById(cellId+'_r');
+  var key=field+'||'+dim;
+  var tags=_l4TagsCache[key]||[];
+  if(resEl) resEl.innerHTML='<div style="font-size:10.5px;color:var(--accent)">AI 聚类中…</div>';
+  else cell.insertAdjacentHTML('beforeend','<div id="'+cellId+'_r" style="margin-top:6px"><div style="font-size:10.5px;color:var(--accent)">AI 聚类中…</div></div>');
+  var list=tags.map(function(t){return t.label+' ×'+t.count;}).join('\n');
+  var sys='你是标签体系聚类专家。下面是一组同维度下的具体标签及其出现次数。请将语义相近的标签聚合成 L4 子类（最多4组，每组2-5个成员）。只输出 JSON 数组，格式:[{"group":"子类名","members":["标签1","标签2"],"reason":"一句话说明"}]。不要输出任何其他文字。';
+  var user='维度名称: '+dim+'\n标签及出现次数:\n'+list;
+  try{
+    var resp=await callAPI(sys,user,cfg.key,0.3,1500);
+    var m=resp.match(/\[[\s\S]*?\]/); if(!m) throw new Error('未解析到 JSON');
+    var groups=JSON.parse(m[0]);
+    _l4AiCache[key]={groups:groups};
+    var target=document.getElementById(cellId+'_r');
+    if(target) target.innerHTML=renderL4AiHtml(groups);
+    log('info','AI 聚类完成: '+dim+' → '+groups.length+' 组');
+  }catch(e){
+    var target=document.getElementById(cellId+'_r');
+    if(target) target.innerHTML='<div style="font-size:10.5px;color:var(--error)">聚类失败: '+esc(e.message)+'<br><button class="tbtn" style="font-size:10px;padding:2px 9px;margin-top:5px" onclick="aiClusterL4('+JSON.stringify(field)+','+JSON.stringify(dim)+',\''+cellId+'\')">重试</button></div>';
+  }
 }
 
 function renderStats(c){
@@ -3003,6 +3048,7 @@ function renderStats(c){
     }
   });
 
+  var _cellSeq=0;
   Object.keys(hierarchy).forEach(function(mod){
     totalDims+=Object.keys(hierarchy[mod]).length;
   });
@@ -3034,9 +3080,8 @@ function renderStats(c){
       var tags=dims[dim];
 
       // L4 suggestion for this dimension
-      var l4Suggestion = (dim!=='(��标记)'&&dim!=='(自由文本)'&&dim!=='(未分类)'&&tags.length>=3)
+      var l4Suggestion = (dim!=='(未标记)'&&dim!=='(自由文本)'&&dim!=='(未分类)')
         ? suggestL4(dim, tags) : null;
-
       tags.forEach(function(ti, tiIdx){
         html+='<tr>';
         // L1 Module cell (rowspan)
@@ -3062,10 +3107,19 @@ function renderStats(c){
         // L4 Suggestion (only on first row of dimension)
         if(tiIdx===0){
           if(l4Suggestion){
+            var dimKey=mod+'||'+dim;
+            _l4TagsCache[dimKey]=tags; // cache for AI call
+            _cellSeq++;
+            var cellId='l4cell_'+_cellSeq;
+            var cached=_l4AiCache[dimKey];
             html+='<td rowspan="'+tags.length+'" style="font-size:11px;vertical-align:middle">';
-            html+='<div style="display:inline-flex;align-items:flex-start;gap:4px;padding:6px 10px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.15);border-radius:6px;color:#9333ea;max-width:240px;line-height:1.5">';
-            html+='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><path d="M12 5v14M5 12h14"/></svg>';
-            html+='<span>'+esc(l4Suggestion.reason)+'<br><span style="color:var(--text-secondary);font-size:10px">'+esc(l4Suggestion.action)+'</span></span>';
+            html+='<div style="padding:6px 10px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.15);border-radius:6px;color:#9333ea;max-width:260px;line-height:1.5">';
+            html+='<div>'+esc(l4Suggestion.reason)+'</div>';
+            html+='<div style="color:var(--text-secondary);font-size:10px;margin-top:2px">高频: '+esc(l4Suggestion.example)+'</div>';
+            html+='<div style="margin-top:6px"><button class="tbtn" id="'+cellId+'" style="font-size:10px;padding:2px 9px;color:#9333ea;border-color:rgba(168,85,247,.3)" onclick="aiClusterL4('+JSON.stringify(mod)+','+JSON.stringify(dim)+',\''+cellId+'\')">AI 深度聚类</button></div>';
+            if(cached){
+              html+='<div id="'+cellId+'_r" style="margin-top:6px">'+renderL4AiHtml(cached.groups)+'</div>';
+            }
             html+='</div></td>';
           } else if(dim!=='(未标记)'&&dim!=='(自由文本)'&&dim!=='(未分类)'){
             html+='<td rowspan="'+tags.length+'" style="color:var(--text-tertiary);font-size:10.5px;vertical-align:middle;text-align:center">—</td>';
@@ -3986,7 +4040,7 @@ async function exportTbl(){
           var filled=0;
           tableData().forEach(function(r){var v=r[fld.name];if(v&&v!=='--'&&v!=='未提及')filled++;});
           srows.push([fld.name,'(自由文本)','(已填充)',filled]);
-          srows.push([fld.name,'(自由文本)','(���标记)',tableData().length-filled]);
+          srows.push([fld.name,'(自由文本)','(未标记)',tableData().length-filled]);
           return;
         }
         var counts={};
