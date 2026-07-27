@@ -635,28 +635,7 @@ body::after {
 
     <!-- AI 字段面板已移至主内容区工具栏下方 -->
 
-  <div class="sb-section">
-    <div class="val-cfg">
-      <div class="val-cfg-label">LLM 抽样验证</div>
-      <div class="val-row"><label>抽样数:</label><input type="number" id="valSampleN" value="100" min="5" max="5000"></div>
-      <div class="val-row"><label>范围:</label>
-        <select id="valRangeSel" onchange="var s=this.value;document.getElementById('valRangeCustom').style.display=s==='topcustom'?'inline-block':'none';if(s!=='random')document.getElementById('valSampleN').disabled=s==='all'" style="flex:1;height:28px;border:1px solid var(--border);border-radius:6px;font-size:11.5px;padding:0 6px;background:var(--surface);color:var(--text-primary);font-family:inherit">
-          <option value="random">随机抽样</option>
-          <option value="all">全部已打标行</option>
-          <option value="top50">前 50 行</option>
-          <option value="top100">前 100 行</option>
-          <option value="top200">前 200 行</option>
-          <option value="topcustom">前 N 行</option>
-        </select>
-        <input type="number" id="valRangeCustom" placeholder="N" style="display:none;width:56px;height:28px;border:1px solid var(--border);border-radius:6px;font-size:11.5px;padding:0 6px;background:var(--surface);color:var(--text-primary)" min="5" max="50000">
-      </div>
-      <button class="sb-btn sec" id="llmValRunBtn" style="width:100%;font-size:10.5px;padding:5px;margin-top:6px" onclick="runLLMValidation()">运行 LLM 验证</button>
-      <div id="llmValProgress" style="display:none;margin-top:6px">
-        <div style="font-size:10.5px;color:var(--text-secondary);margin-bottom:4px"><span id="llmValProgText">准备中...</span></div>
-        <div style="background:var(--border);border-radius:3px;height:6px;overflow:hidden"><div id="llmValProgBar" style="width:0%;height:100%;background:var(--accent);transition:width 0.3s"></div></div>
-      </div>
-    </div>
-  </div>
+    <!-- LLM 验证配置已移至「LLM 验证」看板内部 -->
 
   <div class="sb-section" style="margin-top:auto">
     <div class="sb-label">API 配置</div>
@@ -2807,15 +2786,112 @@ function renderValidate(c){
 
 // --- LLM Validation ---
 function renderLlmVal(c){
-  if(!llmValResults){c.innerHTML=`<div class="de"><div class="de-i">${ICON('brain')}</div><div class="de-t">尚未运行 LLM 验证</div><div class="de-s">设置抽样数量后点击"运行 LLM 验证"</div></div>`;return;}
-  // Preserve deep sampling progress UI if sampling is in progress
+  // Build the config panel HTML (used both for "no results" state and as re-run header)
+  var totalRows = tableData().length;
+  var taggedCount = 0;
+  tableData().forEach(function(r){
+    aiFields.forEach(function(f){ if(r[f.name]&&r[f.name]!=='--'&&r[f.name]!=='未提及'&&!String(r[f.name]).startsWith('[错]')) taggedCount++; });
+  });
+
+  var cfgPanel = `<div class="dsec llm-cfg-panel">
+    <div class="ds-title" style="border:none;padding-bottom:0;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+      <svg style="width:20px;height:20px;color:var(--accent)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a4 4 0 00-4 4 3 3 0 00-1 5.8A3 3 0 009 17a3 3 0 006 0 3 3 0 003-4.2A3 3 0 0016 7a4 4 0 00-4-4z"/><path d="M12 3v14"/></svg>
+      LLM 抽样验证配置
+      ${llmValResults ? '<span style="margin-left:auto;font-size:11px;font-weight:400;color:var(--text-tertiary)">已有验证结果 — 可修改参数后重新运行</span>' : ''}
+    </div>
+
+    <div class="llm-cfg-grid">
+      <div class="llm-cfg-item">
+        <label class="llm-cfg-label">抽样数量</label>
+        <div class="llm-cfg-desc">每次验证抽取的样本行数</div>
+        <input type="number" id="valSampleN" value="${document.getElementById('valSampleN')?document.getElementById('valSampleN').value:100}" min="5" max="${totalRows||5000}" class="llm-cfg-input">
+      </div>
+
+      <div class="llm-cfg-item" style="flex:1.4">
+        <label class="llm-cfg-label">抽样范围</label>
+        <div class="llm-cfg-desc">选择数据抽样方式</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <select id="valRangeSel" onchange="var s=this.value;document.getElementById('valRangeCustomRow').style.display=s==='topcustom'?'flex':'none';document.getElementById('valSampleN').disabled=s==='all'" class="llm-cfg-select">
+            <option value="random" ${(!document.getElementById('valRangeSel')||document.getElementById('valRangeSel').value==='random')?'selected':''}>🎲 随机抽样</option>
+            <option value="all" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='all'?'selected':''}>📋 全部已打标行</option>
+            <option value="top50" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='top50'?'selected':''}>📌 前 50 行</option>
+            <option value="top100" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='top100'?'selected':''}>📌 前 100 行</option>
+            <option value="top200" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='top200'?'selected':''}>📌 前 200 行</option>
+            <option value="topcustom" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='topcustom'?'selected':''}>✏️ 自定义前 N 行</option>
+          </select>
+          <div id="valRangeCustomRow" style="display:${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='topcustom'?'flex':'none'};align-items:center;gap:4px">
+            <input type="number" id="valRangeCustom" placeholder="N" value="${document.getElementById('valRangeCustom')?document.getElementById('valRangeCustom').value:''}" min="5" max="${totalRows||50000}" class="llm-cfg-input" style="width:80px">
+            <span style="font-size:11px;color:var(--text-tertiary);white-space:nowrap">行</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="llm-cfg-summary">
+      <span>📊 数据总量: <strong>${totalRows}</strong> 行</span>
+      <span>🏷️ 已打标: <strong>${taggedCount}</strong> 行</span>
+      <span>🤖 AI 字段: <strong>${aiFields.length}</strong> 个${aiFields.length? ' ('+aiFields.map(function(f){return f.name}).join(', ')+')':''}</span>
+    </div>
+
+    <button class="btn btn-primary-lg" id="llmValRunBtn" onclick="runLLMValidation()" ${isProcessing?'disabled':''} style="margin-top:14px;width:100%;height:42px;font-size:14px;border-radius:10px;background:var(--rad-grad);color:#fff;border:none;cursor:pointer;font-weight:600;letter-spacing:0.5px;transition:transform .15s,box-shadow .15s;display:flex;align-items:center;justify-content:center;gap:8px">
+      <svg style="width:18px;height:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      运行 LLM 验证${sampleSizeHint?' ('+sampleSizeHint+')':''}
+    </button>
+
+    <div id="llmValProgress" style="display:${isProcessing?'block':'none'};margin-top:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:12px;color:var(--text-secondary);font-weight:500" id="llmValProgText">${isProcessing?'验证中...':'准备中...'}</span>
+        <button class="btn btn-ghost" onclick="_stopRequested=true" style="font-size:11px;padding:3px 12px;height:26px">停止</button>
+      </div>
+      <div style="background:var(--border);border-radius:6px;height:8px;overflow:hidden"><div id="llmValProgBar" style="width:0%;height:100%;background:linear-gradient(90deg,#00d4ff,#a855f7);transition:width .3s;border-radius:6px"></div></div>
+    </div>
+  </div>`;
+
+  var sampleSizeHint = '';
+  if(!llmValResults){
+    c.innerHTML = cfgPanel + `<style>
+.llm-cfg-panel{background:linear-gradient(135deg,rgba(0,212,255,.04),rgba(168,85,247,.04));border:1px solid rgba(0,212,255,.12);border-radius:14px;padding:24px}
+.llm-cfg-grid{display:flex;gap:18px;margin-bottom:16px;flex-wrap:wrap}
+.llm-cfg-item{min-width:180px;display:flex;flex-direction:column;gap:4px}
+.llm-cfg-label{font-size:12.5px;font-weight:600;color:var(--text-primary);letter-spacing:0.2px}
+.llm-cfg-desc{font-size:11px;color:var(--text-tertiary)}
+.llm-cfg-input{height:34px;border:1px solid var(--border);border-radius:8px;font-size:13px;padding:0 10px;background:var(--surface);color:var(--text-primary);font-family:inherit;transition:border-color .15s}
+.llm-cfg-input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px rgba(0,212,255,.1)}
+.llm-cfg-select{flex:1;min-width:160px;height:34px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;padding:0 10px;background:var(--surface);color:var(--text-primary);font-family:inherit;cursor:pointer;appearance:none;-webkit-appearance:none}
+.llm-cfg-select:focus{border-color:var(--accent);outline:none}
+.llm-cfg-summary{display:flex;gap:20px;flex-wrap:wrap;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:11.5px;color:var(--text-secondary)}
+.llm-cfg-summary strong{color:var(--text-primary)}
+.btn-primary-lg:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,212,255,.25)}
+.btn-primary-lg:active{transform:translateY(0)}
+.btn-primary-lg:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
+</style>`;
+    return;
+  }
+
+  // Has results: show config panel (compact) + report
   var _savedDeepProg=null;
   if(_deepSamplingRunning){
     var _dpw=document.getElementById('deepProgWrap');
     if(_dpw) _savedDeepProg=_dpw.outerHTML;
   }
   const R=llmValResults;
-  c.innerHTML=`<div class="dsec"><div class="ds-title">LLM 抽样验证报告</div><div class="ds-meta">
+  sampleSizeHint = R.sampleSize+' 条 / '+({random:'随机',all:'全部',top50:'前50',top100:'前100',top200:'前200',topcustom:'自定义'}[R.rangeMode]||R.rangeMode);
+  c.innerHTML=`<style>
+.llm-cfg-panel{background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:18px}
+.llm-cfg-grid{display:flex;gap:16px;flex-wrap:wrap}
+.llm-cfg-item{min-width:160px;display:flex;flex-direction:column;gap:3px}
+.llm-cfg-label{font-size:11.5px;font-weight:600;color:var(--text-primary)}
+.llm-cfg-desc{font-size:10.5px;color:var(--text-tertiary)}
+.llm-cfg-input{height:32px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;padding:0 8px;background:var(--surface);color:var(--text-primary);font-family:inherit}
+.llm-cfg-input:focus{border-color:var(--accent);outline:none}
+.llm-cfg-select{flex:1;min-width:140px;height:32px;border:1px solid var(--border);border-radius:7px;font-size:12px;padding:0 8px;background:var(--surface);color:var(--text-primary);font-family:inherit;cursor:pointer}
+.llm-cfg-summary{display:flex;gap:16px;flex-wrap:wrap;padding:8px 12px;background:var(--surface);border-radius:7px;font-size:11px;color:var(--text-secondary);margin-top:10px}
+.llm-cfg-summary strong{color:var(--text-primary)}
+.btn-primary-lg{height:38px;font-size:13px;border-radius:9px;background:var(--rad-grad);color:#fff;border:none;cursor:pointer;font-weight:600;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:6px;transition:transform .15s,box-shadow .15s}
+.btn-primary-lg:hover{transform:translateY(-1px);box-shadow:0 3px 14px rgba(0,212,255,.2)}
+.btn-primary-lg:active{transform:translateY(0)}
+.btn-primary-lg:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
+</style>` + cfgPanel + `<div class="dsec"><div class="ds-title">LLM 抽样验证报告</div><div class="ds-meta">
     <span>抽样数量: <strong>${R.sampleSize}</strong></span>
     <span>范围模式: <strong>${{random:'随机抽样',all:'全部已打标',top50:'前 50 行',top100:'前 100 行',top200:'前 200 行',topcustom:'前 N 行'}[R.rangeMode]||R.rangeMode}</strong></span>
     <span>验证时间: <strong>${R.timestamp}</strong></span>
