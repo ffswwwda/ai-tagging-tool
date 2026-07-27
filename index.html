@@ -666,6 +666,7 @@ body::after {
     <button class="tbtn" onclick="unfreezeAll()" id="unfreezeBtn" style="display:none">取消冻结</button>
     <div class="divider"></div>
     <button class="tbtn" onclick="exportTbl()" id="exportBtn" disabled>导出 Excel</button>
+    <button class="tbtn pri" onclick="exportTaggedData()" id="exportAllBtn" disabled title="导出完整打标数据（含4个工作表：打标全量数据 / 标签统计 / LLM抽样验证报告 / 标注概览）" style="background:var(--rad-grad);color:#fff;border:none;font-weight:600;letter-spacing:0.3px">📦 导出打标数据</button>
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="切换白天 / 夜晚主题"></button>
   </div>
 
@@ -1116,6 +1117,7 @@ function updStatus(){
   document.getElementById('aiEl').textContent=aiFields.length+' 个 AI 字段';
   document.getElementById('runBtn').disabled=!aiFields.length||!td.length;
   document.getElementById('exportBtn').disabled=!td.length;
+  document.getElementById('exportAllBtn').disabled=!td.length;
   updDataInfo();
 }
 
@@ -3486,6 +3488,121 @@ async function exportTbl(){
     setSt('done','导出完成');
   }catch(e){ alert('导出失败: '+e.message); setSt('error','导出失败'); }
 }
+
+// 导出打标数据（完整4工作表：打标全量数据 / 标签统计 / LLM抽样验证报告 / 标注概览）
+async function exportTaggedData(){
+  if(!tableData().length){alert('无数据可导出');return;}
+  setSt('running','正在导出打标数据（4个工作表）...');
+  try{
+    await ensureXLSX();
+    const wb=XLSX.utils.book_new();
+    const cols=getCols();
+    const allRows=tableData();
+
+    // ── Sheet 1: 打标全量数据 ──
+    const dataRows=[cols, ...allRows.map(row=>cols.map(c=>row[c]??''))];
+    const ws1=XLSX.utils.aoa_to_sheet(dataRows);
+    ws1['!cols']=cols.map(()=>({wch:22}));
+    XLSX.utils.book_append_sheet(wb, ws1, '打标全量数据');
+
+    // ── Sheet 2: 标签统计（L1模块→L2维度→L3标签 层级）──
+    var srows=[['L1 模块','L2 维度','L3 标签','数量','L4 拆分建议']];
+    if(aiFields.length){
+      aiFields.forEach(function(fld){
+        if(fld.type==='text'){
+          var filled=0;
+          allRows.forEach(function(r){var v=r[fld.name];if(v&&v!=='--'&&v!=='未提及')filled++;});
+          srows.push([fld.name,'(自由文本)','(已填充)',filled,'--']);
+          srows.push([fld.name,'(自由文本)','(未填充)',allRows.length-filled,'--']);
+          return;
+        }
+        var counts={};
+        allRows.forEach(function(r){
+          var v=r[fld.name];
+          if(v&&v!=='未提及'&&!String(v).startsWith('[错]')){
+            String(v).split(',').map(function(t){return t.trim();}).filter(Boolean).forEach(function(t){
+              counts[t]=(counts[t]||0)+1;
+            });
+          }
+        });
+        var sortedEntries=Object.entries(counts).sort(function(a,b){return b[1]-a[1];});
+        // L4 建议：当某维度下标签数≥5且可区分时建议拆分
+        var dimGroups={};
+        sortedEntries.forEach(function(entry){
+          var p=parseTagDimension(entry[0]);
+          if(!dimGroups[p.dim]) dimGroups[p.dim]=[];
+          dimGroups[p.dim].push({label:p.label,count:entry[1]});
+        });
+        sortedEntries.forEach(function(entry){
+          var p=parseTagDimension(entry[0]);
+          var dimItems=dimGroups[p.dim]||[];
+          var l4suggest=(dimItems.length>=5)?'建议按语义细分为子类':'';
+          srows.push([fld.name, p.dim, p.label, entry[1], l4suggest]);
+        });
+        var unlbl=allRows.filter(function(r){return !r[fld.name]||r[fld.name]==='��提及'||r[fld.name]=='--';}).length;
+        if(unlbl) srows.push([fld.name,'(未标记)','(未标记)',unlbl,'--']);
+      });
+    }
+    if(srows.length>1){
+      const ws2=XLSX.utils.aoa_to_sheet(srows);
+      ws2['!cols']=[{wch:20},{wch:16},{wch:28},{wch:10},{wch:26}];
+      XLSX.utils.book_append_sheet(wb, ws2, '标签统计');
+    }
+
+    // ── Sheet 3: LLM 抽样验证报告 ──
+    if(llmValResults && llmValResults.results && llmValResults.results.length){
+      const lrows=[['行号','字段名','原标签','AI 建议标签','判定结果','判定理由']];
+      llmValResults.results.forEach(function(r){
+        lrows.push([r.rowIndex+1, r.fieldName, r.originalTag, r.llmVerdict, r.verdict, r.reason]);
+      });
+      // 追加汇总行
+      lrows.push([]);
+      lrows.push(['=== 验证汇总 ===']);
+      lrows.push(['抽样总数', llmValResults.results.length]);
+      lrows.push(['通过数', llmValResults.results.filter(function(x){return x.verdict==='✅ 通过' || x.verdict==='通过';}).length]);
+      lrows.push(['需修正数', llmValResults.results.filter(function(x){return x.verdict==='⚠️ 需修正' || x.verdict==='需修正';}).length]);
+      lrows.push(['存疑数', llmValResults.results.filter(function(x){return x.verdict==='❌ 存疑' || x.verdict==='存疑';}).length]);
+      const ws3=XLSX.utils.aoa_to_sheet(lrows);
+      ws3['!cols']=[{wch:8},{wch:18},{wch:26},{wch:26},{wch:12},{wch:50}];
+      XLSX.utils.book_append_sheet(wb, ws3, 'LLM抽样验证报告');
+    } else {
+      // 无验证数据时仍建空表占位
+      const ws3=XLSX.utils.aoa_to_sheet([['LLM 抽样验证报告'],[],['（暂无验证数据，请先运行 LLM 抽样验证）']]);
+      XLSX.utils.book_append_sheet(wb, ws3, 'LLM抽样验证报告');
+    }
+
+    // ── Sheet 4: 标注概览 ──
+    const vrows=[['字段名','字段类型','总行数','已标记行数','未标记行数','填充率%','备注']];
+    if(aiFields.length){
+      aiFields.forEach(function(fld){
+        let fTot=0,fFil=0,fUnm=0;
+        allRows.forEach(function(row){fTot++; const v=row[fld.name]; if(!v||v==='--'||v==='')fUnm++; else if(String(v).startsWith('[错]')){}else fFil++;});
+        var typeLabel=fld.type==='multi'?'多选':fld.type==='single'?'单选':'文本';
+        var note=fld.prompt?'有提示词':'无提示词';
+        vrows.push([fld.name, typeLabel, fTot, fFil, fUnm, fTot?Math.round(fFil/fTot*100):0, note]);
+      });
+      // 底部汇总
+      vrows.push([]);
+      vrows.push(['=== 汇总 ===']);
+      vrows.push(['AI 字段总数', aiFields.length, '', '', '', '', '']);
+      vrows.push(['数据总行数', allRows.length, '', '', '', '', '']);
+      var totalFilled=0, totalCells=0;
+      aiFields.forEach(function(fld){totalCells+=allRows.length; allRows.forEach(function(r){var v=r[fld.name];if(v&&v!=='--'&&v!==''&&v!=='未提及'&&!String(v).startsWith('[错]'))totalFilled++;});});
+      vrows.push(['总体填充单元格', totalFilled, '', '', '', '', '']);
+      vrows.push(['总体填充率', totalCells?Math.round(totalFilled/totalCells*100)+'%':'0%', '', '', '', '', '']);
+    }
+    const ws4=XLSX.utils.aoa_to_sheet(vrows);
+    ws4['!cols']=[{wch:20},{wch:10},{wch:10},{wch:12},{wch:12},{wch:10},{wch:18}];
+    XLSX.utils.book_append_sheet(wb, ws4, '标注概览');
+
+    // ── 写入文件 ──
+    var ts=new Date().toISOString().slice(0,19).replace(/[T:]/g,'-');
+    XLSX.writeFile(wb, `打标数据_${ts}.xlsx`);
+    log('info','✅ 已导出打标数据（4个工作表：打标全量数据 / 标签统计 / LLM抽样验证报告 / 标注概览）');
+    setSt('done','导出完成 — 4个工作表');
+  }catch(e){ alert('导���失败: '+e.message); setSt('error','导出失败'); }
+}
+
 function download(content,name,mime){
   const blob=new Blob([content],{type:mime}), url=URL.createObjectURL(blob);
   const a=document.createElement('a'); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url);
@@ -3574,7 +3691,7 @@ function clearData(){
   document.getElementById('sheetTabs').style.display='none';
   renderSheetTabs(); updDataInfo(); updStatus();
   ['docStats','docValidate','docLlmVal'].forEach(id=>document.getElementById(id).innerHTML='');
-  document.getElementById('runBtn').disabled=true; document.getElementById('exportBtn').disabled=true;
+  document.getElementById('runBtn').disabled=true; document.getElementById('exportBtn').disabled=true; document.getElementById('exportAllBtn').disabled=true;
   log('info','已清空工作区，可上传下一个文件');
 }
 
