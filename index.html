@@ -712,8 +712,7 @@ body::after {
     <button class="tbtn" onclick="freezeToSelected()" id="freezeBtn" disabled>冻结至选中列</button>
     <button class="tbtn" onclick="unfreezeAll()" id="unfreezeBtn" style="display:none">取消冻结</button>
     <div class="divider"></div>
-    <button class="tbtn" onclick="exportTbl()" id="exportBtn" disabled>导出 Excel</button>
-    <button class="tbtn pri" onclick="exportTaggedData()" id="exportAllBtn" disabled title="导出完整打标数据（含4个工作表：打标全量数据 / 标签统计 / LLM抽样验证报告 / 标注概览）" style="background:var(--rad-grad);color:#fff;border:none;font-weight:600;letter-spacing:0.3px">📦 导出打标数据</button>
+    <button class="tbtn pri" onclick="exportTaggedData()" id="exportAllBtn" disabled title="导出完整打标数据（含4个工作表：打标全量数据 / 标签统计 / LLM抽样验证报告 / 标注概览）" style="background:var(--rad-grad);color:#fff;border:none;font-weight:600;letter-spacing:0.3px">导出打标数据</button>
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="切换白天 / 夜晚主题"></button>
   </div>
 
@@ -1178,7 +1177,7 @@ function updStatus(){
   document.getElementById('ccEl').textContent=c.length+' 列';
   document.getElementById('aiEl').textContent=aiFields.length+' 个 AI 字段';
   document.getElementById('runBtn').disabled=!aiFields.length||!td.length;
-  document.getElementById('exportBtn').disabled=!td.length;
+  document.getElementById('exportAllBtn').disabled=!td.length;
   document.getElementById('exportAllBtn').disabled=!td.length;
   updDataInfo();
 }
@@ -3771,7 +3770,7 @@ function clearData(){
   document.getElementById('sheetTabs').style.display='none';
   renderSheetTabs(); updDataInfo(); updStatus();
   ['docStats','docValidate','docLlmVal'].forEach(id=>document.getElementById(id).innerHTML='');
-  document.getElementById('runBtn').disabled=true; document.getElementById('exportBtn').disabled=true; document.getElementById('exportAllBtn').disabled=true;
+  document.getElementById('runBtn').disabled=true; document.getElementById('exportAllBtn').disabled=true;
   log('info','已清空工作区，可上传下一个文件');
 }
 
