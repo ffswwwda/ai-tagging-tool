@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI Tag Tool</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%234D6BFE'/><text x='16' y='23' text-anchor='middle' font-family='system-ui,-apple-system,sans-serif' font-weight='700' font-size='20' fill='white'>V</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'><stop offset='0%25' stop-color='%2300d4ff'/><stop offset='50%25' stop-color='%23a855f7'/><stop offset='100%25' stop-color='%23ff6b9d'/></linearGradient></defs><rect width='32' height='32' rx='8' fill='url(%23g)'/><text x='16' y='23' text-anchor='middle' font-family='system-ui,-apple-system,sans-serif' font-weight='700' font-size='20' fill='white'>V</text></svg>">
 <style>
 :root {
   --rad-grad:linear-gradient(135deg,#00d4ff 0%,#a855f7 50%,#ff6b9d 100%);
@@ -443,8 +443,8 @@ body::after {
 #lsPreviewList .orow { display: block; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 6px; background: var(--surface); }
 
 .rcs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.rcp { display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; background: var(--accent-light); color: var(--accent); border-radius: 4px; font-size: 11px; font-weight: 500; cursor: pointer; border: none; transition: background 0.1s; }
-.rcp:hover { background: var(--accent-light); }
+.rcp { display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; background: var(--accent-light); color: #0891b2; border-radius: 4px; font-size: 11px; font-weight: 500; cursor: pointer; border: 1px solid rgba(8,145,178,.2); transition: background 0.1s; }
+.rcp:hover { background: rgba(8,145,178,.14); color: #0e7490; }
 
 .drv-ft { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; background: var(--surface); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
 
@@ -489,23 +489,23 @@ body::after {
 .think-hl { background:rgba(37,99,235,0.06) !important; }
 
 /* Expandable table cell */
-.exp-cell { cursor:pointer; position:relative; padding:2px 0; transition:background .15s; }
+.exp-cell { cursor:pointer; position:relative; padding:4px 6px; transition:background .15s; }
 .exp-cell:hover { background:var(--accent-soft); border-radius:4px; }
 .exp-cell .exp-cnt {
   line-height:1.55; color:var(--text-secondary); word-break:break-all;
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-  overflow:hidden; max-height:3.1em; transition:all .25s ease;
+  overflow:hidden; max-height:3.1em; transition:max-height .3s ease, color .2s, background .2s;
 }
 .exp-cell.expanded .exp-cnt {
-  -webkit-line-clamp:unset; max-height:none; display:block; color:var(--text-primary);
+  -webkit-line-clamp:unset; max-height:none; display:block; color:var(--text-primary); background:rgba(0,212,255,.03); border-radius:3px; padding:2px 4px;
 }
-.exp-cell.expanded { background:rgba(0,212,255,.04); border-radius:4px; }
+.exp-cell.expanded { background:rgba(0,212,255,.06); border-radius:4px; }
 .exp-cell::after {
-  content:'展开 ▾'; position:absolute; right:6px; bottom:0;
-  font-size:10px; color:var(--accent); opacity:.7; transition:all .2s;
+  content:'展开 ▾'; position:absolute; right:8px; bottom:0;
+  font-size:10px; color:var(--accent); opacity:.8; transition:all .2s;
   letter-spacing:0; font-weight:500;
 }
-.exp-cell.expanded::after { content:'收起 ▴'; bottom:2px; opacity:1; }
+.exp-cell.expanded::after { content:'收起 ▴'; bottom:3px; opacity:1; }
 
 /* Deep analysis toggle */
 .rec-reason { display:flex; align-items:center; gap:7px; margin-top:7px; font-size:11px; color:var(--text-secondary); cursor:pointer; user-select:none; }
@@ -592,6 +592,17 @@ body::after {
     <div class="val-cfg">
       <div class="val-cfg-label">LLM 抽样验证</div>
       <div class="val-row"><label>抽样数:</label><input type="number" id="valSampleN" value="100" min="5" max="5000"></div>
+      <div class="val-row"><label>范围:</label>
+        <select id="valRangeSel" onchange="var s=this.value;document.getElementById('valRangeCustom').style.display=s==='topcustom'?'inline-block':'none';if(s!=='random')document.getElementById('valSampleN').disabled=s==='all'" style="flex:1;height:28px;border:1px solid var(--border);border-radius:6px;font-size:11.5px;padding:0 6px;background:var(--surface);color:var(--text-primary);font-family:inherit">
+          <option value="random">随机抽样</option>
+          <option value="all">全部已打标行</option>
+          <option value="top50">前 50 行</option>
+          <option value="top100">前 100 行</option>
+          <option value="top200">前 200 行</option>
+          <option value="topcustom">前 N 行</option>
+        </select>
+        <input type="number" id="valRangeCustom" placeholder="N" style="display:none;width:56px;height:28px;border:1px solid var(--border);border-radius:6px;font-size:11.5px;padding:0 6px;background:var(--surface);color:var(--text-primary)" min="5" max="50000">
+      </div>
       <button class="sb-btn sec" id="llmValRunBtn" style="width:100%;font-size:10.5px;padding:5px;margin-top:6px" onclick="runLLMValidation()">运行 LLM 验证</button>
       <div id="llmValProgress" style="display:none;margin-top:6px">
         <div style="font-size:10.5px;color:var(--text-secondary);margin-bottom:4px"><span id="llmValProgText">准备中...</span></div>
@@ -620,7 +631,6 @@ body::after {
   <!-- Toolbar -->
   <div class="toolbar" id="toolbar">
     <button class="tbtn" onclick="document.getElementById('fileInput').click()" title="上传数据文件">+ 导入数据</button>
-    <button class="tbtn" onclick="openFieldDrawer(-1)" title="新建 AI 字段列">+ 新建字段</button>
     <button class="tbtn" onclick="openLabelSystemDrawer()" title="导入标签体系，AI 自动建字段写提示词">+ 导入标签体系</button>
     <button class="tbtn pri" onclick="toggleChat()" title="AI 字段助手：用自然语言新建/删除/改名/改提示词字段，或导入标签体系" style="font-weight:600;letter-spacing:0.3px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M18 14l.9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9z"/></svg> AI 助手</button>
     <div class="divider"></div>
@@ -646,6 +656,7 @@ body::after {
       <option value="resume">基于已有续打</option>
       <option value="restart">重头开始打标</option>
     </select>
+    <button class="tbtn" onclick="openFieldDrawer(-1)" title="新建 AI 字段列" style="border-color:var(--accent);color:var(--accent);font-weight:600">+ 新建字段</button>
     <button class="tbtn pri" id="runBtn" onclick="runBatchTagging()" disabled>开始打标（全部字段）</button>
     <button class="tbtn" id="stopBtn" onclick="stopTagging()" disabled style="color:var(--error);border-color:var(--error)">停止打标</button>
     <div class="divider"></div>
@@ -2300,7 +2311,7 @@ function paintThink(){
     <div class="dsec" style="padding-bottom:0">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
         <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:14px;font-weight:700;color:var(--text-primary)">AI 思���过程</span>
+          <span style="font-size:14px;font-weight:700;color:var(--text-primary)">AI 思考过程</span>
           <span style="font-size:11.5px;color:var(--text-tertiary)">共 <strong>${thinkLog.length}</strong> 条</span>
           ${hasAnalysis?'<span style="font-size:10.5px;color:var(--success);background:rgba(22,163,74,0.08);padding:1px 8px;border-radius:10px">含语义分析</span>':''}
         </div>
@@ -2314,14 +2325,15 @@ function paintThink(){
         </div>
       </div>
       <div style="overflow-x:auto">
-        <table class="dt" style="font-size:12px;min-width:920px">
+        <table class="dt" style="font-size:12px;min-width:1100px">
           <thead><tr>
             <th style="width:45px;text-align:center">状态</th>
             <th style="width:50px;text-align:center">行</th>
             <th style="width:90px">字段</th>
-            <th style="min-width:200px;max-width:300px">原文</th>
+            <th style="min-width:180px;max-width:260px">原文(英文)</th>
+            <th style="min-width:160px;max-width:240px">内容翻译</th>
             <th style="min-width:110px;max-width:160px">打出标签</th>
-            <th style="min-width:300px;max-width:480px">${deepOn?'AI 语义理解（为什么打这些标签）':'AI 返回'}</th>
+            <th style="min-width:280px;max-width:440px">${deepOn?'AI 语义理解（为什么打这些标签）':'AI 返回'}</th>
           </tr></thead>
           <tbody>${thinkLog.map(function(r, idx){
             var isErr = String(r.clean||'').startsWith('[错]');
@@ -2329,14 +2341,19 @@ function paintThink(){
             var vi = isErr ? viIco('bad') : (r.reason ? viIco('ok') : viIco('dot'));
             var origText = '';
             if(r.srcMap && Object.keys(r.srcMap).length){
-              origText = Object.keys(r.srcMap).map(function(k){ return k+': '+(r.srcMap[k]||''); }).join('\n');
+              origText = extractEnglishText(r.srcMap);
             } else { origText = r.prompt || ''; }
+            var cnText = '';
+            if(r.srcMap && Object.keys(r.srcMap).length){
+              cnText = extractChineseText(r.srcMap);
+            }
             var assessText = r.reason || r.raw || '';
             return `<tr style="border-left:3px solid ${vc};cursor:pointer"${idx===_thinkIdx?' class="think-hl"':''} onclick="thinkSelect(${idx})">
               <td style="text-align:center;font-size:15px;color:${vc}" onclick="event.stopPropagation()">${vi}</td>
               <td style="text-align:center" onclick="event.stopPropagation()">${r.row!=null?r.row+1:'-'}</td>
               <td onclick="event.stopPropagation()">${esc(r.field||'')}</td>
               <td onclick="event.stopPropagation();toggleCellExpand(this)" class="exp-cell"><div class="exp-cnt">${esc(origText)}</div></td>
+              <td onclick="event.stopPropagation();toggleCellExpand(this)" class="exp-cell"><div class="exp-cnt">${cnText ? esc(cnText) : '<span style="color:var(--text-tertiary);font-style:italic">(无翻译)</span>'}</div></td>
               <td onclick="event.stopPropagation()">${isErr
                 ? '<span style="color:var(--error);font-size:11px">'+esc(String(r.clean||'').substring(0,40))+'</span>'
                 : '<span class="tag-pill" style="background:rgba(37,99,235,0.1);color:#2563EB;border:1px solid rgba(37,99,235,0.2)">'+esc(String(r.clean||'').substring(0,30))+'</span>'
@@ -2351,7 +2368,16 @@ function paintThink(){
         +(function(){
           var r=thinkLog[_thinkIdx]; var parts=[];
           if(r.srcMap&&Object.keys(r.srcMap).length){
-            parts.push('<div style="margin-bottom:8px"><strong style="font-size:11px;color:var(--text-secondary)">原文：</strong><pre style="margin:4px 0;font-size:11px;line-height:1.4;white-space:pre-wrap;word-break:break-all;color:var(--text-primary)">'+Object.keys(r.srcMap).map(function(k){return esc(k)+': '+esc(String(r.srcMap[k]||''));}).join('\n')+'</pre></div>');
+            var enText = extractEnglishText(r.srcMap);
+            var cnText = extractChineseText(r.srcMap);
+            if(enText) parts.push('<div style="margin-bottom:8px"><strong style="font-size:11px;color:var(--text-secondary)">原文(英文)：</strong><pre style="margin:4px 0;font-size:11.5px;line-height:1.6;white-space:pre-wrap;word-break:break-all;color:var(--text-primary)">'+esc(enText)+'</pre></div>');
+            if(cnText) parts.push('<div style="margin-bottom:8px"><strong style="font-size:11px;color:var(--text-secondary)">内容翻译：</strong><pre style="margin:4px 0;font-size:11.5px;line-height:1.6;white-space:pre-wrap;word-break:break-all;color:var(--text-primary)">'+esc(cnText)+'</pre></div>');
+            // Show other metadata fields compactly
+            var shown=[enText,cnText].filter(Boolean);
+            var metaKeys=Object.keys(r.srcMap).filter(function(k){ var v=String(r.srcMap[k]||''); return !shown.some(function(s){return v===s;}); });
+            if(metaKeys.length){
+              parts.push('<div style="margin-bottom:6px;font-size:10.5px;color:var(--text-tertiary)"><strong>元数据：</strong>'+metaKeys.map(function(k){return esc(k)+': '+esc(String(r.srcMap[k]||'').substring(0,60));}).join(' | ')+'</div>');
+            }
           }
           if(r.reason){
             parts.push('<div><strong style="font-size:11px;color:var(--success)">AI 语义分析（为什么打这些标签）：</strong><div style="margin-top:4px;padding:10px;background:rgba(16,185,129,0.05);border-left:3px solid var(--success);border-radius:0 var(--radius-sm);font-size:12px;line-height:1.7;color:var(--text-primary)">'+esc(r.reason)+'</div></div>');
@@ -2373,9 +2399,85 @@ function thinkStep(d){ stopThinkTimer(); _thinkPlaying=false; if(_thinkIdx==null
 function thinkSelect(idx){ stopThinkTimer(); _thinkPlaying=false; _thinkIdx=idx; paintThink(); }
 function thinkToggle(){ _thinkPlaying=!_thinkPlaying; if(_thinkPlaying)startThinkTimer(); else stopThinkTimer(); paintThink(); }
 
+// Extract the main content text from srcMap (pick longest-value column, skip short metadata)
+function extractContentText(srcMap){
+  if(!srcMap || !Object.keys(srcMap).length) return '';
+  var keys=Object.keys(srcMap);
+  // Find the column with the longest value — that's usually the review/content body
+  var bestKey='', bestLen=0;
+  keys.forEach(function(k){
+    var v=String(srcMap[k]||'');
+    if(v.length>bestLen){ bestLen=v.length; bestKey=k; }
+  });
+  return bestKey ? String(srcMap[bestKey]||'') : '';
+}
+
+// Extract English original text from srcMap (优先找 内容/VP评论/Vine Voice评论 等英文列)
+function extractEnglishText(srcMap){
+  if(!srcMap || !Object.keys(srcMap).length) return '';
+  var keys=Object.keys(srcMap);
+  // Priority: known English content columns
+  var enPrio=['内容','VP评论','Vine Voice评论','Review Content','review','body','text'];
+  for(var i=0;i<enPrio.length;i++){
+    // exact match or contains
+    for(var j=0;j<keys.length;j++){
+      if(keys[j]===enPrio[i] || keys[j].toLowerCase()===enPrio[i].toLowerCase()){
+        var v=String(srcMap[keys[j]]||'');
+        if(v && v.length>10) return v;
+      }
+    }
+  }
+  // Fallback: find column that looks like English (contains mostly Latin chars + spaces, longer)
+  var bestKey='', bestLen=0;
+  keys.forEach(function(k){
+    var v=String(srcMap[k]||'');
+    // Skip metadata columns
+    if(/ASIN|文件名|工作表|行号|链接|地址|时间|头像|主页|国家|计划/.test(k)) return;
+    if(v.length>bestLen){ bestLen=v.length; bestKey=k; }
+  });
+  return bestKey ? String(srcMap[bestKey]||'') : '';
+}
+
+// Extract Chinese translation from srcMap (优先找 内容翻译/标题翻译)
+function extractChineseText(srcMap){
+  if(!srcMap || !Object.keys(srcMap).length) return '';
+  var keys=Object.keys(srcMap);
+  // Priority: known Chinese translation columns
+  var cnPrio=['内容翻译','标题翻译','翻译','Translation'];
+  for(var i=0;i<cnPrio.length;i++){
+    for(var j=0;j<keys.length;j++){
+      if(keys[j]===cnPrio[i] || keys[j].toLowerCase()===cnPrio[i].toLowerCase()){
+        var v=String(srcMap[keys[j]]||'');
+        if(v && v.length>2) return v;
+      }
+    }
+  }
+  // Fallback: find column that looks like Chinese (contains CJK chars)
+  var bestKey='', bestLen=0;
+  keys.forEach(function(k){
+    var v=String(srcMap[k]||'');
+    if(/ASIN|文件名|工作表|行号|链接|地址|时间|头像|主页|国家|计划/.test(k)) return;
+    // Check if it has significant CJK content
+    if(/[\u4e00-\u9fff]/.test(v) && v.length>bestLen){ bestLen=v.length; bestKey=k; }
+  });
+  return bestKey ? String(srcMap[bestKey]||'') : '';
+}
+
 // Toggle expand/collapse for table cells (assessment / original text)
 function toggleCellExpand(td){
-  td.classList.toggle('expanded');
+  if(!td) return;
+  var isExp = td.classList.contains('expanded');
+  if(isExp){
+    td.classList.remove('expanded');
+    // Re-apply clamp
+    var cnt = td.querySelector('.exp-cnt');
+    if(cnt){ cnt.style.webkitLineClamp='2'; cnt.style.maxHeight='3.1em'; }
+  } else {
+    td.classList.add('expanded');
+    // Remove clamp
+    var cnt = td.querySelector('.exp-cnt');
+    if(cnt){ cnt.style.webkitLineClamp='unset'; cnt.style.maxHeight='none'; }
+  }
 }
 
 // --- Full ---
@@ -2506,6 +2608,7 @@ function renderLlmVal(c){
   const R=llmValResults;
   c.innerHTML=`<div class="dsec"><div class="ds-title">LLM 抽样验证报告</div><div class="ds-meta">
     <span>抽样数量: <strong>${R.sampleSize}</strong></span>
+    <span>范围模式: <strong>${{random:'随机抽样',all:'全部已打标',top50:'前 50 行',top100:'前 100 行',top200:'前 200 行',topcustom:'前 N 行'}[R.rangeMode]||R.rangeMode}</strong></span>
     <span>验证时间: <strong>${R.timestamp}</strong></span>
     <span>验证字段: <strong>${R.fields.join(', ')}</strong></span></div>
 
@@ -2553,21 +2656,24 @@ function renderLlmVal(c){
 
     <div class="dsec"><div class="ds-title">逐条验证明细</div>
       <div style="overflow-x:auto">
-        <table class="dt" style="font-size:12px;min-width:900px">
+        <table class="dt" style="font-size:12px;min-width:1050px">
           <thead><tr>
             <th style="width:45px;text-align:center">状态</th>
             <th style="width:50px;text-align:center">行</th>
             <th style="width:100px">字段</th>
-            <th style="min-width:200px;max-width:320px">原文</th>
+            <th style="min-width:170px;max-width:280px">原文(英文)</th>
+            <th style="min-width:150px;max-width:220px">内容翻译</th>
             <th style="min-width:120px;max-width:180px">打标签</th>
             <th style="min-width:120px;max-width:180px">建议标签</th>
-            <th style="min-width:280px;max-width:420px">评估</th>
+            <th style="min-width:260px;max-width:380px">评估</th>
           </tr></thead>
           <tbody>${R.results.map(function(res, ri){
             var isCorr=res.corrected;
             var vc = isCorr?'var(--success)':(res.verdict==='correct'?'var(--success)':res.verdict==='partial'?'var(--warning)':'var(--error)');
             var vi = isCorr?viIco('ok'):(res.verdict==='correct'?viIco('ok'):res.verdict==='partial'?viIco('warn'):viIco('bad'));
             var showTag = isCorr ? res.llmVerdict : res.originalTag;
+            var enTxt = res.srcMap ? extractEnglishText(res.srcMap) : res.originalText;
+            var cnTxt = res.srcMap ? extractChineseText(res.srcMap) : '';
             var tagCell = isCorr
               ? `<span class="tag-pill" style="background:rgba(16,185,129,0.12);color:#059669;border:1px solid rgba(16,185,129,0.35)">${esc(String(res.llmVerdict))}</span><span style="display:inline-block;margin-left:5px;font-size:9px;color:#059669;background:rgba(16,185,129,0.12);padding:1px 5px;border-radius:4px;vertical-align:middle">已修正</span>`
               : `<span class="tag-pill" style="background:rgba(37,99,235,0.1);color:#2563EB;border:1px solid rgba(37,99,235,0.2)">${esc(String(res.originalTag))}</span>`;
@@ -2575,7 +2681,8 @@ function renderLlmVal(c){
               <td style="text-align:center;font-size:15px;color:${vc}">${vi}</td>
               <td style="text-align:center">${res.rowIndex}</td>
               <td>${esc(res.fieldName)}</td>
-              <td onclick="toggleCellExpand(this)" class="exp-cell" title="点击展开/收起完整原文"><div class="exp-cnt">${esc(res.originalText)}</div></td>
+              <td onclick="toggleCellExpand(this)" class="exp-cell" title="点击展开/收起完整原文"><div class="exp-cnt">${esc(enTxt)}</div></td>
+              <td onclick="toggleCellExpand(this)" class="exp-cell"><div class="exp-cnt">${cnTxt ? esc(cnTxt) : '<span style="color:var(--text-tertiary);font-style:italic">(无翻译)</span>'}</div></td>
               <td id="tagcell_${ri}">${tagCell}</td>
               <td><span class="tag-pill" style="background:rgba(16,185,129,0.1);color:#059669;border:1px solid rgba(16,185,129,0.2)">${esc(String(res.llmVerdict))}</span></td>
               <td onclick="toggleCellExpand(this)" class="exp-cell" title="点击展开/收起完整评估"><div class="exp-cnt">${esc(res.reason)}</div></td>
@@ -2613,6 +2720,7 @@ async function runLLMValidation(){
   if(!hasTagged){alert('没有已标注的数据可供验证。请先运行"开始打标"对数据进行 AI 标注。');return;}
 
   var sampleN=Math.min(Math.max(parseInt(document.getElementById('valSampleN').value)||100,5),tableData().length);
+  var rangeSel=document.getElementById('valRangeSel').value;
 
   var taggedRows=[];
   tableData().forEach(function(r,i){
@@ -2624,12 +2732,25 @@ async function runLLMValidation(){
     if(hasTag) taggedRows.push({idx:i,data:r});
   });
 
-  // Fisher-Yates shuffle
-  for(var i=taggedRows.length-1;i>0;i--){
-    var j=Math.floor(Math.random()*(i+1));
-    var tmp=taggedRows[i]; taggedRows[i]=taggedRows[j]; taggedRows[j]=tmp;
+  // Apply range selection
+  var sample=[];
+  if(rangeSel==='all'){
+    sample=taggedRows;
+  } else if(rangeSel==='random'){
+    // Fisher-Yates shuffle
+    for(var i=taggedRows.length-1;i>0;i--){
+      var j=Math.floor(Math.random()*(i+1));
+      var tmp=taggedRows[i]; taggedRows[i]=taggedRows[j]; taggedRows[j]=tmp;
+    }
+    sample=taggedRows.slice(0,Math.min(sampleN,taggedRows.length));
+  } else {
+    // topN modes: take from the beginning (preserving row order)
+    var topN=rangeSel==='top50'?50:rangeSel==='top100'?100:rangeSel==='top200'?200:Math.max(5,parseInt(document.getElementById('valRangeCustom').value)||100);
+    // Filter: only rows within topN range that have tags
+    sample=taggedRows.filter(function(sr){ return sr.idx < topN; });
+    // If random mode with limit, also apply sampleN cap for non-all modes
+    if(rangeSel!=='all' && sample.length>sampleN) sample=sample.slice(0,sampleN);
   }
-  var sample=taggedRows.slice(0,Math.min(sampleN,taggedRows.length));
 
   // Show progress UI
   var btn=document.getElementById('llmValRunBtn');
@@ -2673,6 +2794,8 @@ async function runLLMValidation(){
         var tag=row[fld.name];
         if(!tag||tag==='--'||tag==='未提及'||String(tag).startsWith('[错]')) continue;
 
+        var srcMap={};
+        originalColumns().forEach(function(c){ srcMap[c]=row[c]||'(无)'; });
         var contextParts=[];
         originalColumns().forEach(function(c){
           contextParts.push(c+': '+(row[c]||'(无)'));
@@ -2693,7 +2816,7 @@ async function runLLMValidation(){
           if(res.verdict==='correct') correct++; else incorrect++;
           log('ok', '[验证] R'+(dataIdx+1)+' '+fld.name+': '+res.verdict);
         } catch(err){
-          results.push({rowIndex:dataIdx+1,fieldName:fld.name,originalTag:tag,llmVerdict:'解析失败',verdict:'incorrect',reason:String(err.message),originalText:context,sheetIdx:valSheetIdx,corrected:false});
+          results.push({rowIndex:dataIdx+1,fieldName:fld.name,originalTag:tag,llmVerdict:'解析失败',verdict:'incorrect',reason:String(err.message),originalText:context,srcMap:srcMap,sheetIdx:valSheetIdx,corrected:false});
           incorrect++;
           log('err', '[验证] R'+(dataIdx+1)+' '+fld.name+': '+err.message);
         }
@@ -2704,7 +2827,7 @@ async function runLLMValidation(){
 
     var totalChecked=results.length;
     var accuracy=totalChecked?Math.round(correct/totalChecked*100):0;
-    llmValResults={sampleSize:sample.length,fields:aiFields.map(function(f){return f.name;}),timestamp:new Date().toLocaleString('zh-CN'),accuracy:accuracy,correct:correct,incorrect:incorrect,results:results,sheetIdx:valSheetIdx};
+    llmValResults={sampleSize:sample.length,rangeMode:rangeSel,fields:aiFields.map(function(f){return f.name;}),timestamp:new Date().toLocaleString('zh-CN'),accuracy:accuracy,correct:correct,incorrect:incorrect,results:results,sheetIdx:valSheetIdx};
 
     // Complete progress
     progText.textContent=(stopRequested?'已停止 · ':'完成! ')+'准确率 '+accuracy+'% ('+correct+'/'+totalChecked+')';
@@ -2744,6 +2867,8 @@ function exportLlmVal(){
 async function validateOne(dataIdx, fld, cfg){
   var data=tableData();
   var row=data[dataIdx];
+  var srcMap={};
+  originalColumns().forEach(function(c){ srcMap[c]=row[c]||'(无)'; });
   var contextParts=[];
   originalColumns().forEach(function(c){ contextParts.push(c+': '+(row[c]||'(无)')); });
   var context=contextParts.join('\n');
@@ -2773,7 +2898,7 @@ async function validateOne(dataIdx, fld, cfg){
     llmVerdict:parsed.verdict_tag||parsed.verdict||'未知',
     verdict:parsed.verdict==='correct'?'correct':(parsed.verdict==='partial'?'partial':'incorrect'),
     reason:parsed.reason||'',
-    originalText:context, sheetIdx:activeSheetIdx, corrected:false
+    originalText:context, srcMap:srcMap, sheetIdx:activeSheetIdx, corrected:false
   };
 }
 
@@ -2848,7 +2973,9 @@ async function runDeepSampling(){
         var res=await validateOne(c.idx,fld,cfg);
         R.results.push(res); added++;
       }catch(err){
-        R.results.push({rowIndex:c.idx+1,fieldName:c.field,originalTag:data[c.idx][c.field],llmVerdict:'解析失败',verdict:'incorrect',reason:String(err.message),originalText:'',sheetIdx:activeSheetIdx,corrected:false});
+        var _dsRow=data[c.idx]||{}, _dsMap={};
+        originalColumns().forEach(function(col){ _dsMap[col]=_dsRow[col]||'(无)'; });
+        R.results.push({rowIndex:c.idx+1,fieldName:c.field,originalTag:data[c.idx][c.field],llmVerdict:'解析失败',verdict:'incorrect',reason:String(err.message),originalText:'',srcMap:_dsMap,sheetIdx:activeSheetIdx,corrected:false});
         added++;
       }
       markP(c.idx,false);
