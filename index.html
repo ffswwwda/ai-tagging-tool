@@ -211,6 +211,16 @@ body::after {
 .toolbar select:hover, .toolbar input:hover { border-color: var(--accent); }
 .divider { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
 
+/* Selection toolbar — hidden by default, shown when columns selected */
+.sel-toolbar {
+  display: inline-flex; align-items: center; gap: 6px;
+  animation: selFadeIn .2s ease;
+}
+@keyframes selFadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+/* Column header drag-select state */
+.data-table th.col-dragging { background: var(--accent-light) !important; }
+.data-table thead { user-select: none; -webkit-user-select: none; }
+
 /* Correction buttons */
 .btn { display:inline-flex; align-items:center; gap:4px; padding:6px 14px; border-radius:var(--radius-xs); font-size:12px; font-weight:600; cursor:pointer; border:1px solid transparent; font-family:inherit; transition:all .15s ease; }
 .btn:disabled { opacity:.45; cursor:not-allowed; }
@@ -769,11 +779,13 @@ body.dark .sj-btn:hover { background: var(--surface); color: var(--text-primary)
     <button class="tbtn" onclick="openFieldDrawer(-1)" title="新建 AI 字段列" style="border-color:var(--accent);color:var(--accent);font-weight:600">+ 新建字段</button>
     <button class="tbtn pri" id="runBtn" onclick="runBatchTagging()" disabled>开始打标（全部字段）</button>
     <button class="tbtn" id="stopBtn" onclick="stopTagging()" disabled style="color:var(--error);border-color:var(--error)">停止打标</button>
-    <div class="divider"></div>
-    <button class="tbtn" id="hideSelBtn" onclick="hideSelectedCols()" disabled>隐藏选中列</button>
-    <button class="tbtn" id="delSelBtn" onclick="deleteSelectedCols()" disabled style="color:var(--error);border-color:#fca5a5">删除选中列</button>
-    <button class="tbtn" id="clearSelBtn" onclick="clearColSelection()" disabled>取消选择</button>
-    <button class="tbtn" onclick="freezeToSelected()" id="freezeBtn" disabled>冻结至选中列</button>
+    <div class="sel-toolbar" id="selToolbar" style="display:none">
+      <div class="divider"></div>
+      <button class="tbtn" id="hideSelBtn" onclick="hideSelectedCols()">隐藏选中列</button>
+      <button class="tbtn" id="delSelBtn" onclick="deleteSelectedCols()" style="color:var(--error);border-color:#fca5a5">删除选中列</button>
+      <button class="tbtn" id="clearSelBtn" onclick="clearColSelection()">取消选择</button>
+      <button class="tbtn" onclick="freezeToSelected()" id="freezeBtn">冻结至选中列</button>
+    </div>
     <button class="tbtn" onclick="unfreezeAll()" id="unfreezeBtn" style="display:none">取消冻结</button>
     <div class="divider"></div>
     <button class="tbtn pri" onclick="exportTaggedData()" id="exportAllBtn" disabled title="导出完整打标数据（含4个工作表：打标全量数据 / 标签统计 / LLM抽样验证报告 / 标注概览）" style="background:var(--rad-grad);color:#fff;border:none;font-weight:600;letter-spacing:0.3px">导出打标数据</button>
@@ -1152,15 +1164,15 @@ function renderTable(){
     visCols.map(function(c, i){
       var ci=allCols.indexOf(c), isAI=aiFields.find(function(f){return f.name===c;}), hid=hiddenColNames.has(c);
       var selCls = selectedCols.has(c) ? ' col-sel' : '';
-      return '<th ondblclick="openHdrEdit('+ci+')" data-ci="'+ci+'" data-cn="'+escAttr(c)+'"'+
+      return '<th ondblclick="openHdrEdit('+ci+')" onmousedown="onColHeaderMouseDown(event, '+ci+')" data-ci="'+ci+'" data-cn="'+escAttr(c)+'"'+
         (hid?' style="display:none"':'')+
-        ' title="双击编辑'+(isAI?' AI 字段':'新建AI字段')+' | 右键操作列">'+
+        ' title="单击/拖拽选中 | 双击编辑'+(isAI?' AI 字段':'新建AI字段')+' | 右键操作列">'+
         '<div class="th-inner"><input type="checkbox" class="col-cb-input" '+
         (selectedCols.has(c)?'checked ':'')+'onclick="event.stopPropagation();toggleColSel('+ci+',this.checked)"'+
         ' title="选中/取消选中此列">'+
         '<span class="col-name">'+esc(c)+'</span>'+
         (isAI?'<span class="ai-badge">AI</span>':'')+
-        '<span class="dbl-hint">双击编辑 / 右键</span></div></th>';
+        '<span class="dbl-hint">拖拽 / 双击编辑</span></div></th>';
     }).join('')+'</tr>';
 
   // attach scroll listener once for virtual rendering
@@ -1182,9 +1194,6 @@ function renderTable(){
   var sample=document.querySelector('#dtBody tr[data-ri]');
   if(sample && sample.offsetHeight) ROW_H=sample.offsetHeight;
 
-  document.querySelectorAll('#dtHead th[data-ci]').forEach(function(h){
-    h.onclick=function(e){ onColHeaderClick(e, parseInt(h.dataset.ci)); };
-  });
   applyFreeze();
   // Init scroll jump buttons visibility
   var sj=document.getElementById('scrollJump');
@@ -1517,6 +1526,9 @@ function closeCtx(){document.getElementById('ctxMenu').style.display='none';_ctx
 // MULTI-COLUMN SELECT / HIDE / FREEZE
 // ============================================================
 var _lastSelCol=null;
+// Drag-select state
+var _colDrag = { active:false, startCI:-1, curCI:-1, moved:false, shift:false, ctrl:false };
+
 function toggleColSel(ci, checked){
   var cols=getCols();
   var cn=cols[ci];
@@ -1525,22 +1537,59 @@ function toggleColSel(ci, checked){
   _lastSelCol = ci;
   paintColSelection();
 }
-function onColHeaderClick(e, ci){
-  e.stopPropagation();
-  var cols=getCols();
-  var cn=cols[ci];
-  if(!cn) return;
-  if(e.shiftKey && _lastSelCol!=null){
+
+// --- Column header drag-select (mousedown → move → up) ---
+function onColHeaderMouseDown(e, ci){
+  // Only left button, ignore checkbox clicks
+  if(e.button!==0) return;
+  if(e.target.closest('.col-cb-input')) return;
+  var cols=getCols(); if(!cols[ci]) return;
+  e.preventDefault();
+  _colDrag.active=true; _colDrag.startCI=ci; _colDrag.curCI=ci; _colDrag.moved=false;
+  _colDrag.shift=e.shiftKey; _colDrag.ctrl=e.ctrlKey||e.metaKey;
+
+  if(_colDrag.shift && _lastSelCol!=null){
+    // extend from last anchor to clicked
     var a=Math.min(_lastSelCol,ci), b=Math.max(_lastSelCol,ci);
-    for(var i=a;i<=b;i++) selectedCols.add(cols[i]);
-  } else if(e.ctrlKey||e.metaKey){
-    if(selectedCols.has(cn)) selectedCols.delete(cn); else selectedCols.add(cn);
+    for(var i=a;i<=b;i++) if(cols[i]) selectedCols.add(cols[i]);
+  } else if(_colDrag.ctrl){
+    // toggle this column
+    if(selectedCols.has(cols[ci])) selectedCols.delete(cols[ci]); else selectedCols.add(cols[ci]);
   } else {
-    if(selectedCols.size===1 && selectedCols.has(cn)) selectedCols.clear();
-    else { selectedCols.clear(); selectedCols.add(cn); }
+    // fresh single selection
+    selectedCols.clear();
+    selectedCols.add(cols[ci]);
   }
   _lastSelCol=ci;
   paintColSelection();
+
+  document.addEventListener('mousemove', onColDragMove, {passive:false});
+  document.addEventListener('mouseup', onColDragUp, {once:true});
+}
+function onColDragMove(e){
+  if(!_colDrag.active) return;
+  e.preventDefault();
+  var ths=document.querySelectorAll('#dtHead th[data-ci]');
+  var targetCI=-1;
+  for(var i=0;i<ths.length;i++){
+    var r=ths[i].getBoundingClientRect();
+    if(e.clientX>=r.left && e.clientX<=r.right){ targetCI=parseInt(ths[i].dataset.ci); break; }
+  }
+  if(targetCI<0) return;
+  if(targetCI!==_colDrag.curCI){
+    _colDrag.moved=true;
+    _colDrag.curCI=targetCI;
+    var cols=getCols();
+    var s=Math.min(_colDrag.startCI, targetCI), e2=Math.max(_colDrag.startCI, targetCI);
+    selectedCols.clear();
+    for(var i=s;i<=e2;i++){ if(cols[i]) selectedCols.add(cols[i]); }
+    _lastSelCol=targetCI;
+    paintColSelection();
+  }
+}
+function onColDragUp(){
+  _colDrag.active=false;
+  document.removeEventListener('mousemove', onColDragMove);
 }
 function paintColSelection(){
   document.querySelectorAll('#dtHead th[data-ci]').forEach(function(th){
@@ -1555,6 +1604,9 @@ function paintColSelection(){
 }
 function updateSelBtns(){
   var n=selectedCols.size;
+  // Show selection toolbar only when at least one column is selected
+  var tb=document.getElementById('selToolbar');
+  if(tb) tb.style.display = n>0 ? 'inline-flex' : 'none';
   document.getElementById('hideSelBtn').disabled = n===0;
   document.getElementById('delSelBtn').disabled = n===0;
   document.getElementById('clearSelBtn').disabled = n===0;
