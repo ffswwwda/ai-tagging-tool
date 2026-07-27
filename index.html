@@ -352,10 +352,10 @@ body::after {
 .dsec { margin-bottom: 32px; }
 .ds-title {
   font-size: 15px; font-weight: 700; color: var(--text-primary);
-  margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); display: inline-block;
+  margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); display: inline-block;
   letter-spacing: -0.2px;
 }
-.ds-meta { font-size: 11.5px; color: var(--text-tertiary); margin-bottom: 18px; display: flex; gap: 18px; flex-wrap: wrap; }
+.ds-meta { font-size: 11.5px; color: var(--text-tertiary); margin-bottom: 14px; display: flex; gap: 18px; flex-wrap: wrap; line-height: 1.6; }
 
 .dt { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
 .dt th { background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); padding: 8px 12px; text-align: left; font-weight: 600; font-size: 11px; color: var(--text-secondary); border: 1px solid var(--border); white-space: nowrap; letter-spacing: 0.15px; }
@@ -489,21 +489,23 @@ body::after {
 .think-hl { background:rgba(37,99,235,0.06) !important; }
 
 /* Expandable table cell */
-.exp-cell { cursor:pointer; position:relative; }
+.exp-cell { cursor:pointer; position:relative; padding:2px 0; transition:background .15s; }
+.exp-cell:hover { background:var(--accent-soft); border-radius:4px; }
 .exp-cell .exp-cnt {
-  line-height:1.5; color:var(--text-secondary); word-break:break-all;
+  line-height:1.55; color:var(--text-secondary); word-break:break-all;
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-  overflow:hidden; max-height:3em; transition:max-height .2s ease;
+  overflow:hidden; max-height:3.1em; transition:all .25s ease;
 }
 .exp-cell.expanded .exp-cnt {
-  -webkit-line-clamp:unset; max-height:none; display:block;
+  -webkit-line-clamp:unset; max-height:none; display:block; color:var(--text-primary);
 }
+.exp-cell.expanded { background:rgba(0,212,255,.04); border-radius:4px; }
 .exp-cell::after {
-  content:''; position:absolute; right:4px; bottom:2px;
-  width:0; height:0; border-left:4px solid transparent; border-right:4px solid transparent;
-  border-top:5px solid var(--text-tertiary); opacity:.6; transition:transform .2s;
+  content:'展开 ▾'; position:absolute; right:6px; bottom:0;
+  font-size:10px; color:var(--accent); opacity:.7; transition:all .2s;
+  letter-spacing:0; font-weight:500;
 }
-.exp-cell.expanded::after { transform:rotate(180deg); bottom:6px; }
+.exp-cell.expanded::after { content:'收起 ▴'; bottom:2px; opacity:1; }
 
 /* Deep analysis toggle */
 .rec-reason { display:flex; align-items:center; gap:7px; margin-top:7px; font-size:11px; color:var(--text-secondary); cursor:pointer; user-select:none; }
@@ -527,7 +529,7 @@ body::after {
 .ac-pill { font-size:10.5px; background:rgba(37,99,235,.1); color:#2563EB; border:1px solid rgba(37,99,235,.22); border-radius:20px; padding:2px 9px; white-space:nowrap; }
 .ac-hint { padding:7px 14px; font-size:10.5px; color:var(--text-tertiary); border-top:1px solid var(--border); background:var(--surface); line-height:1.5; }
 .ac-input { padding:11px 14px; border-top:1px solid var(--border); background:var(--surface); }
-.ac-input textarea { width:100%; height:60px; resize:none; border:1px solid var(--border); border-radius:9px; padding:9px; font:inherit; box-sizing:border-box; outline:none; }
+.ac-input textarea { width:100%; height:60px; resize:none; border:1px solid var(--border); border-radius:9px; padding:9px; font:inherit; box-sizing:border-box; outline:none; background:var(--panel-solid); color:var(--text-primary); }
 .ac-input textarea:focus { border-color:var(--accent); }
 .ac-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:9px; }
 .ac-btn { border:1px solid var(--accent); background:var(--accent); color:#fff; border-radius:8px; padding:7px 18px; cursor:pointer; font:inherit; font-size:12.5px; }
@@ -537,7 +539,7 @@ body::after {
 
 /* ===== 同类错误深度抽样 ===== */
 .deep-cfg { display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap; }
-.deep-cfg input[type=number] { width:64px; height:28px; border:1px solid var(--border); border-radius:6px; font-size:12px; padding:0 6px; }
+.deep-cfg input[type=number] { width:64px; height:28px; border:1px solid var(--border); border-radius:6px; font-size:12px; padding:0 6px; background:var(--surface); color:var(--text-primary); }
 .ds-round { font-size:11px; color:var(--text-tertiary); margin-left:auto; }
 </style>
 </head>
@@ -631,16 +633,16 @@ body::after {
     <button class="tbtn" title="重做"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10H8a4 4 0 000 8h7"/></svg></button>
     <div style="flex:1"></div>
     <label style="font-size:11.5px;color:var(--text-tertiary);margin-right:2px">全局范围</label>
-    <select id="tagRangeSel" onchange="onTagRangeChange()" style="height:30px;border:1px solid var(--border);border-radius:6px;font-size:12px;padding:0 6px;background:#fff">
+    <select id="tagRangeSel" onchange="onTagRangeChange()" style="height:30px;border:1px solid var(--border);border-radius:6px;font-size:12px;padding:0 6px;background:var(--surface);color:var(--text-primary)">
       <option value="all">全部行</option>
       <option value="50">前 50 行</option>
       <option value="100">前 100 行</option>
       <option value="200">前 200 行</option>
       <option value="custom">自定义行数</option>
     </select>
-    <input id="tagRangeCustom" type="number" min="1" placeholder="行数" style="display:none;width:64px;height:30px;border:1px solid var(--border);border-radius:6px;font-size:12px;padding:0 6px;margin-left:4px">
+    <input id="tagRangeCustom" type="number" min="1" placeholder="行数" style="display:none;width:64px;height:30px;border:1px solid var(--border);border-radius:6px;font-size:12px;padding:0 6px;margin-left:4px;background:var(--surface);color:var(--text-primary)">
     <label style="font-size:11.5px;color:var(--text-tertiary);margin-right:2px;margin-left:8px">模式</label>
-    <select id="tagModeSel" style="height:30px;border:1px solid var(--border);border-radius:6px;font-size:12px;padding:0 6px;background:#fff">
+    <select id="tagModeSel" style="height:30px;border:1px solid var(--border);border-radius:6px;font-size:12px;padding:0 6px;background:var(--surface);color:var(--text-primary)">
       <option value="resume">基于已有续打</option>
       <option value="restart">重头开始打标</option>
     </select>
@@ -833,7 +835,7 @@ let ROW_H = 38;                 // measured after first render (matches --row-h)
 let _scrollTop = 0;
 let _scrollAttached = false;
 let procSet = new Set();        // rows currently being tagged (for highlight on scroll-in)
-let _deepAnalysis = false;     // deep analysis toggle (persisted, synced to checkbox in think view)
+let _deepAnalysis = true;      // deep analysis toggle (persisted, synced to checkbox in think view)
 
 function isDeepAnalysis(){
   // Sync from DOM checkbox if available
@@ -2495,6 +2497,12 @@ function renderValidate(c){
 // --- LLM Validation ---
 function renderLlmVal(c){
   if(!llmValResults){c.innerHTML=`<div class="de"><div class="de-i">${ICON('brain')}</div><div class="de-t">尚未运行 LLM 验证</div><div class="de-s">设置抽样数量后点击"运行 LLM 验证"</div></div>`;return;}
+  // Preserve deep sampling progress UI if sampling is in progress
+  var _savedDeepProg=null;
+  if(_deepSamplingRunning){
+    var _dpw=document.getElementById('deepProgWrap');
+    if(_dpw) _savedDeepProg=_dpw.outerHTML;
+  }
   const R=llmValResults;
   c.innerHTML=`<div class="dsec"><div class="ds-title">LLM 抽样验证报告</div><div class="ds-meta">
     <span>抽样数量: <strong>${R.sampleSize}</strong></span>
@@ -2513,7 +2521,7 @@ function renderLlmVal(c){
         <span>待修正条目: <strong style="color:var(--error)">${R.incorrect}</strong> 条</span>
         <span style="color:var(--text-tertiary);font-size:11px">（将把判定为「部分正确 / 不正确」的标签替换为 AI 建议标签）</span>
       </div>
-      <div style="display:flex;gap:10px;align-items:center;margin-top:6px">
+      <div style="display:flex;gap:10px;align-items:center;margin-top:10px">
         <button class="btn btn-warn" id="corrBtn" onclick="runCorrection()" ${R.incorrect>0?'':'disabled'}>一键矫正 ${R.incorrect>0?'('+R.incorrect+')':''}</button>
         <button class="btn btn-ghost" id="corrStopBtn" onclick="_corrStop=true" style="display:none">停止</button>
         <span id="corrStatus" style="font-size:11px;color:var(--text-secondary)"></span>
@@ -2525,10 +2533,10 @@ function renderLlmVal(c){
         <div id="corrProgText" style="font-size:11px;color:var(--text-secondary);margin-top:4px"></div>
       </div>
 
-      <div style="height:1px;background:var(--border);margin:14px 0 12px"></div>
+      <div style="height:1px;background:var(--border);margin:20px 0 16px"></div>
       <div class="ds-title" style="margin-bottom:4px">同类错误深度抽样</div>
       <div class="ds-meta"><span style="color:var(--text-tertiary);font-size:11px">基于上面检查出的错误类型，在数据中寻找「相似的未验证样本」重新做 LLM 验证，可逐轮递归深挖，是否继续由你决定。</span></div>
-      <div class="deep-cfg">
+      <div class="deep-cfg" style="margin-top:10px">
         <label style="font-size:11.5px;color:var(--text-secondary)">每轮抽样数:</label>
         <input type="number" id="deepSampleN" value="50" min="5" max="300">
         <button class="btn btn-warn" id="deepBtn" onclick="runDeepSampling()" ${R.incorrect>0?'':'disabled'}>开始深度抽样 ${R.incorrect>0?'('+R.incorrect+')':''}</button>
@@ -2576,6 +2584,11 @@ function renderLlmVal(c){
         </table>
       </div>
     </div></div>`;
+  // Restore deep sampling progress if it was running
+  if(_savedDeepProg){
+    var _target=document.getElementById('deepProgWrap');
+    if(_target) _target.outerHTML=_savedDeepProg;
+  }
 }
 
 async function runLLMValidation(){
@@ -2767,7 +2780,7 @@ async function validateOne(dataIdx, fld, cfg){
 // ============================================================
 // REQ 6: 同类错误深度抽样 (find similar-to-error samples, re-validate, repeatable)
 // ============================================================
-var _deepStop=false;
+var _deepStop=false, _deepSamplingRunning=false;
 function _tokSet(t){
   t=String(t==null?'':t).toLowerCase();
   var sig=new Set();
@@ -2823,7 +2836,7 @@ async function runDeepSampling(){
   var btn=document.getElementById('deepBtn'), pwrap=document.getElementById('deepProgWrap'), pbar=document.getElementById('deepProgBar'), ptext=document.getElementById('deepProgText'), stopBtn=document.getElementById('deepStopBtn');
   btn.disabled=true; pwrap.style.display='block'; pbar.style.width='0%';
   if(stopBtn) stopBtn.style.display='inline-block';
-  _deepStop=false;
+  _deepStop=false; _deepSamplingRunning=true;
   var added=0, done=0, total=cands.length;
   try{
     for(var ci=0;ci<cands.length;ci++){
@@ -2840,19 +2853,25 @@ async function runDeepSampling(){
       }
       markP(c.idx,false);
       done++; var pct=Math.round(done/total*100);
-      pbar.style.width=pct+'%';
-      ptext.textContent='深度抽样中... '+done+'/'+total+' ('+pct+'%) · 新增验证 '+added;
+      // Re-query elements each iteration (survives tab switch / re-render)
+      var _pbar=document.getElementById('deepProgBar'), _ptext=document.getElementById('deepProgText');
+      if(_pbar) _pbar.style.width=pct+'%';
+      if(_ptext) _ptext.textContent='深度抽样中... '+done+'/'+total+' ('+pct+'%) · 新增验证 '+added;
       await sleep(60);
     }
     R.deepRounds=round;
     var tot=R.results.length, cor=R.results.filter(function(r){return r.verdict==='correct'||r.corrected;}).length;
     R.correct=cor; R.incorrect=tot-cor; R.accuracy=tot?Math.round(cor/tot*100):0;
     saveState();
-    ptext.textContent=(_deepStop?'已停止 · ':'完成! ')+'本轮新增验证 '+added+' 条（累计 '+tot+' 条，准确率 '+R.accuracy+'%）';
+    var _pt2=document.getElementById('deepProgText');
+    if(_pt2) _pt2.textContent=(_deepStop?'已停止 · ':'完成! ')+'本轮新增验证 '+added+' 条（累计 '+tot+' 条，准确率 '+R.accuracy+'%）';
     log('info','同类错误深度抽样第'+round+'轮: 新增 '+added+' 条');
-    swView('llmval'); renderLlmVal(document.getElementById('docLlmVal'));
+    // Only switch view if still on llmval (don't hijack user if they're elsewhere)
+    if(curView==='llmval'){ renderLlmVal(document.getElementById('docLlmVal')); }
   }catch(e){ alert('深度抽样出错: '+e.message); }
-  btn.disabled=false; if(stopBtn) stopBtn.style.display='none';
+  _deepSamplingRunning=false;
+  var _btn=document.getElementById('deepBtn'), _sb=document.getElementById('deepStopBtn');
+  if(_btn) _btn.disabled=false; if(_sb) _sb.style.display='none';
 }
 
 // ============================================================
@@ -2875,7 +2894,7 @@ function toggleTheme(){
   applyThemeIcon();
 }
 (function initTheme(){
-  var saved='dark';
+  var saved='light';
   try{ saved=localStorage.getItem('att-theme')||'dark'; }catch(e){}
   document.body.classList.remove('light','dark');
   document.body.classList.add(saved);
