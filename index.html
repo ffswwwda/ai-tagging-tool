@@ -2500,69 +2500,181 @@ function toggleCellExpand(td){
 }
 
 // --- Full ---
-// --- Stats (flat detail table: module / dimension / label / count) ---
+// --- Stats (hierarchical table: L1模块 → L2维度 → L3标签 → count + L4 suggestion) ---
+
+/**
+ * Parse a tag string like "价值观-实用主义" into {dim: "价值观", label: "实用主义"}
+ * If no "-" separator found, returns {dim: "(未分类)", label: originalTag}
+ */
+function parseTagDimension(tag){
+  var t=String(tag||'').trim();
+  if(!t) return {dim:'',label:''};
+  var idx=t.indexOf('-');
+  if(idx>0 && idx<t.length-1){
+    return {dim:t.substring(0,idx).trim(), label:t.substring(idx+1).trim()};
+  }
+  return {dim:'(未分类)', label:t};
+}
+
+/**
+ * Analyze tags under a dimension and suggest whether to add L4 sub-categories.
+ * Rules: >=5 distinct tags, diverse content, meaningful distinction.
+ */
+function suggestL4(dimension, tagsWithCounts){
+  var tags=tagsWithCounts;
+  if(tags.length<5) return null;
+  var labels=tags.map(function(t){return t.label;});
+  var uniqueLabels=new Set(labels).size;
+  var avgLen=0;
+  labels.forEach(function(l){avgLen+=l.length;});
+  avgLen/=labels.length;
+  if(uniqueLabels>=4 && avgLen>=2){
+    var topTags=tags.slice(0,3).map(function(t){return t.label+'('+t.count+')';}).join('、');
+    return {
+      reason: '该维度下有 '+tags.length+' 个标签，内容多样可区分',
+      example: '如：'+topTags+(tags.length>3?' 等':''),
+      action: '建议按语义相近性拆分为子类'
+    };
+  }
+  return null;
+}
+
 function renderStats(c){
   if(!aiFields.length){c.innerHTML='<div class="de"><div class="de-t">暂无 AI 字段统计数据</div></div>';return;}
 
-  var rows=[]; // {module, dim, label, count}
-  var grandTotal=0;
+  // Build hierarchical data: {module: {dimension: [{label, count, rawTag}]}}
+  var hierarchy={};
+  var grandTotal=0, totalDims=0;
 
   aiFields.forEach(function(fld){
     if(fld.type==='text'){
-      // For text fields, show as single entry
       var filled=0;
       tableData().forEach(function(r){
         var v=r[fld.name]; if(v&&v!=='--'&&v!=='未提及')filled++;
       });
-      rows.push({module:fld.name, dim:fld.type==='text'?'自由文本':'文本', label:'(已填充)', count:filled});
-      rows.push({module:fld.name, dim:'', label:'(未标记)', count:tableData().length-filled});
+      if(!hierarchy[fld.name]) hierarchy[fld.name]={};
+      hierarchy[fld.name]['(自由文本)']=[{label:'(已填充)',count:filled}];
+      if(tableData().length-filled>0)
+        hierarchy[fld.name]['(自由文本)'].push({label:'(未标记)',count:tableData().length-filled});
+      grandTotal+=filled;
       return;
     }
-    var counts={}, totalT=0;
+    var counts={};
     tableData().forEach(function(r){
       var v=r[fld.name];
       if(v&&v!=='未提及'&&v!=='[错'){
         String(v).split(',').map(function(t){return t.trim();}).filter(Boolean).forEach(function(t){
-          counts[t]=(counts[t]||0)+1; totalT++;
+          counts[t]=(counts[t]||0)+1;
         });
       }
     });
-    // Sort by count desc
-    var sorted=Object.entries(counts).sort(function(a,b){return b[1]-a[1]});
-    sorted.forEach(function(entry){
-      rows.push({module:fld.name, dim:fld.type==='multi'?'多选':'单选', label:entry[0], count:entry[1]});
+
+    if(!hierarchy[fld.name]) hierarchy[fld.name]={};
+
+    Object.entries(counts).sort(function(a,b){return b[1]-a[1];}).forEach(function(entry){
+      var parsed=parseTagDimension(entry[0]);
+      if(!hierarchy[fld.name][parsed.dim]) hierarchy[fld.name][parsed.dim]=[];
+      hierarchy[fld.name][parsed.dim].push({label:parsed.label, count:entry[1], rawTag:entry[0]});
       grandTotal+=entry[1];
     });
-    // Unmarked
+
     var unlbl=tableData().filter(function(r){return !r[fld.name]||r[fld.name]==='未提及'||r[fld.name]=='--';}).length;
-    if(unlbl) rows.push({module:fld.name, dim:'', label:'(未标记)', count:unlbl});
+    if(unlbl){
+      if(!hierarchy[fld.name]['(未标记)']) hierarchy[fld.name]['(未标记)']=[];
+      hierarchy[fld.name]['(未标记)'].push({label:'(未标记)',count:unlbl});
+    }
+  });
+
+  Object.keys(hierarchy).forEach(function(mod){
+    totalDims+=Object.keys(hierarchy[mod]).length;
   });
 
   var html='<div class="dsec">';
   html+='<div class="ds-title">标签统计明细</div>';
-  html+='<div class="ds-meta"><span>AI 字段: <strong>'+aiFields.length+'</strong></span><span>标签行数: <strong>'+rows.length+'</strong></span><span>总标注次数: <strong>'+grandTotal+'</strong></span></div>';
+  html+='<div class="ds-meta"><span>AI 字段: <strong>'+aiFields.length+'</strong></span><span>L2 维度: <strong>'+totalDims+'</strong></span><span>总标注次数: <strong>'+grandTotal+'</strong></span></div>';
 
-  // Flat table
+  // Hierarchical table: L1模块 | L2维度 | L3标签 | 数量 | 4级建议
   html+='<div style="overflow-x:auto"><table class="dt"><thead><tr>';
-  html+='<th>模块</th><th>维度</th><th>标签</th><th style="text-align:right;width:80px">数量</th>';
+  html+='<th style="width:110px">L1 模块</th><th style="width:100px">L2 维度</th><th style="min-width:140px">L3 标签</th><th style="text-align:right;width:70px">数量</th><th style="min-width:180px;max-width:260px">4级标签建议</th>';
   html+='</tr></thead><tbody>';
 
-  var currentModule='';
-  rows.forEach(function(row){
-    // Group visual separator
-    if(row.module!==currentModule){
-      if(currentModule!=='') html+='<tr><td colspan="4" style="background:#f8f9fa;height:1px"></td></tr>';
-      currentModule=row.module;
-    }
-    html+='<tr>';
-    html+='<td>'+(row.module!==currentModule?esc(row.module):'<span style="color:var(--text-tertiary)">'+esc(row.module)+'</span>')+'</td>';
-    html+='<td>'+esc(row.dim)+'</td>';
-    html+='<td>'+(row.label.startsWith('(')?'<span style="color:var(--text-tertiary)">'+esc(row.label)+'</span>':esc(row.label))+'</td>';
-    html+='<td style="text-align:right;font-weight:600;color:var(--accent)">'+row.count+'</td>';
-    html+='</tr>';
+  // Pre-calculate module rowspans
+  var modRowSpan={};
+  Object.keys(hierarchy).forEach(function(mod){
+    var modRows=0;
+    Object.keys(hierarchy[mod]).forEach(function(dim){
+      modRows+=Math.max(hierarchy[mod][dim].length,1);
+    });
+    modRowSpan[mod]=modRows;
+  });
+
+  Object.keys(hierarchy).forEach(function(mod){
+    var dims=hierarchy[mod];
+    var firstMod=true;
+
+    Object.keys(dims).forEach(function(dim){
+      var tags=dims[dim];
+
+      // L4 suggestion for this dimension
+      var l4Suggestion = (dim!=='(��标记)'&&dim!=='(自由文本)'&&dim!=='(未分类)'&&tags.length>=3)
+        ? suggestL4(dim, tags) : null;
+
+      tags.forEach(function(ti, tiIdx){
+        html+='<tr>';
+        // L1 Module cell (rowspan)
+        if(firstMod){
+          html+='<td rowspan="'+modRowSpan[mod]+'" style="vertical-align:middle;font-weight:600;color:var(--text-primary);background:var(--accent-soft);border-radius:4px 0 0 4px">'+esc(mod)+'</td>';
+          firstMod=false;
+        }
+        // L2 Dimension cell (rowspan on first tag row only)
+        if(tiIdx===0){
+          var dimStyle='vertical-align:middle;font-weight:500;';
+          if(dim==='(未标记)') dimStyle+='color:var(--text-tertiary);font-style:italic;font-size:11px';
+          else if(dim==='(未分类)') dimStyle+='color:var(--warning);font-size:11px';
+          else dimStyle+='color:var(--accent)';
+          html+='<td rowspan="'+tags.length+'" style="'+dimStyle+'">'+esc(dim)+(tags.length>0?' <span style="font-weight:400;color:var(--text-tertiary);font-size:10px">('+tags.length+')</span>':'')+'</td>';
+        }
+        // L3 Tag
+        var tagStyle='';
+        if(ti.label.startsWith('(')) tagStyle='color:var(--text-tertiary);font-style:italic';
+        else tagStyle='color:var(--text-primary)';
+        html+='<td style="'+tagStyle+'">'+esc(ti.label)+'</td>';
+        // Count
+        html+='<td style="text-align:right;font-weight:600;color:var(--accent)">'+ti.count+'</td>';
+        // L4 Suggestion (only on first row of dimension)
+        if(tiIdx===0){
+          if(l4Suggestion){
+            html+='<td rowspan="'+tags.length+'" style="font-size:11px;vertical-align:middle">';
+            html+='<div style="display:inline-flex;align-items:flex-start;gap:4px;padding:6px 10px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.15);border-radius:6px;color:#9333ea;max-width:240px;line-height:1.5">';
+            html+='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><path d="M12 5v14M5 12h14"/></svg>';
+            html+='<span>'+esc(l4Suggestion.reason)+'<br><span style="color:var(--text-secondary);font-size:10px">'+esc(l4Suggestion.action)+'</span></span>';
+            html+='</div></td>';
+          } else if(dim!=='(未标记)'&&dim!=='(自由文本)'&&dim!=='(未分类)'){
+            html+='<td rowspan="'+tags.length+'" style="color:var(--text-tertiary);font-size:10.5px;vertical-align:middle;text-align:center">—</td>';
+          } else {
+            html+='<td rowspan="'+tags.length+'" style="vertical-align:middle"></td>';
+          }
+        }
+        html+='</tr>';
+      });
+    });
   });
 
   html+='</tbody></table></div>';
+
+  // Summary insight at bottom
+  var dimSummary=[];
+  Object.keys(hierarchy).forEach(function(mod){
+    var dims=Object.keys(hierarchy[mod]).filter(function(d){return d!=='(未标记)'&&d!=='(自由文本)'&&d!=='(未分类)';});
+    if(dims.length>0) dimSummary.push('<strong>'+esc(mod)+'</strong>: '+dims.map(esc).join('、'));
+  });
+
+  if(dimSummary.length>0){
+    html+='<div style="margin-top:16px;padding:12px 14px;background:rgba(0,212,255,0.04);border:1px solid rgba(0,212,255,0.15);border-radius:8px;font-size:11.5px;line-height:1.8">';
+    html+='<span style="color:var(--accent);font-weight:600">层级总览</span>（从抽象到具体） — '+dimSummary.join('；');
+    html+='</div>';
+  }
+
   html+='</div>';
   c.innerHTML=html;
 }
@@ -3328,14 +3440,14 @@ async function exportTbl(){
     const dataRows=[cols, ...tableData().map(row=>cols.map(c=>row[c]??''))];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(dataRows), '标注数据');
     if(aiFields.length){
-      // Sheet 2: 标签统计 (flat table matching the stats view)
-      var srows=[['模块','维度','标签','数量']];
+      // Sheet 2: 标签统计 (hierarchical: L1模块 → L2维度 → L3标签)
+      var srows=[['L1 模块','L2 维度','L3 标签','数量']];
       aiFields.forEach(function(fld){
         if(fld.type==='text'){
           var filled=0;
           tableData().forEach(function(r){var v=r[fld.name];if(v&&v!=='--'&&v!=='未提及')filled++;});
-          srows.push([fld.name,'自由文本','(已填充)',filled]);
-          srows.push([fld.name,'','(未标记)',tableData().length-filled]);
+          srows.push([fld.name,'(自由文本)','(已填充)',filled]);
+          srows.push([fld.name,'(自由文本)','(���标记)',tableData().length-filled]);
           return;
         }
         var counts={};
@@ -3348,10 +3460,11 @@ async function exportTbl(){
           }
         });
         Object.entries(counts).sort(function(a,b){return b[1]-a[1];}).forEach(function(entry){
-          srows.push([fld.name, fld.type==='multi'?'多选':'单选', entry[0], entry[1]]);
+          var p=parseTagDimension(entry[0]);
+          srows.push([fld.name, p.dim, p.label, entry[1]]);
         });
         var unlbl=tableData().filter(function(r){return !r[fld.name]||r[fld.name]==='未提及'||r[fld.name]=='--';}).length;
-        if(unlbl) srows.push([fld.name,'','(未标记)',unlbl]);
+        if(unlbl) srows.push([fld.name,'(未标记)','(未标记)',unlbl]);
       });
       if(srows.length>1) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(srows), '标签统计');
       // Sheet 3: 标注概览
