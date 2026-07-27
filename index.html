@@ -2812,12 +2812,12 @@ function renderLlmVal(c){
         <div class="llm-cfg-desc">选择数据抽样方式</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <select id="valRangeSel" onchange="var s=this.value;document.getElementById('valRangeCustomRow').style.display=s==='topcustom'?'flex':'none';document.getElementById('valSampleN').disabled=s==='all'" class="llm-cfg-select">
-            <option value="random" ${(!document.getElementById('valRangeSel')||document.getElementById('valRangeSel').value==='random')?'selected':''}>🎲 随机抽样</option>
-            <option value="all" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='all'?'selected':''}>📋 全部已打标行</option>
-            <option value="top50" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='top50'?'selected':''}>📌 前 50 行</option>
-            <option value="top100" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='top100'?'selected':''}>📌 前 100 行</option>
-            <option value="top200" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='top200'?'selected':''}>📌 前 200 行</option>
-            <option value="topcustom" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='topcustom'?'selected':''}>✏️ 自定义前 N 行</option>
+            <option value="random" ${(!document.getElementById('valRangeSel')||document.getElementById('valRangeSel').value==='random')?'selected':''}>随机抽样</option>
+            <option value="all" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='all'?'selected':''}>全部已打标行</option>
+            <option value="top50" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='top50'?'selected':''}>前 50 行</option>
+            <option value="top100" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='top100'?'selected':''}>前 100 行</option>
+            <option value="top200" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='top200'?'selected':''}>前 200 行</option>
+            <option value="topcustom" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='topcustom'?'selected':''}>自定义前 N 行</option>
           </select>
           <div id="valRangeCustomRow" style="display:${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='topcustom'?'flex':'none'};align-items:center;gap:4px">
             <input type="number" id="valRangeCustom" placeholder="N" value="${document.getElementById('valRangeCustom')?document.getElementById('valRangeCustom').value:''}" min="5" max="${totalRows||50000}" class="llm-cfg-input" style="width:80px">
@@ -2828,13 +2828,12 @@ function renderLlmVal(c){
     </div>
 
     <div class="llm-cfg-summary">
-      <span>📊 数据总量: <strong>${totalRows}</strong> 行</span>
-      <span>🏷️ 已打标: <strong>${taggedCount}</strong> 行</span>
-      <span>🤖 AI 字段: <strong>${aiFields.length}</strong> 个${aiFields.length? ' ('+aiFields.map(function(f){return f.name}).join(', ')+')':''}</span>
+      <span>数据总量: <strong>${totalRows}</strong> 行</span>
+      <span>已打标: <strong>${taggedCount}</strong> 行</span>
+      <span>AI 字段: <strong>${aiFields.length}</strong> 个${aiFields.length? ' ('+aiFields.map(function(f){return f.name}).join(', ')+')':''}</span>
     </div>
 
     <button class="btn btn-primary-lg" id="llmValRunBtn" onclick="runLLMValidation()" ${isProcessing?'disabled':''} style="margin-top:14px;width:100%;height:42px;font-size:14px;border-radius:10px;background:var(--rad-grad);color:#fff;border:none;cursor:pointer;font-weight:600;letter-spacing:0.5px;transition:transform .15s,box-shadow .15s;display:flex;align-items:center;justify-content:center;gap:8px">
-      <svg style="width:18px;height:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
       运行 LLM 验证${sampleSizeHint?' ('+sampleSizeHint+')':''}
     </button>
 
