@@ -148,8 +148,59 @@ body::after {
 /* Field panel (per-field config + run) */
 .sb-mini { background: var(--accent-light); color: var(--accent); border: 1px solid rgba(37,99,235,0.2); border-radius: 5px; font-size: 10.5px; padding: 2px 8px; cursor: pointer; font-family: inherit; font-weight: 600; }
 .sb-mini:hover { background: var(--accent-light); }
+/* Toolbar — position:relative 让内部 absolute 定位的 aiColHint 正确锚定 */
+.toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 10px; position: relative; }
 .fld-list { display: flex; flex-direction: column; gap: 6px; max-height: 34vh; overflow-y: auto; }
-.fld-row { background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 7px 9px; }
+.fld-row { background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 7px 9px; transition: border-color .2s, box-shadow .2s; }
+/* 选中AI字段列头时高亮侧边栏字段卡片 */
+.fld-row.hl-active { border-color: var(--accent); box-shadow: 0 0 16px rgba(0,212,255,.25), 0 0 4px rgba(168,85,247,.15); animation: fldHlPulse 2.5s ease-out; }
+@keyframes fldHlPulse {
+  0%   { box-shadow: 0 0 20px rgba(0,212,255,.4), 0 0 6px rgba(168,85,247,.25); }
+  50%  { box-shadow: 0 0 12px rgba(0,212,255,.2), 0 0 3px rgba(168,85,247,.12); }
+  100% { box-shadow: none; }
+}
+/* 高亮时「打」按钮额外脉冲 */
+.fld-row.hl-active .fld-run {
+  animation: fldRunPulse 1.8s ease-in-out infinite;
+  box-shadow: 0 0 10px rgba(0,212,255,.5);
+}
+@keyframes fldRunPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 10px rgba(0,212,255,.5); }
+  50%      { transform: scale(1.12); box-shadow: 0 0 18px rgba(0,212,255,.7), 0 0 6px rgba(168,85,247,.4); }
+}
+
+/* AI列头选中 → 浮动提示（指向侧边栏） */
+.ai-col-hint {
+  position: absolute; top: 44px; left: 50%; transform: translateX(-50%);
+  z-index: 200; pointer-events: auto;
+  animation: aiHintSlideIn .3s ease-out;
+}
+@keyframes aiHintSlideIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.ai-hint-arrow {
+  position: absolute; top: -6px; left: 50%; transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 7px solid transparent; border-right: 7px solid transparent;
+  border-bottom: 7px solid var(--accent);
+  filter: drop-shadow(0 -2px 3px rgba(0,212,255,.25));
+}
+.ai-hint-body {
+  display: flex; align-items: center; gap: 8px;
+  background: linear-gradient(135deg, rgba(0,212,255,.12), rgba(168,85,247,.1));
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--accent); border-radius: 8px;
+  padding: 8px 14px; font-size: 12.5px; color: var(--text-primary);
+  white-space: nowrap; box-shadow: 0 4px 20px rgba(0,212,255,.15), 0 2px 8px rgba(168,85,247,.1);
+}
+.ai-hint-icon { font-size: 14px; flex-shrink: 0; }
+.ai-hint-text strong { color: var(--accent); font-weight: 700; }
+.ai-hint-close {
+  background: none; border: none; color: var(--text-tertiary); cursor: pointer;
+  font-size: 16px; line-height: 1; padding: 0 2px; margin-left: 4px;
+}
+.ai-hint-close:hover { color: var(--error); }
 .fld-top { display: flex; align-items: center; gap: 6px; }
 .fld-name { flex: 1; font-size: 11.5px; font-weight: 600; color: var(--text-primary); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fld-name:hover { color: var(--accent); text-decoration: underline; }
@@ -577,8 +628,8 @@ body.dark .sj-btn:hover { background: var(--surface); color: var(--text-primary)
 ::-webkit-scrollbar-thumb { background: rgba(140,160,200,.35); border-radius: 8px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(140,160,200,.6); }
 
-/* Table area horizontal scrollbar — taller & more visible */
-.table-wrap::-webkit-scrollbar { height: 14px; }
+/* Table area scrollbar — taller & more visible */
+.table-wrap::-webkit-scrollbar { width: 12px; height: 14px; }
 .table-wrap::-webkit-scrollbar-track {
   background: var(--surface);
   border-radius: 7px;
@@ -592,6 +643,16 @@ body.dark .sj-btn:hover { background: var(--surface); color: var(--text-primary)
 }
 .table-wrap::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(90deg, rgba(0,212,255,.55), rgba(168,85,247,.55));
+}
+/* Table area vertical scrollbar thumb */
+.table-wrap::-webkit-scrollbar-thumb:vertical {
+  background: linear-gradient(180deg, rgba(0,212,255,.35), rgba(168,85,247,.35));
+  border-radius: 7px;
+  border: 1px solid rgba(0,212,255,.12);
+  min-height: 40px;
+}
+.table-wrap::-webkit-scrollbar-thumb:hover:vertical {
+  background: linear-gradient(180deg, rgba(0,212,255,.55), rgba(168,85,247,.55));
 }
 
 /* Theme toggle */
@@ -778,6 +839,7 @@ body.dark .sj-btn:hover { background: var(--surface); color: var(--text-primary)
     </select>
     <button class="tbtn" onclick="openFieldDrawer(-1)" title="新建 AI 字段列" style="border-color:var(--accent);color:var(--accent);font-weight:600">+ 新建字段</button>
     <button class="tbtn pri" id="runBtn" onclick="runBatchTagging()" disabled>开始打标（全部字段）</button>
+    <button class="tbtn" id="retryErrBtn" onclick="retryFailedRows()" disabled title="只重新打标 [错] 开头的失败行" style="border-color:#f59e0b;color:#f59e0b">重试失败行</button>
     <button class="tbtn" id="stopBtn" onclick="stopTagging()" disabled style="color:var(--error);border-color:var(--error)">停止打标</button>
     <div class="sel-toolbar" id="selToolbar" style="display:none">
       <div class="divider"></div>
@@ -785,6 +847,15 @@ body.dark .sj-btn:hover { background: var(--surface); color: var(--text-primary)
       <button class="tbtn" id="delSelBtn" onclick="deleteSelectedCols()" style="color:var(--error);border-color:#fca5a5">删除选中列</button>
       <button class="tbtn" id="clearSelBtn" onclick="clearColSelection()">取消选择</button>
       <button class="tbtn" onclick="freezeToSelected()" id="freezeBtn">冻结至选中列</button>
+    </div>
+    <!-- AI列头选中提示浮标：指向侧边栏字段卡片 -->
+    <div class="ai-col-hint" id="aiColHint" style="display:none">
+      <div class="ai-hint-arrow"></div>
+      <div class="ai-hint-body">
+        <span class="ai-hint-icon">📍</span>
+        <span class="ai-hint-text">侧边栏已定位到该字段 → 点击<strong>「打」</strong>开始打标</span>
+        <button class="ai-hint-close" onclick="dismissAiHint()">×</button>
+      </div>
     </div>
     <button class="tbtn" onclick="unfreezeAll()" id="unfreezeBtn" style="display:none">取消冻结</button>
     <div class="divider"></div>
@@ -1250,17 +1321,29 @@ function vrRenderIfVisible(ri){
 function rowCellsHTML(ri,row){
   if(!row) return '';
   var visCols=getVisibleCols(), allCols=getCols();
-  return visCols.map(function(c){ return hiddenColNames.has(c)?'':renderCell(row,c,allCols.indexOf(c)); }).join('');
+  return visCols.map(function(c){ return hiddenColNames.has(c)?'':renderCell(ri,row,c,allCols.indexOf(c)); }).join('');
 }
 
-function renderCell(row,col,ci){
+function renderCell(ri,row,col,ci){
   const v=row[col], fld=aiFields.find(f=>f.name===col);
   if(v===undefined||v===null||v==='') return `<td data-ci="${ci}" onclick="startCellEdit(this,${ci},'${escAttr(col)}')"><span class="tag-empty">--</span></td>`;
   if(fld&&(fld.type==='multi'||fld.type==='single')){
+    // 构建 data-fulltext: 该字段引用列的原始内容（用于 hover 浮层展��打标依据）
+    var refText='';
+    try{ var rcs=refColsOf(fld); if(rcs.length) refText=rcs.map(function(rc){ return rc+': '+(row[rc]||'(无)'); }).join('\n'); }catch(e){ refText=''; }
+    // fallback: 无引用列则展示该行所有原始数据列
+    if(!refText){ try{ refText=originalColumns().map(function(c){ return c+': '+(row[c]||'(无)'); }).join('\n'); }catch(e2){ refText=''; } }
     const tags=String(v).split(',').map(t=>t.trim()).filter(Boolean);
-    return `<td data-ci="${ci}"><div class="cell-tags">`+tags.map((t,i)=>
+    return `<td data-ci="${ci}" class="exp-cell" data-fulltext="${escAttr(refText)}"><div class="cell-tags">`+tags.map((t,i)=>
       `<span class="tag-pill ${TC[i%TC.length]}" title="${esc(t)}">${esc(t)}<span class="tag-rm" onclick="event.stopPropagation();removeTag(this,${ci},'${escAttr(col)}')" title="删除此标签">&times;</span></span>`
     ).join('')+`<span class="tag-add" onclick="event.stopPropagation();addTagInline(this,${ci},'${escAttr(col)}')" title="添加标签">+</span>`+'</div></td>';
+  }
+  // 文本型AI字段也加 exp-cell + 引用内容
+  if(fld && fld.type==='text'){
+    var refTxt='';
+    try{ var rc2=refColsOf(fld); if(rc2.length) refTxt=rc2.map(function(rc){ return rc+': '+(row[rc]||'(无)'); }).join('\n'); }catch(e){ refTxt=''; }
+    if(!refTxt){ try{ refTxt=originalColumns().map(function(c){ return c+': '+(row[c]||'(无)'); }).join('\n'); }catch(e2){ refTxt=''; } }
+    return `<td data-ci="${ci}" class="exp-cell" data-fulltext="${escAttr(refTxt)}" onclick="startCellEdit(this,${ci},'${escAttr(col)}')"><div class="cell-txt" title="${esc(String(v))}" style="cursor:pointer">${esc(String(v))}</div></td>`;
   }
   return `<td data-ci="${ci}" onclick="startCellEdit(this,${ci},'${escAttr(col)}')"><div class="cell-txt" title="${esc(String(v))}" style="cursor:pointer">${esc(String(v))}</div></td>`;
 }
@@ -1285,6 +1368,7 @@ function updStatus(){
   document.getElementById('ccEl').textContent=c.length+' 列';
   document.getElementById('aiEl').textContent=aiFields.length+' 个 AI 字段';
   document.getElementById('runBtn').disabled=!aiFields.length||!td.length;
+  var rb=document.getElementById('retryErrBtn'); if(rb) rb.disabled=!aiFields.length||!td.length;
   document.getElementById('exportAllBtn').disabled=!td.length;
   document.getElementById('exportAllBtn').disabled=!td.length;
   updDataInfo();
@@ -1536,6 +1620,60 @@ function toggleColSel(ci, checked){
   if(checked) selectedCols.add(cn); else selectedCols.delete(cn);
   _lastSelCol = ci;
   paintColSelection();
+  // 选中AI字段列头 → 自动滚动到侧边栏对应的字段卡片并高亮
+  if(checked){
+    var aiIdx=aiFields.findIndex(function(f){ return f.name===cn; });
+    console.log('[toggleColSel] ci='+ci+', cn="'+cn+'", aiIdx='+aiIdx+', aiFields=', aiFields.map(function(f){return f.name;}));
+    if(aiIdx>=0) scrollToFieldCard(aiIdx);
+    else console.warn('[toggleColSel] 列"'+cn+'"不是AI字段或名称不匹配');
+  }
+}
+
+/** 滚动到侧边栏第 idx 个字段卡片(fld-row)并高亮 + 显示浮动提示 */
+function scrollToFieldCard(idx){
+  var rows=document.querySelectorAll('.fld-row');
+  console.log('[scrollToFieldCard] idx='+idx+', total fld-row='+rows.length+', aiFields.len='+aiFields.length);
+  if(idx>=0 && aiFields[idx]) console.log('[scrollToFieldCard] 匹配字��名:', aiFields[idx].name);
+  if(!rows[idx]){ console.warn('[scrollToFieldCard] fld-row['+idx+'] 不存在!'); return; }
+
+  // ★ 确保面板可见且展开
+  var bar=document.getElementById('fldPanelBar');
+  if(bar) bar.style.display='';
+  var body=document.getElementById('fldPanelBody');
+  if(body) body.style.display='block';
+  // 同步收起/展开按钮文字
+  var toggleBtn = bar ? bar.querySelector('button[onclick*="fldPanelBody"]') : null;
+  if(toggleBtn) toggleBtn.textContent='收起';
+
+  var el=rows[idx];
+  el.scrollIntoView({behavior:'smooth',block:'nearest'});
+  // 高亮：accent 边框 + 脉冲动画，4秒后自动消失（配合浮动提示时长）
+  el.classList.add('hl-active');
+  clearTimeout(el._hlTimer);
+  el._hlTimer=setTimeout(function(){ el.classList.remove('hl-active'); }, 4000);
+
+  // 显示浮动提示浮标
+  showAiColHint();
+}
+
+/** 显示"去侧边栏点打"浮动提示，4.5秒后自��消失 */
+var _aiHintTimer=null;
+function showAiColHint(){
+  var h=document.getElementById('aiColHint');
+  console.log('[showAiColHint] element=', !!h, 'parent position=', getComputedStyle(h.parentElement).position);
+  if(!h) return;
+  clearTimeout(_aiHintTimer);
+  h.style.display='';
+  // 重置动画
+  h.style.animation='none';
+  h.offsetHeight; // force reflow
+  h.style.animation='';
+  _aiHintTimer=setTimeout(dismissAiHint, 4500);
+}
+function dismissAiHint(){
+  var h=document.getElementById('aiColHint');
+  if(h) h.style.display='none';
+  clearTimeout(_aiHintTimer);
 }
 
 // --- Column header drag-select (mousedown → move → up) ---
@@ -1614,7 +1752,7 @@ function updateSelBtns(){
   document.getElementById('hideSelBtn').textContent = n>0 ? '隐藏 ('+n+')' : '隐藏选中列';
   document.getElementById('delSelBtn').textContent = n>0 ? '删除 ('+n+')' : '删除选中列';
 }
-function clearColSelection(){ selectedCols.clear(); _lastSelCol=null; paintColSelection(); }
+function clearColSelection(){ selectedCols.clear(); _lastSelCol=null; paintColSelection(); dismissAiHint(); }
 function hideSelectedCols(){
   if(!selectedCols.size) return;
   var n=selectedCols.size;
@@ -2368,6 +2506,39 @@ async function runFieldTagging(i){
   }
 }
 
+// 重试失败行：只对 [错] 开头的单元格重新打标（续打模式，自动跳过成功行）
+async function retryFailedRows(){
+  if(!curSheet()){alert('先上传数据');return;}
+  if(!aiFields.length){alert('先配置 AI 字段');return;}
+  if(!tableData().length){alert('先上传数据');return;}
+  var cfg=apiCfg();
+  if(!cfg.key){alert('API Key 未填写');return;}
+  // 统计有多少失败行
+  var errCount=0;
+  var fieldsWithErr=[];
+  tableData().forEach(function(row){
+    aiFields.forEach(function(f){
+      var v=row[f.name];
+      if(typeof v==='string' && v.indexOf('[错]')===0){
+        errCount++;
+        if(fieldsWithErr.indexOf(f)<0) fieldsWithErr.push(f);
+      }
+    });
+  });
+  if(errCount===0){ alert('没有找到失败行（[错] 开头的单元格），无需重试。'); return; }
+  var confirmMsg='找到 '+errCount+' 个失败单元格，涉及 '+fieldsWithErr.length+' 个字段。\n是否只重试这些失败行？（成功行会自动跳过）';
+  if(!confirm(confirmMsg)) return;
+  try {
+    log('info','重试失败行：'+errCount+' 个错误，'+fieldsWithErr.length+' 个字段');
+    await startTagging({targetIdx:activeSheetIdx, fields:fieldsWithErr, mode:'resume', isGlobal:true});
+  } catch(e) {
+    alert('重试出错：'+(e.message||e));
+    log('err','重试失败行异常: '+(e.message||e));
+    setSt('done','出错');
+    sheetProc[activeSheetIdx]={active:false}; updateRunUI(); renderFieldPanel();
+  }
+}
+
 // 字段面板渲染 / 范围设置 / 删除
 function renderFieldPanel(){
   var bar=document.getElementById('fldPanelBar'), list=document.getElementById('fldList');
@@ -2513,8 +2684,24 @@ function buildPrompt(fld,rowData,oc){
   var sys='你是专业数据标注助手。严格按指令标注。\n\n## 指令\n'+resolved;
   if(fld.type!=='text'){
     if(fld.options.length>0){ sys+='\n\n## 可选标签\n'; for(var oi=0;oi<fld.options.length;oi++){ sys+=(oi+1)+'. '+fld.options[oi]+'\n'; } }
-    if(fld.strict && fld.options.length>0){ var mt=fld.type==='multi'?'多选用逗号分隔':'单选唯一'; sys+='\n\n## 约束\n只能从可选标签中选择。'+mt+'。无匹配则输出"未提及"'; }
-    else { var ot=fld.type==='multi'?'多选标签逗号分隔':'单选最匹配的一个'; sys+='\n\n## 输出\n'+ot+'。无匹配则"未提及"'; }
+    // ── L2-L3 输出格式要求 ──
+    sys+='\n\n## 输出格式（必须遵守）\n';
+    sys+='每条标签必须使用「L2维度-具体标签」格式输出，即先写抽象的二级分类(L2)，再写具体标签(L3)，中间用短横线(-)连接。\n';
+    sys+='正确示例：「质量问题-电池不耐用」「操作困难-找不到按钮」「价格敏感-太贵了」「外观设计-颜色丑」\n';
+    sys+='错误示例（禁止）：只写「电池不耐用」（缺L2前缀）\n';
+    if(fld.options.length>0){
+      // 如果选项本身已带 L2 前缀，直接用；否则模型自行归纳 L2
+      var hasL2Prefix=fld.options.some(function(o){ return o.indexOf('-')>0; });
+      if(hasL2Prefix) sys+='注意：可选标签中已包含 L2 前缀的，请保持其原有 L2 归属。\n';
+      else sys+='注意：可选标签没有 L2 前缀，请根据语义自动归类到合适的 L2 维度后输出。\n';
+    }
+    if(fld.strict && fld.options.length>0){
+      var mt=fld.type==='multi'?'多选用逗号分隔':'单选唯一';
+      sys+='\n## 约束\n只能从可选标签中选择。'+mt+'。无匹配则输出"未提及"';
+    } else {
+      var ot=fld.type==='multi'?'多选标签逗号分隔':'单选最匹配的一个';
+      sys+=ot+'。无匹配则"未提及"';
+    }
   }
   sys+='\n\n只输出结果，不要解释';
   return {sys:sys,resolved:resolved,srcMap:srcMap,instr:fld.prompt};
@@ -2624,6 +2811,8 @@ function updateRunUI(){
   // LLM 验证（工作区级操作）进行中时，开始按钮全局禁用，避免与验证冲突
   var validRunning = !!isProcessing;
   document.getElementById('runBtn').disabled = running || validRunning;
+  var retryBtn=document.getElementById('retryErrBtn');
+  if(retryBtn) retryBtn.disabled = running || validRunning || !aiFields.length;
   document.getElementById('stopBtn').disabled = !running;
   if(!running) document.getElementById('etaText').style.display='none';
   document.getElementById('progTrack').classList.toggle('vis', running);
@@ -2938,6 +3127,10 @@ function parseTagDimension(tag){
 var _l4AiCache={};      // dimKey -> {groups:[...]}
 var _l4TagsCache={};    // dimKey -> tags array (for AI call)
 
+// L2 dimension summary caches (AI groups L3 tags into L2 dimensions)
+var _l2AiCache={};      // modKey -> [{dim, members:[...], reason}]
+var _l2TagsCache={};    // modKey -> tags array (for AI call)
+
 /**
  * Lightweight L4 suggestion.
  * Core rule (per product spec): a dimension is worth splitting into L4 when
@@ -2998,7 +3191,68 @@ async function aiClusterL4(field, dim, cellId){
     log('info','AI 聚类完成: '+dim+' → '+groups.length+' 组');
   }catch(e){
     var target=document.getElementById(cellId+'_r');
-    if(target) target.innerHTML='<div style="font-size:10.5px;color:var(--error)">聚类失败: '+esc(e.message)+'<br><button class="tbtn" style="font-size:10px;padding:2px 9px;margin-top:5px" onclick="aiClusterL4('+JSON.stringify(field)+','+JSON.stringify(dim)+',\''+cellId+'\')">重试</button></div>';
+    if(target) target.innerHTML='<div style="font-size:10.5px;color:var(--error)">聚类失败: '+esc(e.message)+'<br><button class="tbtn" style="font-size:10px;padding:2px 9px;margin-top:5px" onclick="aiClusterL4(\''+String(field).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\',\''+String(dim).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\',\''+cellId+'\')">重试</button></div>';
+  }
+}
+
+// Render AI-derived L2 dimension summary into cell
+function renderL2AiHtml(groups){
+  if(!groups||!groups.length) return '<span style="color:var(--text-tertiary);font-size:10.5px">AI 未返回有效分组</span>';
+  return '<div style="display:flex;flex-direction:column;gap:5px;max-width:260px">'
+    + groups.map(function(g){
+        var mem=(g.members||[]).map(function(x){return typeof x==='string'?x:String(x);});
+        return '<div style="padding:5px 9px;background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.18);border-radius:6px;font-size:10.5px;line-height:1.5">'
+          +'<span style="font-weight:600;color:var(--accent)">'+esc(g.dim||'(未命名)')+'</span>'
+          +'<span style="color:var(--text-secondary)"> ← '+esc(mem.join('、'))+'</span>'
+          + (g.reason?'<br><span style="color:var(--text-tertiary);font-size:10px">'+esc(g.reason)+'</span>':'')
+          +'</div>';
+      }).join('')
+    + '</div>';
+}
+
+// AI summarize L2 dimensions: group a module's unclassified L3 tags into L2 dimensions
+async function aiSummarizeL2(mod, cellId){
+  console.log('[aiSummarizeL2] called, mod=', mod, 'cellId=', cellId);
+  var cfg=apiCfg();
+  if(!cfg.key){alert('请先在左侧配置面板填写 API Key');return;}
+  var cell=document.getElementById(cellId);
+  if(!cell){ console.error('[aiSummarizeL2] cell not found:', cellId); alert('错误: 找不到统计单元格(ID='+cellId+')，请刷新页面重试'); return; }
+  var resEl=document.getElementById(cellId+'_r');
+  var key=mod;
+  var tags=_l2TagsCache[key]||[];
+  console.log('[aiSummarizeL2] tags cache for "'+key+'":', tags.length, 'items', tags);
+  if(!tags.length){ alert('该���块暂无未分类的 L3 标签可供归纳（缓存为空）。请先确认统计数据中有"(未分类)"行。'); return; }
+  if(resEl) resEl.innerHTML='<div style="font-size:10.5px;color:var(--accent)">⏳ AI 归纳中…</div>';
+  else cell.insertAdjacentHTML('beforeend','<div id="'+cellId+'_r" style="margin-top:6px"><div style="font-size:10.5px;color:var(--accent)">⏳ AI 归纳中…</div></div>');
+  var list=tags.map(function(t){return t.label+' ×'+t.count;}).join('\n');
+  console.log('[aiSummarizeL2] sending to API, list length=', list.length);
+var sys='你是标签体系归纳专家。任务：将下面一组具体标签(L3)按语义归类为 2-5 个抽象维度(L2)。从抽象到具体的层级关系：L1模块(已知) → L2维度(你归纳) → L3标签(已知)。\n\n输出格式要求：每行一个 L2 维度，格式为「L2维度名: 标签1, 标签2, 标签3」。不要输出 JSON、不要代码块、不要解释。只输出归类结果。';
+  var user='模块(L1)名称: '+mod+'\n具体标签(L3)及出现次数:\n'+list;
+  try{
+    var resp=await callAPI(sys,user,cfg.key,0.3,1500);
+    console.log('[aiSummarizeL2] API raw response:', (resp||'').substring(0,200));
+    if(!resp || !resp.trim()) throw new Error('AI 返回空内容');
+    // 纯文本解析：每行 "L2名: 成员1, 成员2" → 结构化数组
+    var lines=resp.split('\n').map(function(l){return l.trim();}).filter(function(l){return l&&l.indexOf(':')>0;});
+    var groups=[];
+    for(var li=0;li<lines.length;li++){
+      var colonIdx=lines[li].indexOf(':');
+      var dim=lines[li].substring(0,colonIdx).trim();
+      var membersStr=lines[li].substring(colonIdx+1).trim();
+      var members=membersStr.split(/[,，、;]/).map(function(m){return m.trim();}).filter(function(m){return m;});
+      if(dim&&members.length) groups.push({dim:dim,members:members,reason:''});
+    }
+    if(!groups.length) throw new Error('未能从响应中解析到任何分组，原始响应: '+resp.substring(0,150));
+    console.log('[aiSummarizeL2] parsed groups:', groups.length);
+    _l2AiCache[key]={groups:groups};
+    log('info','AI 归纳 L2 完成: '+mod+' → '+groups.length+' 个维度');
+    // 重新渲染整个统计看板，展开 L2 维度
+    var c=document.getElementById('docStats'); if(c) renderStats(c);
+  }catch(e){
+    console.error('[aiSummarizeL2] error:', e.message, e.stack);
+    var target=document.getElementById(cellId+'_r');
+    if(target) target.innerHTML='<div style="font-size:10.5px;color:var(--error)">❌ 归纳失败: '+esc(e.message)+'<br><button class="tbtn" style="font-size:10px;padding:2px 9px;margin-top:5px" onclick="aiSummarizeL2(\''+String(mod).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\',\''+cellId+'\')">重试</button></div>';
+    else alert('归纳失败: '+e.message);
   }
 }
 
@@ -3045,6 +3299,25 @@ function renderStats(c){
     if(unlbl){
       if(!hierarchy[fld.name]['(未标记)']) hierarchy[fld.name]['(未标记)']=[];
       hierarchy[fld.name]['(未标记)'].push({label:'(未标记)',count:unlbl});
+    }
+  });
+
+  // ── 应用 L2 维度 AI 归纳缓存 ──
+  // 若某模块有缓存的 L2 归纳结果，把 "(未分类)" 的 L3 标签按归纳分组拆成多个 L2 维度
+  Object.keys(hierarchy).forEach(function(mod){
+    if(_l2AiCache[mod] && hierarchy[mod]['(未分类)']){
+      var uncat=hierarchy[mod]['(未分类)'];
+      var cntMap={};
+      uncat.forEach(function(t){ cntMap[t.label]=t.count; });
+      delete hierarchy[mod]['(未分类)'];
+      _l2AiCache[mod].groups.forEach(function(g){
+        var dim=String(g.dim||'').trim(); if(!dim) return;
+        var tags=(g.members||[]).map(function(m){
+          var lbl=typeof m==='string'?m:String(m);
+          return {label:lbl, count:cntMap[lbl]||0};
+        }).filter(function(t){return t.count>0;});
+        if(tags.length) hierarchy[mod][dim]=tags;
+      });
     }
   });
 
@@ -3095,7 +3368,20 @@ function renderStats(c){
           if(dim==='(未标记)') dimStyle+='color:var(--text-tertiary);font-style:italic;font-size:11px';
           else if(dim==='(未分类)') dimStyle+='color:var(--warning);font-size:11px';
           else dimStyle+='color:var(--accent)';
-          html+='<td rowspan="'+tags.length+'" style="'+dimStyle+'">'+esc(dim)+(tags.length>0?' <span style="font-weight:400;color:var(--text-tertiary);font-size:10px">('+tags.length+')</span>':'')+'</td>';
+          if(dim==='(未分类)'){
+            // 缓存 L3 标签供 AI 归纳使用
+            _l2TagsCache[mod]=tags;
+            _cellSeq++;
+            var l2CellId='l2cell_'+_cellSeq;
+            // 安全转义: mod 用于 onclick 字符串参数(单引号内部)，需转义单引号&反斜杠&特殊HTML字符
+            var safeMod=mod.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            html+='<td id="'+l2CellId+'" rowspan="'+tags.length+'" style="'+dimStyle+'">'+esc(dim)
+              + '<div style="margin-top:5px"><button class="tbtn" style="font-size:10px;padding:2px 9px;color:var(--accent);border-color:rgba(0,212,255,.3)" onclick="aiSummarizeL2(\''+safeMod+'\',\''+l2CellId+'\')">AI 归纳 L2 维度</button></div>'
+              + (tags.length>0?' <span style="font-weight:400;color:var(--text-tertiary);font-size:10px">('+tags.length+')</span>':'')
+              + '</td>';
+          } else {
+            html+='<td rowspan="'+tags.length+'" style="'+dimStyle+'">'+esc(dim)+(tags.length>0?' <span style="font-weight:400;color:var(--text-tertiary);font-size:10px">('+tags.length+')</span>':'')+'</td>';
+          }
         }
         // L3 Tag
         var tagStyle='';
@@ -3116,7 +3402,9 @@ function renderStats(c){
             html+='<div style="padding:6px 10px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.15);border-radius:6px;color:#9333ea;max-width:260px;line-height:1.5">';
             html+='<div>'+esc(l4Suggestion.reason)+'</div>';
             html+='<div style="color:var(--text-secondary);font-size:10px;margin-top:2px">高频: '+esc(l4Suggestion.example)+'</div>';
-            html+='<div style="margin-top:6px"><button class="tbtn" id="'+cellId+'" style="font-size:10px;padding:2px 9px;color:#9333ea;border-color:rgba(168,85,247,.3)" onclick="aiClusterL4('+JSON.stringify(mod)+','+JSON.stringify(dim)+',\''+cellId+'\')">AI 深度聚类</button></div>';
+            var safeMod4=String(mod).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+            var safeDim4=String(dim).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+            html+='<div style="margin-top:6px"><button class="tbtn" id="'+cellId+'" style="font-size:10px;padding:2px 9px;color:#9333ea;border-color:rgba(168,85,247,.3)" onclick="aiClusterL4(\''+safeMod4+'\',\''+safeDim4+'\',\''+cellId+'\')">AI 深度聚类</button></div>';
             if(cached){
               html+='<div id="'+cellId+'_r" style="margin-top:6px">'+renderL4AiHtml(cached.groups)+'</div>';
             }
@@ -3205,7 +3493,7 @@ function renderLlmVal(c){
   var totalRows = tableData().length;
   var taggedCount = 0;
   tableData().forEach(function(r){
-    aiFields.forEach(function(f){ if(r[f.name]&&r[f.name]!=='--'&&r[f.name]!=='未提及'&&!String(r[f.name]).startsWith('[错]')) taggedCount++; });
+    aiFields.forEach(function(f){ var v=r[f.name]; if(v!=null&&v!==''&&v!=='--') taggedCount++; });
   });
 
   var cfgPanel = `<div class="dsec llm-cfg-panel">
@@ -3411,12 +3699,12 @@ async function runLLMValidation(){
   if(!tableData().length){alert('先上传数据');return;}
   var cfg=apiCfg(); if(!cfg.key){alert('请先在下方 API 配置区填写 API Key');return;}
 
-  // Check: do we have any tagged data?
+  // Check: do we have any tagged data? (any non-null, non-empty, non-'--' value counts as "tagged")
   var hasTagged=false;
   tableData().forEach(function(r){
     aiFields.forEach(function(f){
       var v=r[f.name];
-      if(v&&v!=='--'&&v!=='未提及'&&!String(v).startsWith('[错]')) hasTagged=true;
+      if(v!=null&&v!==''&&v!=='--') hasTagged=true;
     });
   });
   if(!hasTagged){alert('没有已标注的数据可供验证。请先运行"开始打标"对数据进行 AI 标注。');return;}
@@ -3424,12 +3712,14 @@ async function runLLMValidation(){
   var sampleN=Math.min(Math.max(parseInt(document.getElementById('valSampleN').value)||100,5),tableData().length);
   var rangeSel=document.getElementById('valRangeSel').value;
 
+  // Build taggedRows: any row with a non-null, non-empty, non-'--' AI field value is "tagged"
+  // Includes 未提及, [错], empty string — all should be verified when "全部已打标行" is selected
   var taggedRows=[];
   tableData().forEach(function(r,i){
     var hasTag=false;
     aiFields.forEach(function(f){
       var v=r[f.name];
-      if(v&&v!=='--'&&v!=='未提及'&&!String(v).startsWith('[错]')) hasTag=true;
+      if(v!=null&&v!==''&&v!=='--') hasTag=true;
     });
     if(hasTag) taggedRows.push({idx:i,data:r});
   });
@@ -3469,12 +3759,12 @@ async function runLLMValidation(){
 
   var results=[]; var correct=0; var incorrect=0;
   var totalTasks=sample.length*aiFields.filter(function(f){return true;}).length;
-  // Recalculate: count actual tasks (only non-empty tags per field)
+  // Recalculate: count actual tasks (any non-null, non-empty, non-'--' value counts)
   totalTasks=0;
   sample.forEach(function(sr){
     aiFields.forEach(function(fld){
       var tag=sr.data[fld.name];
-      if(tag&&tag!=='--'&&tag!=='未提及'&&!String(tag).startsWith('[错]')) totalTasks++;
+      if(tag!=null&&tag!==''&&tag!=='--') totalTasks++;
     });
   });
   if(totalTasks===0){
@@ -3494,7 +3784,8 @@ async function runLLMValidation(){
         if(stopRequested) break;
         var fld=aiFields[fi];
         var tag=row[fld.name];
-        if(!tag||tag==='--'||tag==='未提及'||String(tag).startsWith('[错]')) continue;
+        // Only skip truly untouched cells (null/empty/'--'); validate everything else including 未提及/[错]/空标签
+        if(tag==null||tag===''||tag==='--') continue;
 
         var refCols=refColsOf(fld);
         var srcMap={};
@@ -4117,19 +4408,46 @@ async function exportTaggedData(){
           }
         });
         var sortedEntries=Object.entries(counts).sort(function(a,b){return b[1]-a[1];});
-        // L4 建议：当某维度下标签数≥5且可区分时建议拆分
-        var dimGroups={};
-        sortedEntries.forEach(function(entry){
-          var p=parseTagDimension(entry[0]);
-          if(!dimGroups[p.dim]) dimGroups[p.dim]=[];
-          dimGroups[p.dim].push({label:p.label,count:entry[1]});
-        });
-        sortedEntries.forEach(function(entry){
-          var p=parseTagDimension(entry[0]);
-          var dimItems=dimGroups[p.dim]||[];
-          var l4suggest=(dimItems.length>=5)?'建议按语义细分为子类':'';
-          srows.push([fld.name, p.dim, p.label, entry[1], l4suggest]);
-        });
+        // 应用 L2 归纳缓存：把 (未分类) 的 L3 标签按 AI 归纳拆成多个 L2 维度
+        var l2Applied=false;
+        if(_l2AiCache[fld.name] && counts){
+          var _cntMap={};
+          sortedEntries.forEach(function(e){ _cntMap[e[0]]=e[1]; });
+          var _uncatEntries=sortedEntries.filter(function(e){ return parseTagDimension(e[0]).dim==='(未分类)'; });
+          if(_uncatEntries.length){
+            l2Applied=true;
+            sortedEntries.forEach(function(entry){
+              var p=parseTagDimension(entry[0]);
+              if(p.dim==='(未分类)') return;
+              var dimItems=sortedEntries.filter(function(e){return parseTagDimension(e[0]).dim===p.dim;});
+              var l4suggest=(dimItems.length>=5)?'建议按语义细分为子类':'';
+              srows.push([fld.name, p.dim, p.label, entry[1], l4suggest]);
+            });
+            _l2AiCache[fld.name].groups.forEach(function(g){
+              var dim=String(g.dim||'').trim(); if(!dim) return;
+              (g.members||[]).forEach(function(m){
+                var lbl=typeof m==='string'?m:String(m);
+                var c=_cntMap[lbl]||0;
+                if(c>0) srows.push([fld.name, dim, lbl, c, '']);
+              });
+            });
+          }
+        }
+        if(!l2Applied){
+          // L4 建议：当某维度下标签数≥5且可区分时建议拆分
+          var dimGroups={};
+          sortedEntries.forEach(function(entry){
+            var p=parseTagDimension(entry[0]);
+            if(!dimGroups[p.dim]) dimGroups[p.dim]=[];
+            dimGroups[p.dim].push({label:p.label,count:entry[1]});
+          });
+          sortedEntries.forEach(function(entry){
+            var p=parseTagDimension(entry[0]);
+            var dimItems=dimGroups[p.dim]||[];
+            var l4suggest=(dimItems.length>=5)?'建议按语义细分为子类':'';
+            srows.push([fld.name, p.dim, p.label, entry[1], l4suggest]);
+          });
+        }
         var unlbl=allRows.filter(function(r){return !r[fld.name]||r[fld.name]==='��提及'||r[fld.name]=='--';}).length;
         if(unlbl) srows.push([fld.name,'(未标记)','(未标记)',unlbl,'--']);
       });
