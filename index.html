@@ -553,6 +553,14 @@ body.dark .sj-btn:hover { background: var(--surface); color: var(--text-primary)
   color:var(--text-primary); min-width:80px; padding:3px 4px; font-family:inherit;
 }
 .fp-card-empty { color:var(--text-tertiary); font-size:11.5px; font-style:italic; }
+/* Reference columns row in field preview cards */
+.fp-ref-row { align-items:flex-start; }
+.fp-ref-chips {
+  flex:1; display:flex; flex-wrap:wrap; gap:5px; align-items:center;
+  padding:6px 8px; border:1px solid var(--border); border-radius:8px;
+  background:rgba(0,212,255,.03); min-height:30px;
+}
+.fp-rcp { font-size:10.5px; padding:2px 7px; }
 
 ::-webkit-scrollbar { width: 6px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -1923,6 +1931,19 @@ function renderFpCards(){
     } else {
       optsHtml = '<div style="font-size:10.5px;color:var(--text-tertiary)">文本类型无需预设选项，AI 将自由输出</div>';
     }
+    // Reference columns row
+    var oc = originalColumns();
+    var refHtml = '';
+    if(oc.length){
+      refHtml = '<div class="fp-card-row fp-ref-row">'+
+        '<span class="fp-card-label">引用</span>'+
+        '<div class="fp-ref-chips">'+
+          oc.map(function(col){
+            return '<button class="rcp fp-rcp" onclick="fpInsRef('+i+',\''+escAttr(col)+'\')">@'+esc(col)+'</button>';
+          }).join('')+
+        '</div>'+
+      '</div>';
+    }
     return '<div class="fp-card" data-fpidx="'+i+'">'+
       '<div class="fp-card-header">'+
         '<span class="fp-card-num">'+(i+1)+'</span>'+
@@ -1934,11 +1955,12 @@ function renderFpCards(){
       '</div>'+
       '<div class="fp-card-row">'+
         '<span class="fp-card-label">提示词</span>'+
-        '<textarea class="fp-card-prompt" placeholder="打标指令：说明识别什么、判断规则、未提及处理..." onchange="fpUpdateField('+i+',\'prompt\',this.value)">'+esc(f.prompt||'')+'</textarea>'+
+        '<textarea class="fp-card-prompt" id="fpPrompt_'+i+'" placeholder="打标指令：说明识别什么、判断规则、未提及处理..." onchange="fpUpdateField('+i+',\'prompt\',this.value)">'+esc(f.prompt||'')+'</textarea>'+
       '</div>'+
       '<div class="fp-card-row">'+
         '<span class="fp-card-label">选项</span>'+optsHtml+
       '</div>'+
+      refHtml+
       '</div>';
   }).join('');
   // Attach delegated keydown handler for option inputs (avoids quote-nesting issues in inline handlers)
@@ -2006,6 +2028,18 @@ function fpRemoveOpt(idx, optIdx){
   if(!Array.isArray(_fpFields[idx].options)) return;
   _fpFields[idx].options.splice(optIdx, 1);
   renderFpCards();
+}
+
+// Insert reference column tag into a field card's prompt
+function fpInsRef(idx, col){
+  var ta = document.getElementById('fpPrompt_'+idx);
+  if(!ta) return;
+  var s = ta.selectionStart, e = ta.selectionEnd, r = '{{' + col + '}}';
+  ta.value = ta.value.substring(0, s) + r + ta.value.substring(e);
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = s + r.length;
+  // Update the field's prompt data
+  fpUpdateField(idx, 'prompt', ta.value);
 }
 
 function confirmFieldsFromPreview(){
