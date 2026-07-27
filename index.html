@@ -500,12 +500,14 @@ body::after {
   -webkit-line-clamp:unset; max-height:none; display:block; color:var(--text-primary); background:rgba(0,212,255,.03); border-radius:3px; padding:2px 4px;
 }
 .exp-cell.expanded { background:rgba(0,212,255,.06); border-radius:4px; }
-.exp-cell::after {
-  content:'展开 ▾'; position:absolute; right:8px; bottom:0;
-  font-size:10px; color:var(--accent); opacity:.8; transition:all .2s;
-  letter-spacing:0; font-weight:500;
+/* Explicit toggle link (replaces unreliable ::after pseudo-element in tables) */
+.exp-toggle {
+  display:inline-block; margin-left:6px; font-size:10px; color:var(--accent);
+  cursor:pointer; white-space:nowrap; vertical-align:baseline;
+  user-select:none; flex-shrink:0; opacity:.8; transition:opacity .15s;
+  padding:0 2px; border-radius:2px;
 }
-.exp-cell.expanded::after { content:'收起 ▴'; bottom:3px; opacity:1; }
+.exp-toggle:hover { opacity:1; background:var(--accent-light); }
 
 /* Deep analysis toggle */
 .rec-reason { display:flex; align-items:center; gap:7px; margin-top:7px; font-size:11px; color:var(--text-secondary); cursor:pointer; user-select:none; }
@@ -2373,13 +2375,13 @@ function paintThink(){
               <td style="text-align:center;font-size:15px;color:${vc}" onclick="event.stopPropagation()">${vi}</td>
               <td style="text-align:center" onclick="event.stopPropagation()">${r.row!=null?r.row+1:'-'}</td>
               <td onclick="event.stopPropagation()">${esc(r.field||'')}</td>
-              <td onclick="event.stopPropagation();toggleCellExpand(this)" class="exp-cell"><div class="exp-cnt">${esc(origText)}</div></td>
-              <td onclick="event.stopPropagation();toggleCellExpand(this)" class="exp-cell"><div class="exp-cnt">${cnText ? esc(cnText) : '<span style="color:var(--text-tertiary);font-style:italic">(无翻译)</span>'}</div></td>
+              <td onclick="event.stopPropagation();toggleCellExpand(this)" class="exp-cell">${expCellHtml(origText)}</td>
+              <td onclick="event.stopPropagation();toggleCellExpand(this)" class="exp-cell">${cnText ? expCellHtml(cnText) : '<span style="color:var(--text-tertiary);font-style:italic">(无翻译)</span>'}</td>
               <td onclick="event.stopPropagation()">${isErr
                 ? '<span style="color:var(--error);font-size:11px">'+esc(String(r.clean||'').substring(0,40))+'</span>'
                 : '<span class="tag-pill" style="background:rgba(37,99,235,0.1);color:#2563EB;border:1px solid rgba(37,99,235,0.2)">'+esc(String(r.clean||'').substring(0,30))+'</span>'
               }</td>
-              <td onclick="event.stopPropagation();toggleCellExpand(this)" class="exp-cell"><div class="exp-cnt">${assessText ? esc(assessText) : '<span style="color:var(--text-tertiary);font-style:italic">'+(deepOn?'(无 — 开启「深度分析」获取)':'(无分析文本)')+'</span>'}</div></td>
+              <td onclick="event.stopPropagation();toggleCellExpand(this)" class="exp-cell">${assessText ? expCellHtml(assessText) : '<span style="color:var(--text-tertiary);font-style:italic">'+(deepOn?'(无 — 开启「深度分析」获取)':'(无分析文本)')+'</span>'}</td>
             </tr>`;
           }).join('')}</tbody>
         </table>
@@ -2493,12 +2495,27 @@ function toggleCellExpand(td){
     // Re-apply clamp
     var cnt = td.querySelector('.exp-cnt');
     if(cnt){ cnt.style.webkitLineClamp='2'; cnt.style.maxHeight='3.1em'; }
+    // Toggle link text
+    var lnk = td.querySelector('.exp-toggle');
+    if(lnk){ lnk.textContent = '展开 ▾'; }
   } else {
     td.classList.add('expanded');
     // Remove clamp
     var cnt = td.querySelector('.exp-cnt');
     if(cnt){ cnt.style.webkitLineClamp='unset'; cnt.style.maxHeight='none'; }
+    // Toggle link text
+    var lnk = td.querySelector('.exp-toggle');
+    if(lnk){ lnk.textContent = '收起 ▴'; }
   }
+}
+
+// Helper: generate expandable cell HTML with explicit toggle link
+function expCellHtml(content, title){
+  var safe = content || '';
+  var hasContent = String(safe).trim().length > 0;
+  return '<div class="exp-cnt" style="display:inline-block;max-width:calc(100% - 60px)">' + esc(safe)
+    + (hasContent ? '<span class="exp-toggle" onclick="event.stopPropagation();toggleCellExpand(this.closest(\'td\'))">展开 ▾</span>' : '')
+    + '</div>';
 }
 
 // --- Full ---
@@ -2814,11 +2831,11 @@ function renderLlmVal(c){
               <td style="text-align:center;font-size:15px;color:${vc}">${vi}</td>
               <td style="text-align:center">${res.rowIndex}</td>
               <td>${esc(res.fieldName)}</td>
-              <td onclick="toggleCellExpand(this)" class="exp-cell" title="点击展开/收起完整原文"><div class="exp-cnt">${esc(enTxt)}</div></td>
-              <td onclick="toggleCellExpand(this)" class="exp-cell"><div class="exp-cnt">${cnTxt ? esc(cnTxt) : '<span style="color:var(--text-tertiary);font-style:italic">(无翻译)</span>'}</div></td>
+              <td onclick="toggleCellExpand(this)" class="exp-cell" title="点击展开/收起完整原文">${expCellHtml(enTxt)}</td>
+              <td onclick="toggleCellExpand(this)" class="exp-cell">${cnTxt ? expCellHtml(cnTxt) : '<span style="color:var(--text-tertiary);font-style:italic">(无翻译)</span>'}</td>
               <td id="tagcell_${ri}">${tagCell}</td>
               <td><span class="tag-pill" style="background:rgba(16,185,129,0.1);color:#059669;border:1px solid rgba(16,185,129,0.2)">${esc(String(res.llmVerdict))}</span></td>
-              <td onclick="toggleCellExpand(this)" class="exp-cell" title="点击展开/收起完整评估"><div class="exp-cnt">${esc(res.reason)}</div></td>
+              <td onclick="toggleCellExpand(this)" class="exp-cell" title="点击展开/收起完整评估">${expCellHtml(res.reason)}</td>
             </tr>`;
           }).join('')}</tbody>
         </table>
