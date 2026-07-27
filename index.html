@@ -492,6 +492,68 @@ body::after {
 
 .drv-ft { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; background: var(--surface); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
 
+/* Field Preview Modal — card styles */
+.fp-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  padding:16px 18px; position:relative; transition:border-color .15s, box-shadow .15s;
+}
+.fp-card:hover { border-color:rgba(0,212,255,.3); box-shadow:0 2px 12px rgba(0,0,0,.06); }
+.fp-card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.fp-card-num {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:24px; height:24px; border-radius:6px; font-size:11px; font-weight:700;
+  background:var(--rad-grad); color:#fff; flex-shrink:0;
+}
+.fp-card-name {
+  flex:1; margin-left:10px; font-size:14px; font-weight:600; color:var(--text-primary);
+  border:none; background:transparent; outline:none; padding:4px 8px; border-radius:6px;
+  transition:background .15s; letter-spacing:-.2px;
+}
+.fp-card-name:hover, .fp-card-name:focus { background:var(--accent-soft); }
+.fp-card-del {
+  background:none; border:none; color:var(--text-tertiary); cursor:pointer; font-size:16px;
+  padding:2px 6px; border-radius:4px; line-height:1; transition:all .15s;
+}
+.fp-card-del:hover { color:var(--error); background:rgba(239,68,68,.08); }
+.fp-card-row { display:flex; align-items:flex-start; gap:10px; margin-bottom:8px; }
+.fp-card-label {
+  font-size:11px; font-weight:600; color:var(--text-secondary); min-width:52px;
+  padding-top:5px; flex-shrink:0; letter-spacing:.2px;
+}
+.fp-card-type {
+  height:28px; border:1px solid var(--border); border-radius:6px;
+  font-size:11.5px; padding:0 8px; background:var(--surface); color:var(--text-primary);
+  font-family:inherit; cursor:pointer; outline:none; transition:border-color .15s;
+}
+.fp-card-type:focus { border-color:var(--accent); }
+.fp-card-prompt {
+  flex:1; min-height:56px; max-height:120px; border:1px solid var(--border); border-radius:8px;
+  font-size:11.5px; padding:8px 10px; background:var(--surface); color:var(--text-primary);
+  font-family:inherit; resize:vertical; outline:none; transition:border-color .15s;
+  line-height:1.55; word-break:break-all;
+}
+.fp-card-prompt:focus { border-color:var(--accent); box-shadow:0 0 0 2px rgba(0,212,255,.1); }
+.fp-card-options {
+  flex:1; display:flex; flex-wrap:wrap; gap:4px; align-items:center;
+  min-height:30px; padding:6px 8px; border:1px solid var(--border); border-radius:8px;
+  background:var(--surface); transition:border-color .15s;
+}
+.fp-card-options:focus-within { border-color:var(--accent); }
+.fp-opt-tag {
+  display:inline-flex; align-items:center; gap:3px; padding:3px 8px;
+  background:rgba(0,212,255,.08); color:var(--accent); border-radius:4px;
+  font-size:11px; font-weight:500; border:1px solid rgba(0,212,255,.15);
+}
+.fp-opt-tag .fp-opt-rm {
+  cursor:pointer; margin-left:2px; opacity:.6; font-size:12px; transition:opacity .15s;
+}
+.fp-opt-tag .fp-opt-rm:hover { opacity:1; color:var(--error); }
+.fp-opt-input {
+  border:none; background:transparent; outline:none; font-size:11px;
+  color:var(--text-primary); min-width:80px; padding:3px 4px; font-family:inherit;
+}
+.fp-card-empty { color:var(--text-tertiary); font-size:11.5px; font-style:italic; }
+
 ::-webkit-scrollbar { width: 6px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(140,160,200,.35); border-radius: 8px; }
@@ -854,6 +916,35 @@ body::after {
       <button class="tbtn" onclick="closeLabelSystem()">取消</button>
       <button class="tbtn" onclick="aiBuildLabelSystem()" id="lsBuildBtn">AI 生成字段</button>
       <button class="tbtn pri" onclick="confirmLabelSystem()" id="lsConfirmBtn" style="display:none">确认创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI 字段预览确认面板（全屏弹窗） -->
+<div id="fieldPreviewModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);align-items:center;justify-content:center">
+  <div id="fieldPreviewPanel" style="width:860px;max-width:92vw;height:82vh;max-height:92vh;display:flex;flex-direction:column;background:var(--surface);border-radius:16px;border:1px solid var(--border);box-shadow:0 24px 80px rgba(0,0,0,.3),0 0 1px rgba(0,212,255,.2);overflow:hidden">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:1px solid var(--border);background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);flex-shrink:0">
+      <div>
+        <div style="font-size:17px;font-weight:700;color:var(--text-primary);letter-spacing:-.3px">AI 建议字段配置</div>
+        <div id="fpFieldCount" style="font-size:11.5px;color:var(--text-tertiary);margin-top:2px">共 0 个字段</div>
+      </div>
+      <button onclick="closeFieldPreview()" style="background:none;border:none;font-size:20px;color:var(--text-tertiary);cursor:pointer;padding:4px 8px;border-radius:6px;line-height:1" onmouseover="this.style.background='var(--accent-soft)'" onmouseout="this.style.background='none'">&times;</button>
+    </div>
+
+    <!-- Toolbar -->
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 24px;border-bottom:1px solid var(--border);flex-shrink:0;background:rgba(0,212,255,.02)">
+      <button onclick="fpAddField()" class="tbtn" style="font-size:11.5px;padding:5px 14px">+ 新增字段</button>
+      <span style="font-size:11px;color:var(--text-tertiary);margin-left:auto">提示：可编辑字段名称、类型、提示词和选项，删除不需要的字段</span>
+    </div>
+
+    <!-- Field Cards List (scrollable) -->
+    <div id="fpFieldList" style="flex:1;overflow-y:auto;padding:16px 24px;display:flex;flex-direction:column;gap:12px"></div>
+
+    <!-- Footer -->
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:14px 24px;border-top:1px solid var(--border);background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);flex-shrink:0">
+      <button onclick="closeFieldPreview()" class="tbtn" style="padding:7px 22px">取消</button>
+      <button onclick="confirmFieldsFromPreview()" class="tbtn pri" id="fpConfirmBtn" style="padding:7px 22px;background:var(--rad-grad);color:#fff;border:none;font-weight:600;letter-spacing:.3px">确认创建这些字段</button>
     </div>
   </div>
 </div>
@@ -1724,25 +1815,9 @@ async function aiBuildLabelSystem(){
     });
 
     lsPendingFields=fields;
-    // render preview with richer info
-    var prevList=document.getElementById('lsPreviewList');
-    prevList.innerHTML=fields.map(function(f){
-      var oc=Array.isArray(f.options)?f.options.length:0;
-      var optPreview = Array.isArray(f.options)?f.options.slice(0,6).join(', '):(f.options||'');
-      if(Array.isArray(f.options)&&f.options.length>6) optPreview += ' ... (共'+f.options.length+'项)';
-      var optHtml = '';
-      if(optPreview) {
-        optHtml = "<div class=\"od\" style=\"color:var(--text-tertiary);font-size:10.5px\">选项: " + esc(optPreview.substring(0,120)) + "</div>";
-      }
-      return '<div class="orow"><div class="ot"><b>'+esc(f.name||'')+'</b> <span class="otag">'+esc(f.type||'')+(oc?' · '+oc+'项选项':'')+'</span></div>'+
-        '<div class="od">'+esc((f.prompt||'').substring(0,150))+'</div>'+
-        optHtml +
-        '</div>';
-    }).join('');
-    document.getElementById('lsPreview').style.display='block';
-    document.getElementById('lsBuildBtn').style.display='none';
-    document.getElementById('lsConfirmBtn').style.display='';
-    log('info','AI 从文档中提取了 '+fields.length+' 个字段配置，请预览确认');
+    // Open full-screen preview modal for review/edit
+    openFieldPreview(fields);
+    log('info','AI 从文档中提取了 '+fields.length+' 个字段配置，请在预览面板中确认');
   }catch(err){
     alert('生成失败: '+err.message+'\n\n提示：请检查文档内容是否包含明确的标签维度定义。');
     log('err','标签体系生成失败: '+err.message);
@@ -1798,6 +1873,165 @@ function repairTruncatedJSON(str){
   return truncated;
 }
 
+// ============================================================
+// Field Preview Modal — review/edit AI-suggested fields before creating
+// ============================================================
+var _fpFields = []; // working copy of fields in preview
+
+function openFieldPreview(fields){
+  _fpFields = JSON.parse(JSON.stringify(fields)); // deep copy for editing
+  var modal = document.getElementById('fieldPreviewModal');
+  modal.style.display='flex';
+  renderFpCards();
+}
+
+function closeFieldPreview(){
+  document.getElementById('fieldPreviewModal').style.display='none';
+  _fpFields = [];
+}
+
+function renderFpCards(){
+  var list = document.getElementById('fpFieldList');
+  document.getElementById('fpFieldCount').textContent = '共 ' + _fpFields.length + ' 个字段';
+  if(!_fpFields.length){
+    list.innerHTML = '<div class="fp-card-empty" style="text-align:center;padding:40px;color:var(--text-tertiary)">暂无字段，点击上方「+ 新增字段」添加</div>';
+    return;
+  }
+  list.innerHTML = _fpFields.map(function(f, i){
+    var typeSel = '<select class="fp-card-type" onchange="fpUpdateField('+i+',\'type\',this.value)">'+
+      '<option value="multi"'+(f.type==='multi'?' selected':'')+'>多选</option>'+
+      '<option value="single"'+(f.type==='single'?' selected':'')+'>单选</option>'+
+      '<option value="text"'+(f.type==='text'?' selected':'')+'>文本</option>'+
+      '</select>';
+    var optsHtml = '';
+    if(f.type !== 'text'){
+      var opts = Array.isArray(f.options) ? f.options : [];
+      if(opts.length){
+        optsHtml = '<div class="fp-card-options" id="fpOpts_'+i+'" data-fpidx="'+i+'">' +
+          opts.map(function(o,j){
+            return '<span class="fp-opt-tag">'+esc(o)+'<span class="fp-opt-rm" onclick="fpRemoveOpt('+i+','+j+')">&times;</span></span>';
+          }).join('') +
+          '<input class="fp-opt-input" placeholder="+ 添加选项" data-fpadd="'+i+'" /></div>';
+      } else {
+        optsHtml = '<div class="fp-card-options" id="fpOpts_'+i+'" data-fpidx="'+i+'"><input class="fp-opt-input" placeholder="+ 添加选项（回车确认）" data-fpadd="'+i+'" /><span style="font-size:10.5px;color:var(--text-tertiary);margin-left:4px">多选/单选字段建议添加选项</span></div>';
+      }
+    } else {
+      optsHtml = '<div style="font-size:10.5px;color:var(--text-tertiary)">文本类型无需预设选项，AI 将自由输出</div>';
+    }
+    return '<div class="fp-card" data-fpidx="'+i+'">'+
+      '<div class="fp-card-header">'+
+        '<span class="fp-card-num">'+(i+1)+'</span>'+
+        '<input class="fp-card-name" value="'+escAttr(f.name||'')+'" placeholder="字段名称" onchange="fpUpdateField('+i+',\'name\',this.value)" />'+
+        '<button class="fp-card-del" onclick="fpDeleteField('+i+')" title="删除此字段">&times;</button>'+
+      '</div>'+
+      '<div class="fp-card-row">'+
+        '<span class="fp-card-label">类型</span>'+typeSel+
+      '</div>'+
+      '<div class="fp-card-row">'+
+        '<span class="fp-card-label">提示词</span>'+
+        '<textarea class="fp-card-prompt" placeholder="打标指令：说明识别什么、判断规则、未提及处理..." onchange="fpUpdateField('+i+',\'prompt\',this.value)">'+esc(f.prompt||'')+'</textarea>'+
+      '</div>'+
+      '<div class="fp-card-row">'+
+        '<span class="fp-card-label">选项</span>'+optsHtml+
+      '</div>'+
+      '</div>';
+  }).join('');
+  // Attach delegated keydown handler for option inputs (avoids quote-nesting issues in inline handlers)
+}
+
+// Event delegation: handle Enter key on .fp-opt-input elements
+document.addEventListener('keydown', function(e){
+  if(e.target.classList.contains('fp-opt-input') && e.key === 'Enter'){
+    e.preventDefault();
+    var idx = parseInt(e.target.getAttribute('data-fpadd'));
+    if(!isNaN(idx) && e.target.value.trim()){
+      fpAddOpt(idx, e.target.value.trim());
+    }
+  }
+});
+
+function fpUpdateField(idx, key, val){
+  if(idx<0||idx>=_fpFields.length) return;
+  _fpFields[idx][key] = val;
+  // If type changed to/from text, re-render to show/hide options
+  if(key === 'type') renderFpCards();
+}
+
+function fpDeleteField(idx){
+  if(idx<0||idx>=_fpFields.length) return;
+  _fpFields.splice(idx, 1);
+  renderFpCards();
+}
+
+function fpAddField(){
+  _fpFields.push({
+    name: '新字段 '+(_fpFields.length+1),
+    prompt: '',
+    type: lsType || 'multi',
+    options: [],
+    strict: false
+  });
+  renderFpCards();
+  // Scroll to bottom and focus new field name
+  var list = document.getElementById('fpFieldList');
+  list.scrollTop = list.scrollHeight;
+  setTimeout(function(){
+    var nameInputs = list.querySelectorAll('.fp-card-name');
+    if(nameInputs.length) nameInputs[nameInputs.length-1].focus();
+    var nameInput = nameInputs[nameInputs.length-1];
+    if(nameInput){ nameInput.focus(); nameInput.select(); }
+  }, 50);
+}
+
+function fpAddOpt(idx, val){
+  if(!val || !val.trim()) return;
+  if(idx<0||idx>=_fpFields.length) return;
+  if(!Array.isArray(_fpFields[idx].options)) _fpFields[idx].options = [];
+  _fpFields[idx].options.push(val.trim());
+  renderFpCards();
+  // Focus the option input again
+  setTimeout(function(){
+    var inp = document.getElementById('fpOpts_'+idx);
+    if(inp) { var tinp = inp.querySelector('.fp-opt-input'); if(tinp) tinp.focus(); }
+  }, 30);
+}
+
+function fpRemoveOpt(idx, optIdx){
+  if(idx<0||idx>=_fpFields.length) return;
+  if(!Array.isArray(_fpFields[idx].options)) return;
+  _fpFields[idx].options.splice(optIdx, 1);
+  renderFpCards();
+}
+
+function confirmFieldsFromPreview(){
+  if(!_fpFields.length){ alert('没有待创建的字段'); return; }
+  // Validate each field
+  for(var i=0;i<_fpFields.length;i++){
+    var f = _fpFields[i];
+    if(!f.name || !f.name.trim()){
+      alert('第 '+(i+1)+' 个字段缺少名称，请填写'); return;
+    }
+    if(!f.prompt || !f.prompt.trim()){
+      alert('字段「'+f.name+'」缺少提示词，请填写'); return;
+    }
+  }
+  // Apply all fields
+  _fpFields.forEach(function(f){
+    aiFields.push({
+      name: f.name.trim(),
+      prompt: f.prompt.trim(),
+      type: f.type || lsType || 'multi',
+      options: Array.isArray(f.options) ? f.options : [],
+      strict: !!f.strict && (f.type || lsType || 'multi') !== 'text'
+    });
+  });
+  closeFieldPreview();
+  closeLabelSystem();
+  renderTable(); updStatus(); updDataInfo(); refreshDoc(); saveState();
+  log('info','已创建 '+_fpFields.length+' 个 AI 字段（经预览确认）');
+}
+
+// Legacy: kept for backward compat (inline preview path, now unused but safe to keep)
 function confirmLabelSystem(){
   if(!lsPendingFields||!lsPendingFields.length){alert('没有待创建的字段');return;}
   lsPendingFields.forEach(f=>{
