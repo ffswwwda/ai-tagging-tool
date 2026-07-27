@@ -220,10 +220,16 @@ body {
 .cell-txt { line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
 .cell-tags { display: flex; flex-wrap: wrap; gap: 3px; }
 .tag-pill {
-  display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 3px;
+  display: inline-flex; align-items: center; padding: 1px 7px 1px 6px; border-radius: 3px;
   font-size: 11px; font-weight: 500; line-height: 1.5; white-space: nowrap;
   max-width: 120px; overflow: hidden; text-overflow: ellipsis;
 }
+.tag-rm { margin-left:3px; font-size:13px; cursor:pointer; opacity:.45; line-height:1; font-weight:400; transition:opacity .15s; }
+.tag-rm:hover { opacity:1; color:var(--error); }
+.tag-add { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; border:1.5px dashed var(--text-tertiary); font-size:12px; cursor:pointer; color:var(--text-tertiary); transition:all .15s; flex-shrink:0; }
+.tag-add:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
+.tag-add-wrap { display:inline-flex; vertical-align:middle; }
+.tag-add-inp { width:72px; height:20px; border:1.5px solid var(--accent); border-radius:3px; padding:0 4px; font-size:11px; outline:none; background:var(--surface); }
 .tc0{background:#dbeafe;color:#1d4ed8} .tc1{background:#dcfce7;color:#15803d}
 .tc2{background:#fef3c7;color:#b45309} .tc3{background:#ede9fe;color:#6d28d9}
 .tc4{background:#ffe4e6;color:#be123c} .tc5{background:#ccfbf1;color:#0f766e}
@@ -1005,14 +1011,14 @@ function rowCellsHTML(ri,row){
 
 function renderCell(row,col,ci){
   const v=row[col], fld=aiFields.find(f=>f.name===col);
-  if(v===undefined||v===null||v==='') return `<td data-ci="${ci}"><span class="tag-empty">--</span></td>`;
+  if(v===undefined||v===null||v==='') return `<td data-ci="${ci}" onclick="startCellEdit(this,${ci},'${escAttr(col)}')"><span class="tag-empty">--</span></td>`;
   if(fld&&(fld.type==='multi'||fld.type==='single')){
     const tags=String(v).split(',').map(t=>t.trim()).filter(Boolean);
-    return `<td data-ci="${ci}" ondblclick="startCellEdit(this,${ci},'${escAttr(col)}')"><div class="cell-tags">`+tags.map((t,i)=>
-      `<span class="tag-pill ${TC[i%TC.length]}" title="${esc(t)}">${esc(t)}</span>`
-    ).join('')+'</div></td>';
+    return `<td data-ci="${ci}"><div class="cell-tags">`+tags.map((t,i)=>
+      `<span class="tag-pill ${TC[i%TC.length]}" title="${esc(t)}">${esc(t)}<span class="tag-rm" onclick="event.stopPropagation();removeTag(this,${ci},'${escAttr(col)}')" title="删除此标签">&times;</span></span>`
+    ).join('')+`<span class="tag-add" onclick="event.stopPropagation();addTagInline(this,${ci},'${escAttr(col)}')" title="添加标签">+</span>`+'</div></td>';
   }
-  return `<td data-ci="${ci}" ondblclick="startCellEdit(this,${ci},'${escAttr(col)}')"><div class="cell-txt" title="${esc(String(v))}">${esc(String(v))}</div></td>`;
+  return `<td data-ci="${ci}" onclick="startCellEdit(this,${ci},'${escAttr(col)}')"><div class="cell-txt" title="${esc(String(v))}" style="cursor:pointer">${esc(String(v))}</div></td>`;
 }
 
 function updCellFast(ri,cn,val){
@@ -1048,7 +1054,7 @@ function openHdrEdit(ci){
 
 
 // ============================================================
-// INLINE CELL EDITING
+// INLINE CELL EDITING  — 单击编辑 / 标签粒度增删
 // ============================================================
 function startCellEdit(td,colIdx,colName){
   if(isProcessing)return;
@@ -1064,6 +1070,58 @@ function finishCellEdit(inp,rowIdx,colName){
   updCellFast(rowIdx,colName,newVal);
   saveState();
   log('info',`编辑 R${rowIdx+1} ${colName}: ${newVal.substring(0,30)}`);
+}
+
+/** 删除多选字段中的某一个标签 */
+function removeTag(spanEl,ci,colName){
+  const td=spanEl.closest('td');
+  if(!td) return;
+  const rowIdx=parseInt(td.parentElement.dataset.ri);
+  const row=tableData()[rowIdx];
+  if(!row) return;
+  // Find the pill text (first child node text)
+  const tagText=spanEl.parentElement.textContent.trim()||'';
+  const current=String(row[colName]||'');
+  const tags=current.split(',').map(t=>t.trim()).filter(Boolean);
+  const filtered=tags.filter(t=>t!==tagText);
+  row[colName]=filtered.join(', ');
+  vrRenderIfVisible(rowIdx);
+  saveState();
+  log('info',`删标签 R${rowIdx+1} ${colName}: -"${tagText}"`);
+}
+
+/** 在多选字段内内联添加一个标签 */
+function addTagInline(addBtn,ci,colName){
+  const td=addBtn.closest('td');
+  if(!td) return;
+  const rowIdx=parseInt(td.parentElement.dataset.ri);
+  // Replace the + button with a tiny input
+  const wrap=document.createElement('span');
+  wrap.className='tag-add-wrap';
+  wrap.innerHTML=`<input class="tag-add-inp" placeholder="新标签..." onkeydown="if(event.key==='Enter'){event.preventDefault();commitAddTag(this,${rowIdx},'${escAttr(colName)}');}if(event.key==='Escape')cancelAddTag(this);" onblur="commitAddTag(this,${rowIdx},'${escAttr(colName)}')">`;
+  addBtn.parentNode.replaceChild(wrap,addBtn);
+  const inp=wrap.firstChild; inp.focus();
+}
+
+function commitAddTag(inp,rowIdx,colName){
+  const newVal=inp.value.trim();
+  if(!newVal){ cancelAddTag(inp); return; }
+  const row=tableData()[rowIdx];
+  if(!row){ cancelAddTag(inp); return; }
+  const current=String(row[colName]||'');
+  const tags=current.split(',').map(t=>t.trim()).filter(Boolean);
+  if(tags.indexOf(newVal)<0) tags.push(newVal);
+  row[colName]=tags.join(', ');
+  vrRenderIfVisible(rowIdx);
+  saveState();
+  log('info',`加标签 R${rowIdx+1} ${colName}: +"${newVal}"`);
+}
+
+function cancelAddTag(inp){
+  const wrap=inp.parentElement; if(!wrap) return;
+  const td=wrap.closest('td'); if(!td) return;
+  const rowIdx=parseInt(td.parentElement.dataset.ri);
+  vrRenderIfVisible(rowIdx);
 }
 
 
