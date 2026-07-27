@@ -1010,6 +1010,7 @@ const TC=['tc0','tc1','tc2','tc3','tc4','tc5','tc6','tc7'];
 function curSheet() { return sheets[activeSheetIdx] || null; }
 function tableData() { const s=curSheet(); return s ? s.data : []; }
 function originalColumns() { const s=curSheet(); return s ? s.originalColumns : []; }
+function rawHeaders() { const s=curSheet(); return s ? (s.rawHeaders || s.originalColumns) : []; }
 
 // Rebind the per-sheet references to the active sheet (called on switch / load / parse)
 function bindSheetGlobals(){
@@ -1063,7 +1064,7 @@ async function parseCSV(file){
     }r.push(cur.trim());return r;};
   const cols=pr(lines[0]), data=[];
   for(let i=1;i<lines.length;i++){const v=pr(lines[i]),row={}; cols.forEach((c,idx)=>row[c]=v[idx]||''); data.push(row);}
-  sheets=[{name:'Sheet1',originalColumns:cols,data,aiFields:[],hiddenColNames:new Set(),frozenCount:0}];
+  sheets=[{name:'Sheet1',originalColumns:cols,rawHeaders:[...cols],data,aiFields:[],hiddenColNames:new Set(),frozenCount:0}];
   activeSheetIdx=0; bindSheetGlobals(); saveState();
 }
 
@@ -1078,7 +1079,7 @@ async function parseExcel(file){
       if(!j||!j.length)return;
       const cols=j[0].map(c=>String(c||'').trim()), data=[];
       for(let i=1;i<j.length;i++){const row={}; cols.forEach((c,idx)=>row[c]=String(j[i][idx]||'')); data.push(row);}
-      sheets.push({name:sn,originalColumns:cols,data,aiFields:[],hiddenColNames:new Set(),frozenCount:0});
+      sheets.push({name:sn,originalColumns:cols,rawHeaders:[...cols],data,aiFields:[],hiddenColNames:new Set(),frozenCount:0});
     });
     if(!sheets.length){alert('Excel 无有效工作表');return;}
     activeSheetIdx=0; bindSheetGlobals(); saveState();
@@ -1938,14 +1939,14 @@ function renderFpCards(){
     } else {
       optsHtml = '<div style="font-size:10.5px;color:var(--text-tertiary)">文本类型无需预设选项，AI 将自由输出</div>';
     }
-    // Reference columns row
-    var oc = originalColumns();
+    // Reference columns row — show raw uploaded file headers only
+    var rh = rawHeaders();
     var refHtml = '';
-    if(oc.length){
+    if(rh.length){
       refHtml = '<div class="fp-card-row fp-ref-row">'+
         '<span class="fp-card-label">引用</span>'+
         '<div class="fp-ref-chips">'+
-          oc.map(function(col){
+          rh.map(function(col){
             return '<button class="rcp fp-rcp" onclick="fpInsRef('+i+',\''+escAttr(col)+'\')">@'+esc(col)+'</button>';
           }).join('')+
         '</div>'+
@@ -2097,10 +2098,10 @@ function confirmLabelSystem(){
 
 function buildRefs(){
   const c=document.getElementById('refChips');
-  const oc=originalColumns();
-  if(!oc.length){c.innerHTML='<span style="font-size:11px;color:var(--text-tertiary)">上传文件后可引用字段</span>';return;}
+  const rh=rawHeaders();
+  if(!rh.length){c.innerHTML='<span style="font-size:11px;color:var(--text-tertiary)">上传文件后可引用字段</span>';return;}
   c.innerHTML='<span style="font-size:11px;color:var(--text-tertiary);margin-right:4px">引用:</span>'+
-    oc.map(col=>`<button class="rcp" onclick="insRef('${escAttr(col)}')">@${esc(col)}</button>`).join('');
+    rh.map(col=>`<button class="rcp" onclick="insRef('${escAttr(col)}')">@${esc(col)}</button>`).join('');
 }
 function insRef(col){
   const ta=document.getElementById('dfPrompt'), s=ta.selectionStart, e=ta.selectionEnd, r=`{{${col}}}`;
