@@ -44,7 +44,11 @@ body {
 }
 .vcard:hover { border-color: #CBD5E1; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
 .vcard.on { border-color: var(--accent); background: var(--accent-light); box-shadow: 0 0 0 1px rgba(37,99,235,0.15), 0 1px 3px rgba(37,99,235,0.08); }
-.vci { font-size: 15px; margin-bottom: 5px; opacity: 0.35; line-height: 1; }
+.vci { font-size: 15px; margin-bottom: 5px; opacity: 0.35; line-height: 1; display:flex; align-items:center; }
+.ico { width: 18px; height: 18px; display: block; }
+.empty-icon .ico, .imp-icon .ico, .de-i .ico { width: 46px; height: 46px; }
+.drv-close .ico { width: 18px; height: 18px; }
+.sclose .ico { width: 12px; height: 12px; }
 .vct { font-size: 12.5px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px; letter-spacing: -0.2px; }
 .vcd { font-size: 10.5px; color: var(--text-tertiary); line-height: 1.4; }
 .vcard.on .vct { color: var(--accent); } .vcard.on .vci { opacity: 0.65; }
@@ -93,6 +97,25 @@ body {
 .sb-btn:hover { background: #1D4ED8; box-shadow: 0 2px 6px rgba(37,99,235,0.2); } .sb-btn.disabled { opacity: 0.4; cursor: not-allowed; }
 .sb-btn.sec { background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border); box-shadow: none; }
 .sb-btn.sec:hover { border-color: #CBD5E1; color: var(--text-primary); }
+
+/* Field panel (per-field config + run) */
+.sb-mini { background: var(--accent-light); color: var(--accent); border: 1px solid rgba(37,99,235,0.2); border-radius: 5px; font-size: 10.5px; padding: 2px 8px; cursor: pointer; font-family: inherit; font-weight: 600; }
+.sb-mini:hover { background: #dbe4ff; }
+.fld-list { display: flex; flex-direction: column; gap: 6px; max-height: 34vh; overflow-y: auto; }
+.fld-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 9px; }
+.fld-top { display: flex; align-items: center; gap: 6px; }
+.fld-name { flex: 1; font-size: 11.5px; font-weight: 600; color: var(--text-primary); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fld-name:hover { color: var(--accent); text-decoration: underline; }
+.fld-type { font-size: 9px; color: var(--accent); background: var(--accent-light); padding: 1px 5px; border-radius: 4px; flex-shrink: 0; }
+.fld-run { background: var(--accent); color: #fff; border: none; border-radius: 5px; font-size: 10.5px; font-weight: 600; padding: 3px 9px; cursor: pointer; font-family: inherit; flex-shrink: 0; }
+.fld-run:hover { background: #1D4ED8; }
+.fld-run:disabled { opacity: 0.4; cursor: not-allowed; }
+.fld-del { background: none; border: none; color: var(--text-tertiary); cursor: pointer; font-size: 13px; padding: 0 2px; line-height: 1; flex-shrink: 0; }
+.fld-del:hover { color: var(--error); }
+.fld-cfg { display: flex; gap: 8px; margin-top: 6px; }
+.fld-cfg label { display: flex; align-items: center; gap: 3px; font-size: 10px; color: var(--text-tertiary); }
+.fld-cfg input { width: 52px; padding: 3px 5px; border: 1px solid var(--border); border-radius: 5px; font-size: 11px; outline: none; font-family: inherit; }
+.fld-cfg input:focus { border-color: var(--accent); }
 
 
 /* ===== RIGHT MAIN ===== */
@@ -417,7 +440,40 @@ body {
 /* Deep analysis toggle */
 .rec-reason { display:flex; align-items:center; gap:7px; margin-top:7px; font-size:11px; color:var(--text-secondary); cursor:pointer; user-select:none; }
 .rec-reason input { accent-color:var(--accent); cursor:pointer; }
+
+/* ===== AI 字段助手 (side chat) ===== */
+.ai-chat { position:fixed; top:0; right:0; width:390px; height:100vh; background:#fff; border-left:1px solid var(--border);
+  box-shadow:-10px 0 30px rgba(15,23,42,.10); display:flex; flex-direction:column; z-index:300;
+  transform:translateX(100%); transition:transform .26s cubic-bezier(.4,0,.2,1); font-size:13px; }
+.ai-chat.open { transform:translateX(0); }
+.ac-head { display:flex; align-items:center; justify-content:space-between; padding:13px 15px; border-bottom:1px solid var(--border);
+  font-weight:600; font-size:13.5px; color:var(--text-primary); }
+.ac-head .ac-t { display:flex; align-items:center; gap:8px; }
+.ac-x { background:none; border:none; cursor:pointer; color:var(--text-tertiary); display:flex; padding:4px; border-radius:6px; }
+.ac-x:hover { background:var(--accent-light); color:var(--text-primary); }
+.ac-body { flex:1; overflow-y:auto; padding:13px; display:flex; flex-direction:column; gap:11px; background:#f8fafc; }
+.ac-msg { padding:9px 12px; border-radius:11px; max-width:92%; line-height:1.55; white-space:pre-wrap; word-break:break-word; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+.ac-msg.user { align-self:flex-end; background:var(--accent); color:#fff; border-bottom-right-radius:3px; }
+.ac-msg.bot { align-self:flex-start; background:#fff; border:1px solid var(--border); color:var(--text-primary); border-bottom-left-radius:3px; }
+.ac-msg.bot .ac-acts { margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; }
+.ac-pill { font-size:10.5px; background:rgba(37,99,235,.1); color:#2563EB; border:1px solid rgba(37,99,235,.22); border-radius:20px; padding:2px 9px; white-space:nowrap; }
+.ac-hint { padding:7px 14px; font-size:10.5px; color:var(--text-tertiary); border-top:1px solid var(--border); background:#fff; line-height:1.5; }
+.ac-input { padding:11px 14px; border-top:1px solid var(--border); background:#fff; }
+.ac-input textarea { width:100%; height:60px; resize:none; border:1px solid var(--border); border-radius:9px; padding:9px; font:inherit; box-sizing:border-box; outline:none; }
+.ac-input textarea:focus { border-color:var(--accent); }
+.ac-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:9px; }
+.ac-btn { border:1px solid var(--accent); background:var(--accent); color:#fff; border-radius:8px; padding:7px 18px; cursor:pointer; font:inherit; font-size:12.5px; }
+.ac-btn.ghost { background:#fff; color:var(--text-secondary); border-color:var(--border); }
+.ac-btn:disabled { opacity:.6; cursor:default; }
+.ac-typing { align-self:flex-start; font-size:11px; color:var(--text-tertiary); padding:4px 2px; }
+
+/* ===== 同类错误深度抽样 ===== */
+.deep-cfg { display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap; }
+.deep-cfg input[type=number] { width:64px; height:28px; border:1px solid var(--border); border-radius:6px; font-size:12px; padding:0 6px; }
+.ds-round { font-size:11px; color:var(--text-tertiary); margin-left:auto; }
 </style>
+</head>
+
 </head>
 <body>
 
@@ -431,19 +487,19 @@ body {
     <div class="sb-label">视图</div>
     <div class="vlist" id="vList">
       <div class="vcard on" data-v="table" onclick="swView('table')">
-        <div class="vci">&#128203;</div><div class="vct">数据表格</div><div class="vcd">查看和编辑全部数据</div>
+        <div class="vci"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg></div><div class="vct">数据表格</div><div class="vcd">查看和编辑全部数据</div>
       </div>
       <div class="vcard" data-v="stats" onclick="swView('stats')">
-        <div class="vci">&#128202;</div><div class="vct">标签统计</div><div class="vcd">各维度分布与占比</div>
+        <div class="vci"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div><div class="vct">标签统计</div><div class="vcd">各维度分布与占比</div>
       </div>
       <div class="vcard" data-v="validate" onclick="swView('validate')">
-        <div class="vci">&#128196;</div><div class="vct">标注概览</div><div class="vcd">填充率与未标记统计</div>
+        <div class="vci"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 9h6M9 13h6M9 17h4"/></svg></div><div class="vct">标注概览</div><div class="vcd">填充率与未标记统计</div>
       </div>
       <div class="vcard" data-v="llmval" onclick="swView('llmval')" id="vcLlmVal">
-        <div class="vci">&#129302;</div><div class="vct">LLM 验证</div><div class="vcd">大模型抽样校验</div>
+        <div class="vci"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a4 4 0 00-4 4 3 3 0 00-1 5.8A3 3 0 009 17a3 3 0 006 0 3 3 0 003-4.2A3 3 0 0016 7a4 4 0 00-4-4z"/><path d="M12 3v14"/></svg></div><div class="vct">LLM 验证</div><div class="vcd">大模型抽样校验</div>
       </div>
       <div class="vcard" data-v="think" onclick="swView('think')" id="vcThink">
-        <div class="vci">&#129302;</div><div class="vct">思考过程</div><div class="vcd">AI 分析轮播</div>
+        <div class="vci"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M18 14l.9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9z"/></svg></div><div class="vct">思考过程</div><div class="vcd">AI 分析轮播</div>
       </div>
     </div>
   </div>
@@ -451,7 +507,7 @@ body {
   <div class="sb-section">
     <div class="sb-label">数据</div>
     <div class="imp-zone" id="sbImpZone" onclick="document.getElementById('fileInput').click()">
-      <div class="imp-icon">&#128196;</div><div class="imp-title">导入数据文件</div><div class="imp-sub">CSV / Excel (.xlsx, .xls)</div>
+      <div class="imp-icon"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5"/></svg></div><div class="imp-title">导入数据文件</div><div class="imp-sub">CSV / Excel (.xlsx, .xls)</div>
     </div>
     <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleFileUpload(event)">
     <div class="data-info" id="dataInfo" style="display:none">
@@ -459,6 +515,15 @@ body {
       <span id="diAi">0 AI字段</span>
     </div>
     <button class="sb-btn sec" style="margin-top:6px" onclick="clearData()">清空并删除文件</button>
+  </div>
+
+  <div class="sb-section" id="fldPanelSec" style="display:none">
+    <div class="sb-label" style="display:flex;justify-content:space-between;align-items:center">
+      <span>AI 字段</span>
+      <button class="sb-mini" onclick="openFieldDrawer(-1)">+ 新建</button>
+    </div>
+    <div class="fld-list" id="fldList"></div>
+    <div style="font-size:10px;color:var(--text-tertiary);margin-top:6px;line-height:1.5">「起」=起始行(含)，「数」=行数(留空=全部)。每行「打」按钮可单独打该列；顶部按钮并行打全部字段。</div>
   </div>
 
   <div class="sb-section">
@@ -496,6 +561,7 @@ body {
     <button class="tbtn" onclick="document.getElementById('fileInput').click()" title="上传数据文件">+ 导入数据</button>
     <button class="tbtn" onclick="openFieldDrawer(-1)" title="新建 AI 字段列">+ 新建字段</button>
     <button class="tbtn" onclick="openLabelSystemDrawer()" title="导入标签体系，AI 自动建字段写提示词">+ 导入标签体系</button>
+    <button class="tbtn" onclick="toggleChat()" title="AI 字段助手：用自然语言新建/删除/改名/改提示词字段，或导入标签体系"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M18 14l.9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9z"/></svg> AI 助手</button>
     <div class="divider"></div>
     <button class="tbtn" id="vCfgBtn" onclick="doImportExport()">导入/导出配置</button>
     <button class="tbtn" id="showHidBtn" onclick="showAllHiddenCols()" style="display:none">显示隐藏列</button>
@@ -507,7 +573,7 @@ body {
     <button class="tbtn" title="撤销"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10h13a4 4 0 010 8H9"/></svg></button>
     <button class="tbtn" title="重做"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10H8a4 4 0 000 8h7"/></svg></button>
     <div style="flex:1"></div>
-    <label style="font-size:11.5px;color:var(--text-tertiary);margin-right:4px">打标范围</label>
+    <label style="font-size:11.5px;color:var(--text-tertiary);margin-right:2px">全局范围</label>
     <select id="tagRangeSel" onchange="onTagRangeChange()" style="height:30px;border:1px solid var(--border);border-radius:6px;font-size:12px;padding:0 6px;background:#fff">
       <option value="all">全部行</option>
       <option value="50">前 50 行</option>
@@ -516,7 +582,12 @@ body {
       <option value="custom">自定义行数</option>
     </select>
     <input id="tagRangeCustom" type="number" min="1" placeholder="行数" style="display:none;width:64px;height:30px;border:1px solid var(--border);border-radius:6px;font-size:12px;padding:0 6px;margin-left:4px">
-    <button class="tbtn pri" id="runBtn" onclick="runBatchTagging()" disabled>开始打标</button>
+    <label style="font-size:11.5px;color:var(--text-tertiary);margin-right:2px;margin-left:8px">模式</label>
+    <select id="tagModeSel" style="height:30px;border:1px solid var(--border);border-radius:6px;font-size:12px;padding:0 6px;background:#fff">
+      <option value="resume">基于已有续打</option>
+      <option value="restart">重头开始打标</option>
+    </select>
+    <button class="tbtn pri" id="runBtn" onclick="runBatchTagging()" disabled>开始打标（全部字段）</button>
     <button class="tbtn" id="stopBtn" onclick="stopTagging()" disabled style="color:var(--error);border-color:var(--error)">停止打标</button>
     <div class="divider"></div>
     <button class="tbtn" id="hideSelBtn" onclick="hideSelectedCols()" disabled>隐藏选中列</button>
@@ -540,7 +611,7 @@ body {
       <div class="table-wrap" id="tableWrap">
         <div class="prog-track" id="progTrack"><div class="prog-fill" id="progFill"></div></div>
         <div class="empty-state" id="emptyState">
-          <div class="empty-icon">&#128203;</div><div class="empty-title">暂无数据</div>
+          <div class="empty-icon"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg></div><div class="empty-title">暂无数据</div>
           <div class="empty-sub">从左侧面板导入 CSV 或 Excel 文件开始使用</div>
         </div>
         <table class="data-table" id="dt" style="display:none"><thead id="dtHead"></thead><tbody id="dtBody"></tbody></table>
@@ -574,7 +645,7 @@ body {
   <div class="drv">
     <div class="drv-hd">
       <h3 id="drvTitle">新建 AI 字段</h3>
-      <button class="drv-close" onclick="closeDrv()">&times;</button>
+      <button class="drv-close" onclick="closeDrv()"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="drv-bd">
       <div class="df"><label>字段名称 <span style="color:var(--error)">*</span></label>
@@ -613,7 +684,7 @@ body {
   <div class="drv">
     <div class="drv-hd">
       <h3>导入标签体系 (AI 自动建字段)</h3>
-      <button class="drv-close" onclick="closeLabelSystem()">&times;</button>
+      <button class="drv-close" onclick="closeLabelSystem()"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="drv-bd">
       <div class="df">
@@ -680,6 +751,12 @@ let sheetProc = {};
 let selectedCols = new Set();
 // log throttle accumulator
 let _logAcc = 0;
+
+// Virtual scroll state (for 20k+ rows)
+let ROW_H = 38;                 // measured after first render (matches --row-h)
+let _scrollTop = 0;
+let _scrollAttached = false;
+let procSet = new Set();        // rows currently being tagged (for highlight on scroll-in)
 
 const TC=['tc0','tc1','tc2','tc3','tc4','tc5','tc6','tc7'];
 
@@ -770,7 +847,7 @@ function renderSheetTabs(){
   if(sheets.length<=1){el.style.display='none';return;}
   el.style.display='flex';
   el.innerHTML=sheets.map((sh,i)=>
-    `<div class="stab ${i===activeSheetIdx?'on':''}" onclick="switchSheet(${i})">${esc(sh.name)}${sheets.length>1?`<span class="sclose" onclick="event.stopPropagation();removeSheet(${i})">&times;</span>`:''}</div>`
+    `<div class="stab ${i===activeSheetIdx?'on':''}" onclick="switchSheet(${i})">${esc(sh.name)}${sheets.length>1?`<span class="sclose" onclick="event.stopPropagation();removeSheet(${i})"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>`:''}</div>`
   ).join('');
 }
 
@@ -819,6 +896,10 @@ function getVisibleCols(){return getCols().filter(c=>!hiddenColNames.has(c));}
 function renderTable(){
   const th=document.getElementById('dtHead'), tb=document.getElementById('dtBody');
   const visCols=getVisibleCols(), allCols=getCols();
+  const td=tableData();
+
+  if(!td.length){ document.getElementById('dt').style.display='none'; document.getElementById('emptyState').style.display='flex'; }
+  else { document.getElementById('dt').style.display='table'; document.getElementById('emptyState').style.display='none'; }
 
   th.innerHTML='<tr><th class="col-rn">#</th><th class="col-cb"><input type="checkbox" id="cbAll" onchange="toggleAll(this.checked)"></th>'+
     visCols.map(function(c, i){
@@ -835,23 +916,74 @@ function renderTable(){
         '<span class="dbl-hint">双击编辑 / 右键</span></div></th>';
     }).join('')+'</tr>';
 
-  const td=tableData();
-  tb.innerHTML=td.map((r,ri)=>
-    `<tr data-ri="${ri}"><td class="col-rn">${ri+1}</td><td class="col-cb"><input type="checkbox" class="rcb" data-ri="${ri}"></td>`+
-    visCols.map(c=>{
-      const hid=hiddenColNames.has(c);
-      return hid?'':renderCell(r,c,allCols.indexOf(c));
-    }).join('')+'</tr>'
-  ).join('');
+  // attach scroll listener once for virtual rendering
+  if(!_scrollAttached){
+    var wrap=document.getElementById('tableWrap');
+    wrap.addEventListener('scroll', function(){ _scrollTop=wrap.scrollTop; vrSchedule(); }, {passive:true});
+    _scrollAttached=true;
+  }
+  if(td.length) vrRenderBody(); else tb.innerHTML='';
 
-  // optional: column header click for multi-select
-  document.querySelectorAll('#dtHead th[data-ci]').forEach(function(th){
-    th.onclick=function(e){ onColHeaderClick(e, parseInt(th.dataset.ci)); };
+  // measure real row height after first paint (handles borders / fonts)
+  var sample=document.querySelector('#dtBody tr[data-ri]');
+  if(sample && sample.offsetHeight) ROW_H=sample.offsetHeight;
+
+  document.querySelectorAll('#dtHead th[data-ci]').forEach(function(h){
+    h.onclick=function(e){ onColHeaderClick(e, parseInt(h.dataset.ci)); };
   });
   applyFreeze();
   updateHiddenBar();
   updStatus();
   updateSelBtns();
+}
+
+// ---- Virtual scroll helpers ----
+var _vrRaf=false;
+function vrSchedule(){ if(_vrRaf)return; _vrRaf=true; requestAnimationFrame(function(){ _vrRaf=false; vrRenderBody(); }); }
+function vrVisibleRange(){
+  var wrap=document.getElementById('tableWrap');
+  var h=wrap?wrap.clientHeight:600;
+  var first=Math.floor(_scrollTop/ROW_H);
+  var visible=Math.ceil(h/ROW_H)+6;
+  var last=Math.min(first+visible, tableData().length);
+  return {first:Math.max(0,first), last:last};
+}
+function vrRenderBody(){
+  var tb=document.getElementById('dtBody'); if(!tb)return;
+  var td=tableData();
+  if(!td.length){ tb.innerHTML=''; return; }
+  var range=vrVisibleRange();
+  var topPad=range.first*ROW_H;
+  var botPad=(td.length-range.last)*ROW_H;
+  var html='<tr style="height:'+topPad+'px"></tr>';
+  for(var ri=range.first; ri<range.last; ri++){
+    html+='<tr data-ri="'+ri+(procSet.has(ri)?'" class="proc"':'"')+'>'+
+      '<td class="col-rn">'+(ri+1)+'</td>'+
+      '<td class="col-cb"><input type="checkbox" class="rcb" data-ri="'+ri+'"></td>'+
+      rowCellsHTML(ri, td[ri])+'</tr>';
+  }
+  html+='<tr style="height:'+botPad+'px"></tr>';
+  tb.innerHTML=html;
+  applyFreeze(); // re-apply frozen-column stickiness after window rebuild
+}
+// re-render a single visible row from current data (used during tagging / edits)
+function vrRenderIfVisible(ri){
+  if(ri==null) return;
+  var wrap=document.getElementById('tableWrap');
+  _scrollTop = wrap?wrap.scrollTop:_scrollTop;
+  var range=vrVisibleRange();
+  if(ri<range.first || ri>=range.last) return; // off-screen, nothing in DOM
+  var tr=document.querySelector('tr[data-ri="'+ri+'"]'); if(!tr) return;
+  var row=tableData()[ri];
+  tr.className = procSet.has(ri)?'proc':'';
+  tr.innerHTML='<td class="col-rn">'+(ri+1)+'</td><td class="col-cb"><input type="checkbox" class="rcb" data-ri="'+ri+'"></td>'+rowCellsHTML(ri,row);
+  applyFreeze(); // keep frozen columns sticky after single-row rebuild
+}
+// produce the <td> cells for one row (visible columns only)
+function rowCellsHTML(ri,row){
+  if(!row) return '';
+  var visCols=getVisibleCols(), allCols=getCols();
+  return visCols.map(function(c){ return hiddenColNames.has(c)?'':renderCell(row,c,allCols.indexOf(c)); }).join('');
 }
 
 function renderCell(row,col,ci){
@@ -867,16 +999,7 @@ function renderCell(row,col,ci){
 }
 
 function updCellFast(ri,cn,val){
-  const tr=document.querySelector(`tr[data-ri="${ri}"]`); if(!tr)return;
-  const visIdx=getVisibleCols().indexOf(cn); if(visIdx<0)return;
-  const td=tr.children[visIdx+2]; if(!td)return;
-  const fld=aiFields.find(f=>f.name===cn);
-  if(fld&&(fld.type==='multi'||fld.type==='single')){
-    const tags=String(val).split(',').map(t=>t.trim()).filter(Boolean);
-    td.innerHTML='<div class="cell-tags">'+tags.map((t,i)=>
-      `<span class="tag-pill ${TC[i%TC.length]}" title="${esc(t)}">${esc(t)}</span>`
-    ).join('')+'</div>';
-  } else td.innerHTML=`<div class="cell-txt" title="${esc(String(val))}">${esc(String(val))}</div>`;
+  vrRenderIfVisible(ri);
 }
 
 function updateHiddenBar(){
@@ -1229,7 +1352,7 @@ function pkType(t){
 
 function addORow(v=''){
   const d=document.createElement('div'); d.className='orow';
-  d.innerHTML=`<input type="text" value="${esc(v)}" placeholder="选项"><button class="odl" onclick="this.parentElement.remove()">&times;</button>`;
+  d.innerHTML=`<input type="text" value="${esc(v)}" placeholder="选项"><button class="odl" onclick="this.parentElement.remove()"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`;
   document.getElementById('optsList').appendChild(d);
 }
 function getOpts(){return Array.from(document.querySelectorAll('#optsList input')).map(i=>i.value.trim()).filter(Boolean);}
@@ -1550,32 +1673,36 @@ async function aiGenOpts(){
 // ============================================================
 // BATCH TAGGING
 // ============================================================
-async function runBatchTagging(){
-  // 每表独立：只检查当前表是否已在运行，不阻塞其他表
-  if(sheetProc[activeSheetIdx] && sheetProc[activeSheetIdx].active){alert('当前工作表正在打标中，请先停止');return;}
-  if(!aiFields.length){alert('先配置 AI 字段');return;}
-  if(!tableData().length){alert('先上传数据');return;}
-  var cfg=apiCfg();
-  if(!cfg.key){alert('填 API Key');return;}
+// ============================================================
+// BATCH TAGGING — per-field config + parallel lanes + two modes
+// ============================================================
+// 计算某字段本次要打的行（基于该字段自己的 起始行/行数，缺省回退全局范围）
+function getFieldRows(fld){
+  var total=tableData().length;
+  var start=(fld && fld.tagStart && fld.tagStart>1) ? (fld.tagStart-1) : 0;
+  var count=(fld && fld.tagCount && fld.tagCount>0) ? fld.tagCount : (total-start);
+  start=Math.max(0,Math.min(start,total));
+  count=Math.max(0,Math.min(count,total-start));
+  var rows=[]; for(var i=0;i<count;i++) rows.push(start+i); return rows;
+}
+
+// 核心：对给定字段列表并行打标（每个字段一个竖直 lane；字段间并行）
+async function startTagging(opts){
+  // opts: {targetIdx, fields, mode, isGlobal}
+  var targetIdx=opts.targetIdx, sheet=sheets[targetIdx], localData=sheet.data, sheetName=sheet.name;
+  var fields=opts.fields.filter(function(f){ return f && (f.name||'').trim(); });
+  if(!fields.length){ if(opts.isGlobal) alert('先配置 AI 字段'); return; }
+  if(sheetProc[targetIdx] && sheetProc[targetIdx].active){ alert('「'+sheetName+'」正在打标中，请先停止'); return; }
+  var cfg=apiCfg(); if(!cfg.key){alert('填 API Key');return;}
   var recReason=!!(document.getElementById('recReason')&&document.getElementById('recReason').checked);
-  var rows=getTagRows();
-  if(!rows.length){alert('打标范围无效，请检查行区间/指定行');return;}
 
-  // Anchor to the sheet this run started on (independent per-sheet operation)
-  var targetIdx=activeSheetIdx;
-  var sheet=sheets[targetIdx];
-  var localFields=sheet.aiFields.slice();      // snapshot field config at start
-  if(!localFields.length){alert('当前表没有可打标的 AI 字段');return;}
-  var localData=sheet.data;
-  var sheetName=sheet.name;
+  var total=0;
+  fields.forEach(function(f){ total+=getFieldRows(f).length; });
+  if(!total){alert('打标范围为 0，请检查行设置');return;}
 
-  var total=rows.length*localFields.length;
-  var done=0;
-  var skipped=0;
-  var t0=Date.now();
-  var perTimes=[];
+  var done=0, skipped=0, t0=Date.now(), perTimes=[];
   sheetProc[targetIdx]={active:true,done:0,total:total,start:t0,name:sheetName,stop:false};
-  updateRunUI();
+  updateRunUI(); renderFieldPanel();
   if(targetIdx===activeSheetIdx){ setSt('running','处理中...'); }
 
   function isFieldDone(rowData,fldName){
@@ -1585,8 +1712,13 @@ async function runBatchTagging(){
     return true;
   }
 
-  // A single field lane: processes its rows vertically (row by row)
-  async function tagField(fld){
+  // 单个字段 lane：按本字段提示词，对它的行竖直打标
+  async function tagFieldLane(fld){
+    var rows=getFieldRows(fld);
+    if(opts.mode==='restart'){
+      // 重头模式：先清空该字段在当前范围内的已有值
+      rows.forEach(function(ri){ if(ri<localData.length) localData[ri][fld.name]=''; });
+    }
     for(var r=0;r<rows.length;r++){
       if(sheetProc[targetIdx].stop) break;
       var ri=rows[r];
@@ -1594,40 +1726,30 @@ async function runBatchTagging(){
       var rowData=localData[ri];
       var onScreen=(targetIdx===activeSheetIdx && curView==='table');
 
-      // 续打模式：已成功打标（非错误/非空）的字段跳过，直接计入完成
-      if(isFieldDone(rowData,fld.name)){
-        skipped++;
-        done++;
-        if(sheetProc[targetIdx]) sheetProc[targetIdx].done=done;
+      // 续打模式：已成功打标的字段跳过，直接计入完成
+      if(opts.mode==='resume' && isFieldDone(rowData,fld.name)){
+        skipped++; done++;
+        sheetProc[targetIdx].done=done;
         if(onScreen) bufProg(done,total,t0,perTimes); else if(done%10===0) updateBgText();
+        if(onScreen) vrRenderIfVisible(ri);
         continue;
       }
 
-
       var bp=buildPrompt(fld,rowData,sheet.originalColumns);
-      var sys=bp.sys, resolved=bp.resolved, srcMap=bp.srcMap, instr=bp.instr;
+      var sys=bp.sys, srcMap=bp.srcMap, instr=bp.instr;
       if(recReason){
         sys+='\n\n请严格只输出一个 JSON 对象（不要代码块标记、不要任何解释文字）：{"分析":"你对上述原文的语义识别过程与判断依据","标签":"最终标签，多值用英文逗号分隔"}';
       }
-
       if(onScreen) bufProc(ri,true);
       var ts=Date.now();
       try {
         var raw=await callAPI(sys,'',cfg.key,0.2);
         if(typeof raw!=='string' || !raw) throw new Error('API返回空或非文本 (type='+(typeof raw)+')');
-
-        var reason='';
-        var parseRaw=raw;
+        var reason='', parseRaw=raw;
         if(recReason){
-          try{
-            var jm=raw.match(/\{[\s\S]*\}/);
-            var jo=JSON.parse(jm[0]);
-            reason=String(jo.分析||'');
-            parseRaw=String(jo.标签!=null?jo.标签:raw);
-          }catch(e){ reason=''; parseRaw=raw; }
+          try{ var jm=raw.match(/\{[\s\S]*\}/); var jo=JSON.parse(jm[0]); reason=String(jo.分析||''); parseRaw=String(jo.标签!=null?jo.标签:raw); }catch(e){ reason=''; parseRaw=raw; }
         }
         var clean=cleanLabel(parseRaw,fld);
-
         rowData[fld.name]=clean;
         if(onScreen){ bufCell(ri,fld.name,clean,'ok',fld); }
         pushThink({t:Date.now(),sheet:sheetName,row:ri,field:fld.name,usedLLM:true,
@@ -1640,10 +1762,9 @@ async function runBatchTagging(){
           srcMap:srcMap,instr:instr,raw:'(调用失败) '+errMsg,reason:'',clean:'[错] '+errMsg});
       }
       if(onScreen) bufProc(ri,false);
-
       var el=Date.now()-ts; perTimes.push(el);
       done++;
-      if(sheetProc[targetIdx]) sheetProc[targetIdx].done=done;
+      sheetProc[targetIdx].done=done;
       if(onScreen) bufProg(done,total,t0,perTimes);
       else if(done%10===0) updateBgText();
       logThrottled('ok','['+fld.name+'] R'+(ri+1)+': '+String(clean||'').substring(0,40));
@@ -1651,10 +1772,9 @@ async function runBatchTagging(){
     }
   }
 
-  // Multi-column parallel: run up to CONC field lanes concurrently, each vertical
-  var CONC=Math.min(localFields.length,4);
+  // 多字段并行：每个字段独立 lane，最多 4 个并发，但全部字段并行推进
   var lanes=[];
-  for(var fi=0;fi<localFields.length;fi++) lanes.push(tagField(localFields[fi]));
+  for(var fi=0;fi<fields.length;fi++) lanes.push(tagFieldLane(fields[fi]));
   await Promise.all(lanes);
 
   if(sheetProc[targetIdx].stop) setSt('done','已停止'); else setSt('done','完成');
@@ -1663,11 +1783,75 @@ async function runBatchTagging(){
   if(targetIdx===activeSheetIdx){ refreshDoc(); updStatus(); }
   saveState();
   sheetProc[targetIdx].active=false;
-  updateRunUI();
-  setTimeout(function(){ if(sheetProc[targetIdx]) sheetProc[targetIdx].active=false; updateRunUI(); }, 2000);
+  updateRunUI(); renderFieldPanel();
+  setTimeout(function(){ if(sheetProc[targetIdx]) sheetProc[targetIdx].active=false; updateRunUI(); renderFieldPanel(); }, 2000);
 }
 
-function markP(ri,on){const tr=document.querySelector(`tr[data-ri="${ri}"]`);if(tr)tr.classList.toggle('proc',on);}
+// 全局按钮：并行打全部字段（受各字段自己的范围/模式约束）
+async function runBatchTagging(){
+  if(!curSheet()){alert('先上传数据');return;}
+  if(!aiFields.length){alert('先配置 AI 字段');return;}
+  if(!tableData().length){alert('先上传数据');return;}
+  var mode=document.getElementById('tagModeSel')?document.getElementById('tagModeSel').value:'resume';
+  await startTagging({targetIdx:activeSheetIdx, fields:curSheet().aiFields.slice(), mode:mode, isGlobal:true});
+}
+// 字段级按钮：只打这一列
+async function runFieldTagging(i){
+  if(!curSheet()){alert('先上传数据');return;}
+  if(!aiFields[i]) return;
+  var mode=document.getElementById('tagModeSel')?document.getElementById('tagModeSel').value:'resume';
+  await startTagging({targetIdx:activeSheetIdx, fields:[aiFields[i]], mode:mode, isGlobal:false});
+}
+
+// 字段面板渲染 / 范围设置 / 删除
+function renderFieldPanel(){
+  var sec=document.getElementById('fldPanelSec'), list=document.getElementById('fldList');
+  if(!sec||!list) return;
+  if(!curSheet() || !aiFields.length){ sec.style.display='none'; return; }
+  sec.style.display='';
+  var running = !!(sheetProc[activeSheetIdx] && sheetProc[activeSheetIdx].active);
+  list.innerHTML=aiFields.map(function(f,i){
+    var tp = f.type==='multi'?'多选':f.type==='single'?'单选':'文本';
+    var start = (f.tagStart&&f.tagStart>0)?f.tagStart:1;
+    var count = (f.tagCount&&f.tagCount>0)?f.tagCount:'';
+    return '<div class="fld-row">'+
+      '<div class="fld-top"><span class="fld-name" onclick="openDrvEdit(aiFields['+i+'])">'+esc(f.name)+'</span>'+
+      '<span class="fld-type">'+tp+'</span>'+
+      '<button class="fld-run" onclick="runFieldTagging('+i+')" '+(running?'disabled':'')+' title="只打这一列">打</button>'+
+      '<button class="fld-del" onclick="deleteField('+i+')" title="删除字段">'+ICON('close')+'</button></div>'+
+      '<div class="fld-cfg"><label>起<input type="number" min="1" value="'+start+'" onchange="setFldRange('+i+',\'start\',this.value)"></label>'+
+      '<label>数<input type="number" min="1" placeholder="全部" value="'+count+'" onchange="setFldRange('+i+',\'count\',this.value)"></label></div>'+
+    '</div>';
+  }).join('');
+}
+function setFldRange(i,key,val){
+  if(!aiFields[i]) return;
+  var n=parseInt(val);
+  if(key==='start') aiFields[i].tagStart = (isNaN(n)||n<1)?1:Math.min(n,tableData().length);
+  else aiFields[i].tagCount = (val===''||isNaN(n)||n<1)?null:n;
+  saveState();
+}
+function deleteField(i){
+  if(!aiFields[i]) return;
+  if(!confirm('删除字段「'+aiFields[i].name+'」？将同时移除该列数据')) return;
+  var nm=aiFields[i].name;
+  sheets.forEach(s=>s.data.forEach(function(r){ delete r[nm]; }));
+  aiFields.splice(i,1);
+  renderTable(); updStatus(); updDataInfo(); refreshDoc(); renderFieldPanel(); saveState();
+  log('info','已删除字段: '+nm);
+}
+// 全局范围选择 = 批量应用到所有字段（起始1，行数=选择值）
+function onTagRangeChange(){
+  var sel=document.getElementById('tagRangeSel').value;
+  if(sel==='custom'){ document.getElementById('tagRangeCustom').style.display='inline-block'; }
+  else { document.getElementById('tagRangeCustom').style.display='none'; }
+  var n = sel==='all'?null:(sel==='custom'?parseInt(document.getElementById('tagRangeCustom').value):parseInt(sel));
+  if(curSheet()) curSheet().aiFields.forEach(function(f){ f.tagStart=1; f.tagCount=(n&&n>0)?n:null; });
+  saveState(); renderFieldPanel();
+  log('info','已把全局范围应用到全部字段（起始第1行，行数 '+(n&&n>0?n:'全部')+'）');
+}
+
+function markP(ri,on){ if(on)procSet.add(ri); else procSet.delete(ri); vrRenderIfVisible(ri); }
 function markCell(ri,cn,state){
   const tr=document.querySelector(`tr[data-ri="${ri}"]`); if(!tr)return;
   const visIdx=getVisibleCols().indexOf(cn); if(visIdx<0)return;
@@ -1692,17 +1876,16 @@ function _flushUI(){
   _bufCells.length=0;
   if(_bufProg){ _applyProg(_bufProg.done,_bufProg.total,_bufProg.t0,_bufProg.per); _bufProg=null; }
 }
-function _applyProc(ri,on){ var tr=document.querySelector(`tr[data-ri="${ri}"]`); if(tr)tr.classList.toggle('proc',on); }
+function _applyProc(ri,on){ if(on)procSet.add(ri); else procSet.delete(ri); vrRenderIfVisible(ri); }
 function _applyCell(b){
-  var tr=document.querySelector(`tr[data-ri="${b.ri}"]`); if(!tr)return;
-  var visIdx=getVisibleCols().indexOf(b.cn); if(visIdx<0)return;
-  var td=tr.children[visIdx+2]; if(!td)return;
-  if(b.fld&&(b.fld.type==='multi'||b.fld.type==='single')){
-    var tags=String(b.val).split(',').map(function(t){return t.trim();}).filter(Boolean);
-    td.innerHTML='<div class="cell-tags">'+tags.map(function(t,i){return `<span class="tag-pill ${TC[i%TC.length]}" title="${esc(t)}">${esc(t)}</span>`;}).join('')+'</div>';
-  } else td.innerHTML=`<div class="cell-txt" title="${esc(String(b.val))}">${esc(String(b.val))}</div>`;
-  td.classList.remove('cok','cerr');
-  if(b.state==='ok')td.classList.add('cok'); else if(b.state==='err')td.classList.add('cerr');
+  vrRenderIfVisible(b.ri);
+  // flash the specific cell green/red
+  if(b.state){
+    var tr=document.querySelector('tr[data-ri="'+b.ri+'"]'); if(tr){
+      var visIdx=getVisibleCols().indexOf(b.cn);
+      if(visIdx>=0){ var td=tr.children[visIdx+2]; if(td){ td.classList.remove('cok','cerr'); if(b.state==='ok')td.classList.add('cok'); else if(b.state==='err')td.classList.add('cerr'); } }
+    }
+  }
 }
 function _applyProg(done,total,t0,per){
   var fill=document.getElementById('progFill'); if(fill)fill.style.width=Math.round(done/total*100)+'%';
@@ -1721,7 +1904,7 @@ function _applyProg(done,total,t0,per){
     } else { etaEl.style.display='none'; }
   }
 }
-// batched public API used by tagging loops
+// batched public API used by tagging loops (sheet.data already holds the fresh value)
 function bufCell(ri,cn,val,state,fld){ _bufCells.push({ri:ri,cn:cn,val:val,state:state,fld:fld}); _schedUI(); }
 function bufProc(ri,on){ _bufProc.push({ri:ri,on:on}); _schedUI(); }
 function bufProg(done,total,t0,per){ _bufProg={done:done,total:total,t0:t0,per:per}; _schedUI(); }
@@ -1749,37 +1932,34 @@ function buildPrompt(fld,rowData,oc){
   return {sys:sys,resolved:resolved,srcMap:srcMap,instr:fld.prompt};
 }
 function cleanLabel(raw,fld){
-  var clean='';
-  try{ clean=String(raw).trim().replace(/^["'\u201c\u201d]|["'\u201d]$/g,'').replace(/^\d+[.\uff0e\u3001\s]*/gm,'').trim(); }catch(e){ clean=String(raw).trim(); }
-  if(fld.type!=='text' && clean){
-    try{
-      var parts=clean.split(/[,;\uff0c\uff1b\n]/); var tagParts=[];
-      for(var pi=0;pi<parts.length;pi++){ var tp=String(parts[pi]).replace(/^["'\s\u3002.]|["'\s\u3002.]$/g,'').trim(); if(tp && tp!=='未提及') tagParts.push(tp); }
-      tagParts=tagParts.slice(0, fld.type==='single'?1:20); clean=tagParts.join(', ');
-    }catch(e){}
-    if(!clean) clean='未提及';
+  var clean=String(raw==null?'':raw);
+  // 去掉代码块包裹
+  clean=clean.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
+  // 去掉首尾引号
+  clean=clean.replace(/^\s*["'“”‘’]+/,'').replace(/["'“”‘’]+\s*$/,'');
+  // 去掉前缀编号（如 "1. " / "1、"）
+  clean=clean.replace(/^\d+[.\uff0e\u3001\u3002、\s]*/gm,'');
+  clean=clean.trim();
+  if(!clean) return '未提及';
+  if(fld && fld.type!=='text'){
+    var parts=clean.split(/[,;\uff0c\uff1b\n]+/);
+    var out=[];
+    for(var pi=0;pi<parts.length;pi++){
+      var tp=String(parts[pi]).trim().replace(/^["'“”‘’\s]+/,'').replace(/["'“”‘’\s]+$/,'');
+      // 只保留文字/数字/空格/常用分隔符，剥离 emoji 与几何符号（△★※▶◀ 等）
+      tp=tp.replace(/[^\p{L}\p{N}\s、·\-/]/gu,'').trim();
+      if(tp && tp!=='未提及' && out.indexOf(tp)<0) out.push(tp);
+    }
+    out=out.slice(0, fld.type==='single'?1:20);
+    clean=out.join(', ');
+  } else if(fld && fld.type==='text'){
+    // 文本字段：剥离 emoji/符号，保留正常标点
+    clean=clean.replace(/[^\p{L}\p{N}\s、，。·\-\/：:（）()！？；;%.,]/gu,'').trim();
   }
+  if(!clean) clean='未提及';
   return clean;
 }
 
-function getTagRows(){
-  const total=tableData().length;
-  if(total<=0) return [];
-  const sel=document.getElementById('tagRangeSel').value;
-  if(sel==='all') return [...Array(total).keys()];
-  if(sel==='custom'){
-    let n=parseInt(document.getElementById('tagRangeCustom').value)||total;
-    n=Math.max(1,Math.min(n,total));
-    return [...Array(n).keys()];
-  }
-  let n=parseInt(sel)||total;
-  n=Math.max(1,Math.min(n,total));
-  return [...Array(n).keys()];
-}
-function onTagRangeChange(){
-  const sel=document.getElementById('tagRangeSel').value;
-  document.getElementById('tagRangeCustom').style.display = sel==='custom'?'inline-block':'none';
-}
 function ctxReTagRow(){
   if(!_ctxTarget||_ctxTarget.type!=='row')return;
   reTagRow(_ctxTarget.idx);
@@ -1913,7 +2093,7 @@ function refreshDoc(){renderCur();}
 
 function renderCur(){
   if(!tableData().length&&!aiFields.length){
-    const emptyHtml = `<div class="de"><div class="de-i">&#128196;</div><div class="de-t">暂无数据</div><div class="de-s">上传文件并配置 AI 字段后查看文档</div></div>`;
+    const emptyHtml = `<div class="de"><div class="de-i">${ICON('file')}</div><div class="de-t">暂无数据</div><div class="de-s">上传文件并配置 AI 字段后查看文档</div></div>`;
     ['docStats','docValidate','docLlmVal'].forEach(id=>{document.getElementById(id).innerHTML=emptyHtml;});
     return;
   }
@@ -1929,7 +2109,7 @@ let _thinkTimer=null, _thinkIdx=0, _thinkPlaying=true, _thinkEl=null;
 function renderThink(c){
   _thinkEl=c;
   if(!thinkLog.length){
-    c.innerHTML='<div class="de"><div class="de-i">&#129302;</div><div class="de-t">暂无思考记录</div><div class="de-s">运行打标后，这里会展示最近 '+THINK_MAX+' 条 AI 对原文的分析过程。开启侧栏「深度分析」可让 AI 写出语义识别推理。</div></div>';
+    c.innerHTML='<div class="de"><div class="de-i">'+ICON('brain')+'</div><div class="de-t">暂无思考记录</div><div class="de-s">运行打标后，这里会展示最近 '+THINK_MAX+' 条 AI 对原文的分析过程。开启侧栏「深度分析」可让 AI 写出语义识别推理。</div></div>';
     stopThinkTimer(); return;
   }
   paintThink();
@@ -1964,7 +2144,7 @@ function paintThink(){
           <tbody>${thinkLog.map(function(r, idx){
             var isErr = String(r.clean||'').startsWith('[错]');
             var vc = isErr ? 'var(--error)' : (r.reason ? 'var(--success)' : 'var(--text-tertiary)');
-            var vi = isErr ? '&#10007;' : (r.reason ? '&#10003;' : '&#9679;');
+            var vi = isErr ? viIco('bad') : (r.reason ? viIco('ok') : viIco('dot'));
             // Build original text from srcMap
             var origText = '';
             if(r.srcMap && Object.keys(r.srcMap).length){
@@ -1996,9 +2176,8 @@ function paintThink(){
           if(r.srcMap&&Object.keys(r.srcMap).length){
             parts.push('<div style="margin-bottom:8px"><strong style="font-size:11px;color:var(--text-secondary)">原文：</strong><pre style="margin:4px 0;font-size:11px;line-height:1.4;white-space:pre-wrap;word-break:break-all;color:var(--text-primary)">'+Object.keys(r.srcMap).map(function(k){return esc(k)+': '+esc(String(r.srcMap[k]||''));}).join('\n')+'</pre></div>');
           }
-          parts.push('<div style="margin-bottom:8px"><strong style="font-size:11px;color:var(--text-secondary)">指令：</strong><div style="font-size:11px;line-height:1.5;color:var(--text-secondary)">'+esc(r.instr||r.prompt||'')+'</div></div>');
           if(r.reason){
-            parts.push('<div><strong style="font-size:11px;color:var(--success)">AI 语义分析：</strong><div style="margin-top:4px;padding:10px;background:rgba(16,185,129,0.05);border-left:3px solid var(--success);border-radius:0 var(--radius-sm);font-size:12px;line-height:1.7;color:var(--text-primary)">'+esc(r.reason)+'</div></div>');
+            parts.push('<div><strong style="font-size:11px;color:var(--success)">AI 语义分析（为什么打这些标签）：</strong><div style="margin-top:4px;padding:10px;background:rgba(16,185,129,0.05);border-left:3px solid var(--success);border-radius:0 var(--radius-sm);font-size:12px;line-height:1.7;color:var(--text-primary)">'+esc(r.reason)+'</div></div>');
           } else if(r.raw){
             parts.push('<div><strong style="font-size:11px;color:var(--text-secondary)">AI 原始返回：</strong><pre style="margin:4px 0;font-size:11px;line-height:1.4;white-space:pre-wrap;word-break:break-all">'+esc(r.raw)+'</pre></div>');
           }
@@ -2140,7 +2319,7 @@ function renderValidate(c){
 
 // --- LLM Validation ---
 function renderLlmVal(c){
-  if(!llmValResults){c.innerHTML=`<div class="de"><div class="de-i">&#129302;</div><div class="de-t">尚未运行 LLM 验证</div><div class="de-s">设置抽样数量后点击"运行 LLM 验证"</div></div>`;return;}
+  if(!llmValResults){c.innerHTML=`<div class="de"><div class="de-i">${ICON('brain')}</div><div class="de-t">尚未运行 LLM 验证</div><div class="de-s">设置抽样数量后点击"运行 LLM 验证"</div></div>`;return;}
   const R=llmValResults;
   c.innerHTML=`<div class="dsec"><div class="ds-title">LLM 抽样验证报告</div><div class="ds-meta">
     <span>抽样数量: <strong>${R.sampleSize}</strong></span>
@@ -2170,6 +2349,23 @@ function renderLlmVal(c){
         </div>
         <div id="corrProgText" style="font-size:11px;color:var(--text-secondary);margin-top:4px"></div>
       </div>
+
+      <div style="height:1px;background:var(--border);margin:14px 0 12px"></div>
+      <div class="ds-title" style="margin-bottom:4px">同类错误深度抽样</div>
+      <div class="ds-meta"><span style="color:var(--text-tertiary);font-size:11px">基于上面检查出的错误类型，在数据中寻找「相似的未验证样本」重新做 LLM 验证，可逐轮递归深挖，是否继续由你决定。</span></div>
+      <div class="deep-cfg">
+        <label style="font-size:11.5px;color:var(--text-secondary)">每轮抽样数:</label>
+        <input type="number" id="deepSampleN" value="50" min="5" max="300">
+        <button class="btn btn-warn" id="deepBtn" onclick="runDeepSampling()" ${R.incorrect>0?'':'disabled'}>开始深度抽样 ${R.incorrect>0?'('+R.incorrect+')':''}</button>
+        <button class="btn btn-ghost" id="deepStopBtn" onclick="_deepStop=true" style="display:none">停止</button>
+        <span class="ds-round">已深度轮次: <strong>${R.deepRounds||0}</strong></span>
+      </div>
+      <div id="deepProgWrap" style="display:none;margin-top:8px">
+        <div style="height:6px;background:var(--border);border-radius:4px;overflow:hidden">
+          <div id="deepProgBar" style="height:100%;width:0%;background:var(--accent);transition:width .2s"></div>
+        </div>
+        <div id="deepProgText" style="font-size:11px;color:var(--text-secondary);margin-top:4px"></div>
+      </div>
     </div>
 
     <div class="dsec"><div class="ds-title">逐条验证明细</div>
@@ -2187,7 +2383,7 @@ function renderLlmVal(c){
           <tbody>${R.results.map(function(res, ri){
             var isCorr=res.corrected;
             var vc = isCorr?'var(--success)':(res.verdict==='correct'?'var(--success)':res.verdict==='partial'?'var(--warning)':'var(--error)');
-            var vi = isCorr?'&#10003;':(res.verdict==='correct'?'&#10003;':res.verdict==='partial'?'&#9888;':'&#10007;');
+            var vi = isCorr?viIco('ok'):(res.verdict==='correct'?viIco('ok'):res.verdict==='partial'?viIco('warn'):viIco('bad'));
             var showTag = isCorr ? res.llmVerdict : res.originalTag;
             var tagCell = isCorr
               ? `<span class="tag-pill" style="background:rgba(16,185,129,0.12);color:#059669;border:1px solid rgba(16,185,129,0.35)">${esc(String(res.llmVerdict))}</span><span style="display:inline-block;margin-left:5px;font-size:9px;color:#059669;background:rgba(16,185,129,0.12);padding:1px 5px;border-radius:4px;vertical-align:middle">已修正</span>`
@@ -2295,23 +2491,6 @@ async function runLLMValidation(){
         });
         var context=contextParts.join('\n');
 
-        var userContent=[
-          '## 待验证数据（第 '+(dataIdx+1)+' 行）',context,'',
-          '## 当前标注','字段: '+fld.name,'标签值: '+tag,'',
-          '## 字段定义','用途: '+fld.prompt,
-          (fld.options.length?'可选标签: '+fld.options.join(', '):''),
-          (fld.strict?'(严格模式: 只能从可选标签中选择)':''),
-        ].join('\n');
-
-        var systemPrompt='你是一个专业的数据标注质量审核员。你的任务是独立判断已有的标签是否准确。\n\n'+
-          '## 审核标准\n'+
-          '1. 根据原始数据的实际内容，判断当前标签是否语义上正确\n'+
-          '2. 如果标签是多个值的组合，逐个判断是否都合理\n'+
-          '3. 考虑边界情况：是否遗漏了更合适的标签，或包含了不相关的标签\n\n'+
-          '## 输出格式（严格 JSON）\n'+
-          '{"verdict":"correct|incorrect|partial","verdict_tag":"你给出的正确标签(如果原标签不对)","reason":"一句话解释判断理由"}\n\n'+
-          '只输出 JSON，不要其他文字。';
-
         // Update progress
         doneCount++;
         var pct=Math.round(doneCount/totalTasks*100);
@@ -2321,20 +2500,10 @@ async function runLLMValidation(){
 
         markP(dataIdx,true);
         try{
-          var raw=await callAPI(systemPrompt,userContent,cfg.key,0.1);
-          if(typeof raw!=='string'||!raw) throw new Error('API返回空或非文本');
-          var jsonMatch=raw.match(/\{[\s\S]*\}/);
-          if(!jsonMatch) throw new Error('无法解析验证结果 (raw: '+raw.substring(0,80)+')');
-          var parsed=JSON.parse(jsonMatch[0]);
-          results.push({
-            rowIndex:dataIdx+1, fieldName:fld.name, originalTag:tag,
-            llmVerdict:parsed.verdict_tag||parsed.verdict||'未知',
-            verdict:parsed.verdict==='correct'?'correct':(parsed.verdict==='partial'?'partial':'incorrect'),
-            reason:parsed.reason||'',
-            originalText:context, sheetIdx:valSheetIdx, corrected:false
-          });
-          if(parsed.verdict==='correct') correct++; else incorrect++;
-          log('ok', '[验证] R'+(dataIdx+1)+' '+fld.name+': '+parsed.verdict);
+          var res=await validateOne(dataIdx,fld,cfg);
+          results.push(res);
+          if(res.verdict==='correct') correct++; else incorrect++;
+          log('ok', '[验证] R'+(dataIdx+1)+' '+fld.name+': '+res.verdict);
         } catch(err){
           results.push({rowIndex:dataIdx+1,fieldName:fld.name,originalTag:tag,llmVerdict:'解析失败',verdict:'incorrect',reason:String(err.message),originalText:context,sheetIdx:valSheetIdx,corrected:false});
           incorrect++;
@@ -2379,6 +2548,291 @@ function exportLlmVal(){
     csv+=`${r.rowIndex},"${r.fieldName}","${r.originalTag.replace(/"/g,'""')}","${r.llmVerdict.replace(/"/g,'""')}","${r.verdict}","${r.reason.replace(/"/g,'""')}","${(r.originalText||'').replace(/"/g,'""').replace(/\n/g,'\\n')}"\n`;
   });
   download(csv,`llm-validation-${Date.now()}.csv`,'text/csv'); log('info','已导出 LLM 验证结果 CSV');
+}
+
+// ============================================================
+// VALIDATE ONE (shared by random validation + deep sampling)
+// ============================================================
+async function validateOne(dataIdx, fld, cfg){
+  var data=tableData();
+  var row=data[dataIdx];
+  var contextParts=[];
+  originalColumns().forEach(function(c){ contextParts.push(c+': '+(row[c]||'(无)')); });
+  var context=contextParts.join('\n');
+  var tag=row[fld.name];
+  var userContent=[
+    '## 待验证数据（第 '+(dataIdx+1)+' 行）',context,'',
+    '## 当前标注','字段: '+fld.name,'标签值: '+tag,'',
+    '## 字段定义','用途: '+fld.prompt,
+    (fld.options.length?'可选标签: '+fld.options.join(', '):''),
+    (fld.strict?'(严格模式: 只能从可选标签中选择)':'')
+  ].join('\n');
+  var systemPrompt='你是一个专业的数据标注质量审核员。你的任务是独立判断已有的标签是否准确。\n\n'+
+    '## 审核标准\n'+
+    '1. 根据原始数据的实际内容，判断当前标签是否语义上正确\n'+
+    '2. 如果标签是多个值的组合，逐个判断是否都合理\n'+
+    '3. 考虑边界情况：是否遗漏了更合适的标签，或包含了不相关的标签\n\n'+
+    '## 输出格式（严格 JSON）\n'+
+    '{"verdict":"correct|incorrect|partial","verdict_tag":"你给出的正确标签(如果原标签不对)","reason":"一句话解释判断理由"}\n\n'+
+    '只输出 JSON，不要其他文字。';
+  var raw=await callAPI(systemPrompt,userContent,cfg.key,0.1);
+  if(typeof raw!=='string'||!raw) throw new Error('API返回空或非文本');
+  var jsonMatch=raw.match(/\{[\s\S]*\}/);
+  if(!jsonMatch) throw new Error('无法解析验证结果 (raw: '+raw.substring(0,80)+')');
+  var parsed=JSON.parse(jsonMatch[0]);
+  return {
+    rowIndex:dataIdx+1, fieldName:fld.name, originalTag:tag,
+    llmVerdict:parsed.verdict_tag||parsed.verdict||'未知',
+    verdict:parsed.verdict==='correct'?'correct':(parsed.verdict==='partial'?'partial':'incorrect'),
+    reason:parsed.reason||'',
+    originalText:context, sheetIdx:activeSheetIdx, corrected:false
+  };
+}
+
+// ============================================================
+// REQ 6: 同类错误深度抽样 (find similar-to-error samples, re-validate, repeatable)
+// ============================================================
+var _deepStop=false;
+function _tokSet(t){
+  t=String(t==null?'':t).toLowerCase();
+  var sig=new Set();
+  var cn=t.match(/[\u4e00-\u9fff]/g)||[];
+  for(var i=0;i+1<cn.length;i++) sig.add(cn[i]+cn[i+1]);
+  var words=t.match(/[a-z0-9]{2,}/g)||[];
+  words.forEach(function(w){ sig.add('w'+w); });
+  return sig;
+}
+function _sim(a,b){
+  if(!a.size||!b.size) return 0;
+  var inter=0; a.forEach(function(t){ if(b.has(t)) inter++; });
+  return inter/Math.sqrt(a.size*b.size);
+}
+async function runDeepSampling(){
+  if(!llmValResults){alert('先运行 LLM 验证');return;}
+  var R=llmValResults;
+  var errors=R.results.filter(function(r){return r.verdict!=='correct' && !r.corrected;});
+  if(!errors.length){alert('当前没有错误样本可供深度抽样');return;}
+  var cfg=apiCfg(); if(!cfg.key){alert('请先填 API Key');return;}
+  var N=Math.min(Math.max(parseInt(document.getElementById('deepSampleN').value)||50,5),300);
+  // 已验证过的 (行,字段) 不再重复抽
+  var checked=new Set(R.results.map(function(r){return r.rowIndex+'@@'+r.fieldName;}));
+  var errSig=errors.map(function(e){return {field:e.fieldName, sig:_tokSet(e.originalText)};});
+  var data=tableData();
+  var candMap={};
+  for(var i=0;i<data.length;i++){
+    var row=data[i];
+    for(var fi=0;fi<aiFields.length;fi++){
+      var f=aiFields[fi];
+      var v=row[f.name];
+      if(!v||v==='--'||v==='未提及'||String(v).startsWith('[错]')) continue;
+      if(checked.has((i+1)+'@@'+f.name)) continue;
+      var full=originalColumns().map(function(c){return row[c]||'';}).join(' ')+' '+aiFields.map(function(f2){return row[f2.name]||'';}).join(' ');
+      var sig=_tokSet(full); var best=0;
+      errSig.forEach(function(e){ if(e.field===f.name){ var s=_sim(sig,e.sig); if(s>best)best=s; } });
+      if(best<=0) continue;
+      if(!candMap[f.name]) candMap[f.name]=[];
+      candMap[f.name].push({idx:i,field:f.name,sim:best});
+    }
+  }
+  var fields=Object.keys(candMap);
+  if(!fields.length){alert('没有找到与错误相似的未验证样本');return;}
+  var perF=Math.max(1,Math.floor(N/fields.length));
+  var cands=[];
+  fields.forEach(function(f){ candMap[f].sort(function(a,b){return b.sim-a.sim;}); cands=cands.concat(candMap[f].slice(0,perF)); });
+  cands.sort(function(a,b){return b.sim-a.sim;});
+  cands=cands.slice(0,N);
+  if(!cands.length){alert('没有找到与错误相似的未验证样本');return;}
+  var round=(R.deepRounds||0)+1;
+  if(!confirm('基于 '+errors.length+' 条错误，找到 '+cands.length+' 条相似未验证样本。\n将做同类错误深度抽样（第 '+round+' 轮）。确认开始？')) return;
+
+  var btn=document.getElementById('deepBtn'), pwrap=document.getElementById('deepProgWrap'), pbar=document.getElementById('deepProgBar'), ptext=document.getElementById('deepProgText'), stopBtn=document.getElementById('deepStopBtn');
+  btn.disabled=true; pwrap.style.display='block'; pbar.style.width='0%';
+  if(stopBtn) stopBtn.style.display='inline-block';
+  _deepStop=false;
+  var added=0, done=0, total=cands.length;
+  try{
+    for(var ci=0;ci<cands.length;ci++){
+      if(_deepStop) break;
+      var c=cands[ci]; var fld=aiFields.find(function(f){return f.name===c.field;});
+      if(!fld) continue;
+      markP(c.idx,true);
+      try{
+        var res=await validateOne(c.idx,fld,cfg);
+        R.results.push(res); added++;
+      }catch(err){
+        R.results.push({rowIndex:c.idx+1,fieldName:c.field,originalTag:data[c.idx][c.field],llmVerdict:'解析失败',verdict:'incorrect',reason:String(err.message),originalText:'',sheetIdx:activeSheetIdx,corrected:false});
+        added++;
+      }
+      markP(c.idx,false);
+      done++; var pct=Math.round(done/total*100);
+      pbar.style.width=pct+'%';
+      ptext.textContent='深度抽样中... '+done+'/'+total+' ('+pct+'%) · 新增验证 '+added;
+      await sleep(60);
+    }
+    R.deepRounds=round;
+    var tot=R.results.length, cor=R.results.filter(function(r){return r.verdict==='correct'||r.corrected;}).length;
+    R.correct=cor; R.incorrect=tot-cor; R.accuracy=tot?Math.round(cor/tot*100):0;
+    saveState();
+    ptext.textContent=(_deepStop?'已停止 · ':'完成! ')+'本轮新增验证 '+added+' 条（累计 '+tot+' 条，准确率 '+R.accuracy+'%）';
+    log('info','同类错误深度抽样第'+round+'轮: 新增 '+added+' 条');
+    swView('llmval'); renderLlmVal(document.getElementById('docLlmVal'));
+  }catch(e){ alert('深度抽样出错: '+e.message); }
+  btn.disabled=false; if(stopBtn) stopBtn.style.display='none';
+}
+
+// ============================================================
+// REQ 5: AI 字段助手（侧边聊天，自然语言建/删/改名/改提示词 + 导入标签体系）
+// ============================================================
+var chatHistory=[];
+function toggleChat(){
+  var p=document.getElementById('aiChat');
+  p.classList.toggle('open');
+  if(p.classList.contains('open') && !chatHistory.length){
+    var b=document.getElementById('acBody'); b.innerHTML='';
+    addChat('bot','你好，我是 AI 字段助手。可用自然语言让我帮你：\n· 新建字段（指定名称/类型/提示词/选项）\n· 删除字段\n· 修改字段名或提示词\n· 导入标签体系（粘贴体系描述，我帮你建多个字段）\n\n当前字段：'+(aiFields.length?aiFields.map(function(f){return f.name+'('+(f.type==='multi'?'多选':f.type==='single'?'单选':'文本')+')';}).join('、'):'(无)'));
+  }
+  if(p.classList.contains('open')) setTimeout(function(){var i=document.getElementById('acInput'); if(i)i.focus();},220);
+}
+function clearChat(){ chatHistory=[]; document.getElementById('acBody').innerHTML=''; }
+function addChat(role, text, acts){
+  var b=document.getElementById('acBody');
+  var d=document.createElement('div');
+  d.className='ac-msg '+(role==='user'?'user':'bot');
+  d.textContent=text;
+  if(acts&&acts.length){
+    var row=document.createElement('div'); row.className='ac-acts';
+    acts.forEach(function(a){ var s=document.createElement('span'); s.className='ac-pill'; s.textContent=a; row.appendChild(s); });
+    d.appendChild(row);
+  }
+  b.appendChild(d); b.scrollTop=b.scrollHeight;
+}
+function actionLabel(a){
+  if(a.action==='create') return '新建: '+(a.name||'?');
+  if(a.action==='rename') return '改名: '+(a.from||'')+'→'+(a.to||'');
+  if(a.action==='delete') return '删除: '+(a.name||'?');
+  if(a.action==='modify') return '修改: '+(a.name||'?');
+  if(a.action==='import') return '导入标签体系';
+  return a.action||'?';
+}
+// 从标签体系描述中提取字段（供聊天 import 使用）
+async function extractLabelFields(desc, typePref, apiKey){
+  var sysPrompt='你是一位资深数据标注架构师，擅长从标签体系说明文档中提取结构化的打标字段配置。\n\n'+
+    '## 任务\n识别文档中定义的所有**标注维度/模块**（每个维度对应一个 AI 打标字段），为每个维度写出专业的**打标指令(prompt)**，提取**具体标签选项**，并判断**多选/单选/文本**。\n\n'+
+    '## 字段配置输出格式（严格 JSON 数组）\n'+
+    '{"name":"维度名称(简洁中文2-8字)","prompt":"打标指令(含文档判断要点)","type":"multi|single|text","options":["标签1","标签2"],"strict":false}\n\n'+
+    '## 提取策略\n1. 优先使用文档正式维度名作为 name\n2. prompt 必须包含文档中的关键判断要点\n3. options 必须来自文档具体标签，不要编造\n'+
+    '4. 互斥归类→single；可同时命中多个→multi；需自由描述→text\n\n只输出 JSON 数组，不要解释文字/代码块标记。';
+  var userMsg='【当前数据表的列名】\n'+(originalColumns().join(', ')||'(尚未上传数据文件)')+'\n\n【标签体系文档内容】\n'+desc+'\n\n【输出格式偏好】默认: '+typePref+'\n\n请仔细分析文档，提取所有标注维度并生成完整字段配置。';
+  var raw=await callAPI(sysPrompt,userMsg,apiKey,0.4,8000);
+  var jsonStr=raw;
+  var m=raw.match(/\[[\s\S]*\]/);
+  if(m) jsonStr=m[0];
+  jsonStr=jsonStr.replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/\s*```\s*$/,'').trim();
+  var fields;
+  try{ fields=JSON.parse(jsonStr); }
+  catch(parseErr){
+    var repaired=repairTruncatedJSON(jsonStr);
+    if(repaired){ try{ fields=JSON.parse(repaired); }catch(e2){ throw new Error('AI 返回的 JSON 不完整（可能文档过长被截断）。建议缩短描述后重试。'); } }
+    else throw new Error('AI 返回的 JSON 不完整（可能文档过长被截断）。建议缩短描述后重试。');
+  }
+  if(!Array.isArray(fields)) throw new Error('AI 未返回字段数组');
+  fields.forEach(function(f){
+    if(['multi','single','text'].indexOf(f.type)===-1) f.type=typePref||'multi';
+    if(!Array.isArray(f.options)) f.options=[];
+    if(typeof f.strict!=='boolean') f.strict=false;
+  });
+  return fields;
+}
+async function sendChat(){
+  var ta=document.getElementById('acInput'); var txt=ta.value.trim();
+  if(!txt) return;
+  var cfg=apiCfg(); if(!cfg.key){ alert('请先在左侧 API 配置区填写 API Key'); return; }
+  addChat('user', txt); chatHistory.push({role:'user',content:txt});
+  ta.value='';
+  var btn=document.getElementById('acSend'); btn.disabled=true; btn.textContent='思考中…';
+  var hist=chatHistory.slice(-6).map(function(m){(m.role==='user'?'用户: ':'助手: ')+m.content;}).join('\n');
+  var sysPrompt='你是一个数据标注字段管理助手，通过对话帮用户管理 AI 打标字段。\n'+
+    '当前数据表列：'+(originalColumns().join(', ')||'(尚未上传)')+'\n'+
+    '当前已有 AI 字段：'+(aiFields.length?aiFields.map(function(f){return f.name+'['+f.type+']';}).join(', '):'(无)')+'\n'+
+    '行数：'+tableData().length+'\n\n'+
+    '当用户要改动字段时，输出一个 JSON 对象（不要其他文字，不要 markdown 代码块）：\n'+
+    '{"reply":"给用户的中文回复","actions":[\n'+
+    '  {"action":"create","name":"字段名","prompt":"打标提示词","type":"multi|single|text","options":["标签1"],"strict":false},\n'+
+    '  {"action":"rename","from":"旧名","to":"新名"},\n'+
+    '  {"action":"delete","name":"字段名"},\n'+
+    '  {"action":"modify","name":"字段名","prompt":"新提示词","type":"single","options":["..."],"strict":false},\n'+
+    '  {"action":"import","desc":"标签体系描述文本"}\n]}\n'+
+    '只有明确需要改动字段时才填 actions；普通问答只给 reply。create 时若用户没给选项，options 给 []；type 默认 multi。import 的 desc 用于从标签体系描述中提取多个字段。';
+  var userMsg=(hist?hist+'\n\n':'')+'用户最新指令: '+txt;
+  try{
+    var resp=await callAPI(sysPrompt,userMsg,cfg.key,0.2,4000);
+    var jm=resp.match(/\{[\s\S]*\}/);
+    if(!jm) throw new Error('无法解析助手回复');
+    var obj=JSON.parse(jm[0]);
+    var reply=obj.reply||'(无回复)';
+    var actions=Array.isArray(obj.actions)?obj.actions:[];
+    var summary=await execFieldActions(actions);
+    addChat('bot', reply+(summary?'\n\n'+summary:''), actions.map(function(a){return actionLabel(a);}));
+    chatHistory.push({role:'assistant',content:reply});
+  }catch(e){ addChat('bot','⚠ 出错了: '+e.message); }
+  btn.disabled=false; btn.textContent='发送';
+}
+async function execFieldActions(actions){
+  if(!actions.length) return '';
+  var done=[];
+  for(var i=0;i<actions.length;i++){
+    var a=actions[i];
+    try{
+      if(a.action==='create'){ createField(a.name,a.prompt,a.type,a.options,a.strict); done.push('新建「'+(a.name||'')+'」'); }
+      else if(a.action==='rename'){ renameField(a.from,a.to); done.push('改名「'+(a.from||'')+'」→「'+(a.to||'')+'」'); }
+      else if(a.action==='delete'){ var idx=aiFields.findIndex(function(f){return f.name===a.name;}); if(idx>=0){ deleteFieldSilent(idx); done.push('删除「'+(a.name||'')+'」'); } else done.push('⚠ 未找到「'+(a.name||'')+'」'); }
+      else if(a.action==='modify'){ modifyField(a.name,{prompt:a.prompt,type:a.type,options:a.options,strict:a.strict}); done.push('修改「'+(a.name||'')+'」'); }
+      else if(a.action==='import'){ var fs=await extractLabelFields(a.desc||'', 'multi', null); var n=applyBuiltFields(fs); done.push('导入标签体系 → 新建 '+n+' 个字段'); }
+      else done.push('⚠ 未知操作: '+(a.action||''));
+    }catch(e){ done.push('⚠ '+(a.name||a.action)+' 失败: '+e.message); }
+  }
+  renderFieldPanel(); renderTable(); updStatus(); updDataInfo(); refreshDoc(); saveState();
+  return '已执行：\n'+done.map(function(d){return '· '+d;}).join('\n');
+}
+function createField(name,prompt,type,options,strict){
+  name=String(name||'').trim(); if(!name) throw new Error('缺字段名');
+  if(aiFields.some(function(f){return f.name===name;})) throw new Error('字段名「'+name+'」已存在');
+  prompt=String(prompt||'').trim()||('判断「'+name+'」');
+  type=['multi','single','text'].indexOf(type)>=0?type:'multi';
+  aiFields.push({name:name,prompt:prompt,type:type,options:Array.isArray(options)?options:[],strict:!!strict && type!=='text'});
+}
+function renameField(from,to){
+  from=String(from||'').trim(); to=String(to||'').trim();
+  var idx=aiFields.findIndex(function(f){return f.name===from;}); if(idx<0) throw new Error('未找到「'+from+'」');
+  if(aiFields.some(function(f,i){return f.name===to&&i!==idx;})) throw new Error('新名「'+to+'」已存在');
+  var old=aiFields[idx].name; aiFields[idx].name=to;
+  sheets.forEach(function(s){ s.data.forEach(function(r){ if(r.hasOwnProperty(old)){ r[to]=r[old]; delete r[old]; } }); });
+}
+function modifyField(name,props){
+  var f=aiFields.find(function(x){return x.name===name;}); if(!f) throw new Error('未找到「'+name+'」');
+  if(props.prompt!=null) f.prompt=String(props.prompt).trim();
+  if(props.type&&['multi','single','text'].indexOf(props.type)>=0){ f.type=props.type; if(props.type==='text') f.options=[]; }
+  if(Array.isArray(props.options)) f.options=props.options;
+  if(typeof props.strict==='boolean') f.strict=props.strict && f.type!=='text';
+}
+function deleteFieldSilent(i){
+  if(!aiFields[i]) return;
+  var nm=aiFields[i].name;
+  sheets.forEach(function(s){ s.data.forEach(function(r){ delete r[nm]; }); });
+  aiFields.splice(i,1);
+}
+function applyBuiltFields(fields){
+  if(!Array.isArray(fields)) return 0;
+  var existing=new Set(aiFields.map(function(f){return f.name;})), n=0;
+  fields.forEach(function(f){
+    if(existing.has(f.name)) return;
+    if(!f.name||!f.prompt) return;
+    if(['multi','single','text'].indexOf(f.type)===-1) f.type='multi';
+    if(!Array.isArray(f.options)) f.options=[];
+    aiFields.push({name:f.name,prompt:f.prompt,type:f.type,options:f.options,strict:!!f.strict&&f.type!=='text'});
+    existing.add(f.name); n++;
+  });
+  return n;
 }
 
 // --- One-click correction: apply AI suggested tags to data for incorrect/partial entries ---
@@ -2438,6 +2892,8 @@ async function runCorrection(){
   R.accuracy=totalChecked?Math.round(nowCorrect/totalChecked*100):0;
 
   saveState();
+  // 立即把修正后的标签写回数据表格视图（无论当前在哪个视图）
+  renderTable(); refreshDoc();
   status.textContent=(_corrStop?'已停止 · ':'完成! ')+'已修正 '+applied+' 条'+(skipped?'（跳过 '+skipped+' 条无效）':'');
   btn.disabled=false; btn.textContent='已矫正，可重新运行验证复核';
   if(stopBtn) stopBtn.style.display='none';
@@ -2640,6 +3096,32 @@ function exportFieldConfig(){
 // ============================================================
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function escAttr(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+// Inline SVG icons (replace emoji). stroke=currentColor so they inherit text color.
+function ICON(name){
+  var s='<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">';
+  var paths={
+    table:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>',
+    stats:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    check:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 9h6M9 13h6M9 17h4"/>',
+    brain:'<path d="M12 3a4 4 0 00-4 4 3 3 0 00-1 5.8A3 3 0 009 17a3 3 0 006 0 3 3 0 003-4.2A3 3 0 0016 7a4 4 0 00-4-4z"/><path d="M12 3v14"/>',
+    upload:'<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/>',
+    file:'<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5"/>',
+    close:'<path d="M6 6l12 12M18 6L6 18"/>',
+    ai:'<path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M18 14l.9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9z"/>',
+    play:'<path d="M7 4v16l13-8z"/>',
+    refresh:'<path d="M21 12a9 9 0 11-3-6.7M21 3v6h-6"/>',
+    chat:'<path d="M21 12a8 8 0 01-8 8H7l-4 3v-3a8 8 0 1118-8z"/>'
+  };
+  return s+(paths[name]||'')+'</svg>';
+}
+// Status glyphs for report tables (correct / partial / incorrect / neutral)
+function viIco(kind){
+  var map={ok:'<path d="M20 6L9 17l-5-5"/>',
+    warn:'<path d="M10.3 3.9l-8 14A1.7 1.7 0 003.7 20h16.6a1.7 1.7 0 001.4-2.1l-8-14a1.7 1.7 0 00-3 0z"/><path d="M12 9v4M12 17h.01"/>',
+    bad:'<path d="M6 6l12 12M18 6L6 18"/>',
+    dot:'<circle cx="12" cy="12" r="4"/>'};
+  return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'+(map[kind]||'')+'</svg>';
+}
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 function toggleAll(ck){document.querySelectorAll('.rcb').forEach(cb=>cb.checked=ck);}
 
@@ -2695,5 +3177,23 @@ loadState().then(function(ok){
   renderTable();
 });
 </script>
+
+<!-- ===== AI 字段助手（侧边聊天） ===== -->
+<div class="ai-chat" id="aiChat">
+  <div class="ac-head">
+    <span class="ac-t"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M18 14l.9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9z"/></svg> AI 字段助手</span>
+    <button class="ac-x" onclick="toggleChat()" title="收起"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div class="ac-body" id="acBody"></div>
+  <div class="ac-hint">可用指令：新建字段 / 删除字段 / 改名 / 改提示词 / 导入标签体系（粘贴体系描述自动建字段）</div>
+  <div class="ac-input">
+    <textarea id="acInput" placeholder="例如：新建一个字段叫「价格敏感度」，多选，提示词写：判断消费者对价格的高低敏感程度"></textarea>
+    <div class="ac-actions">
+      <button class="ac-btn ghost" onclick="clearChat()">清空</button>
+      <button class="ac-btn" id="acSend" onclick="sendChat()">发送</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
