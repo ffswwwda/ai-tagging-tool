@@ -349,18 +349,37 @@ body::after {
 .doc-view { display: none; padding: 24px 32px; }
 .doc-view.active { display: block; }
 
-.dsec { margin-bottom: 32px; }
-.ds-title {
-  font-size: 15px; font-weight: 700; color: var(--text-primary);
-  margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); display: inline-block;
-  letter-spacing: -0.2px;
+.dsec {
+  margin-bottom: 28px;
+  padding: 20px 22px 18px;
+  background: var(--surface);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
 }
-.ds-meta { font-size: 11.5px; color: var(--text-tertiary); margin-bottom: 14px; display: flex; gap: 18px; flex-wrap: wrap; line-height: 1.6; }
+.ds-title {
+  font-size: 14.5px; font-weight: 700; color: var(--text-primary);
+  margin-bottom: 10px; letter-spacing: -0.2px;
+}
+.ds-meta { font-size: 11.5px; color: var(--text-tertiary); margin-bottom: 14px; display: flex; gap: 18px; flex-wrap: wrap; line-height: 1.7; }
 
 .dt { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
 .dt th { background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); padding: 8px 12px; text-align: left; font-weight: 600; font-size: 11px; color: var(--text-secondary); border: 1px solid var(--border); white-space: nowrap; letter-spacing: 0.15px; }
 .dt td { padding: 7px 12px; border: 1px solid var(--border); font-size: 11.5px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dt tr:nth-child(even) td { background: var(--surface); }
+/* Sticky first column (status) for validation table */
+.dt.freeze-first th:first-child,
+.dt.freeze-first td:first-child {
+  position: sticky; left: 0; z-index: 3;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+.dt.freeze-first tr:nth-child(even) td:first-child {
+  background: var(--surface);
+}
 
 .sc { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 14px; }
 .sc-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
@@ -495,17 +514,18 @@ body::after {
   line-height:1.55; color:var(--text-secondary); word-break:break-all;
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
   overflow:hidden; max-height:3.1em; transition:max-height .3s ease, color .2s, background .2s;
+  position: relative;
 }
 .exp-cell.expanded .exp-cnt {
-  -webkit-line-clamp:unset; max-height:none; display:block; color:var(--text-primary); background:rgba(0,212,255,.03); border-radius:3px; padding:2px 4px;
+  -webkit-line-clamp:unset !important; max-height:none !important; display:block; color:var(--text-primary); background:rgba(0,212,255,.03); border-radius:3px; padding:2px 4px;
 }
 .exp-cell.expanded { background:rgba(0,212,255,.06); border-radius:4px; }
 /* Explicit toggle link (replaces unreliable ::after pseudo-element in tables) */
 .exp-toggle {
   display:inline-block; margin-left:6px; font-size:10px; color:var(--accent);
   cursor:pointer; white-space:nowrap; vertical-align:baseline;
-  user-select:none; flex-shrink:0; opacity:.8; transition:opacity .15s;
-  padding:0 2px; border-radius:2px;
+  user-select:none; flex-shrink:0; opacity:.85; transition:opacity .15s;
+  padding:1px 4px; border-radius:3px; position:relative; z-index:2;
 }
 .exp-toggle:hover { opacity:1; background:var(--accent-light); }
 
@@ -2510,10 +2530,10 @@ function toggleCellExpand(td){
 }
 
 // Helper: generate expandable cell HTML with explicit toggle link
-function expCellHtml(content, title){
+function expCellHtml(content){
   var safe = content || '';
   var hasContent = String(safe).trim().length > 0;
-  return '<div class="exp-cnt" style="display:inline-block;max-width:calc(100% - 60px)">' + esc(safe)
+  return '<div class="exp-cnt">' + esc(safe)
     + (hasContent ? '<span class="exp-toggle" onclick="event.stopPropagation();toggleCellExpand(this.closest(\'td\'))">展开 ▾</span>' : '')
     + '</div>';
 }
@@ -2768,7 +2788,7 @@ function renderLlmVal(c){
       <div class="vm"><div class="vm-v" style="color:var(--error)">${R.incorrect}</div><div class="vm-l">需调整</div></div>
     </div></div>
 
-    <div class="dsec" style="background:rgba(245,158,11,0.04);border:1px solid rgba(245,158,11,0.18)">
+    <div class="dsec">
       <div class="ds-title">一键矫正</div>
       <div class="ds-meta">
         <span>待修正条目: <strong style="color:var(--error)">${R.incorrect}</strong> 条</span>
@@ -2806,7 +2826,7 @@ function renderLlmVal(c){
 
     <div class="dsec"><div class="ds-title">逐条验证明细</div>
       <div style="overflow-x:auto">
-        <table class="dt" style="font-size:12px;min-width:1050px">
+        <table class="dt freeze-first" style="font-size:12px;min-width:1050px">
           <thead><tr>
             <th style="width:45px;text-align:center">状态</th>
             <th style="width:50px;text-align:center">行</th>
@@ -2834,7 +2854,10 @@ function renderLlmVal(c){
               <td onclick="toggleCellExpand(this)" class="exp-cell" title="点击展开/收起完整原文">${expCellHtml(enTxt)}</td>
               <td onclick="toggleCellExpand(this)" class="exp-cell">${cnTxt ? expCellHtml(cnTxt) : '<span style="color:var(--text-tertiary);font-style:italic">(无翻译)</span>'}</td>
               <td id="tagcell_${ri}">${tagCell}</td>
-              <td><span class="tag-pill" style="background:rgba(16,185,129,0.1);color:#059669;border:1px solid rgba(16,185,129,0.2)">${esc(String(res.llmVerdict))}</span></td>
+              <td>${(isCorr || res.verdict==='correct')
+                ? '<span class="tag-pill" style="background:rgba(16,185,129,0.1);color:#059669;border:1px solid rgba(16,185,129,0.25);font-weight:600">✓ correct</span>'
+                : '<span class="tag-pill" style="background:rgba(245,158,11,0.1);color:#b45309;border:1px solid rgba(245,158,11,0.25)">'+esc(String(res.llmVerdict))+'</span>'
+              }</td>
               <td onclick="toggleCellExpand(this)" class="exp-cell" title="点击展开/收起完整评估">${expCellHtml(res.reason)}</td>
             </tr>`;
           }).join('')}</tbody>
