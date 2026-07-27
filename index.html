@@ -1457,6 +1457,13 @@ function ctxToggleHideCol(){
 
 function unhideCol(cn){hiddenColNames.delete(cn); renderTable();}
 function showAllHiddenCols(){hiddenColNames.clear(); renderTable(); log('info','已显示所有隐藏列');}
+// Freeze columns left of a given column name (called by AI assistant & context menu)
+function freezeToColByName(cn){
+  var cols=getCols(); var idx=cols.indexOf(cn);
+  if(idx>=0){ frozenCount=idx+1; if(curSheet()) curSheet().frozenCount=frozenCount; }
+  var ub=document.getElementById('unfreezeBtn'); if(ub) ub.style.display=frozenCount>0?'':'none';
+  renderTable(); saveState(); log('info','已冻结至列: '+cn);
+}
 
 function ctxDeleteCol(){
   if(!_ctxTarget||_ctxTarget.type!=='col')return;
@@ -3661,7 +3668,7 @@ function toggleChat(){
   o.style.display = isOpen ? 'flex' : 'none';
   if(isOpen && !chatHistory.length){
     var b=document.getElementById('acBody'); b.innerHTML='';
-    addChat('bot','你好，我是 AI 字段助手。可用自然语言让我帮你：\n· 新建字段（指定名称/类型/提示词/选项）\n· 删除字段\n· 修改字段名或提示词\n· 导入标签体系（粘贴体系描述，我帮你建多个字段）\n\n当前字段：'+(aiFields.length?aiFields.map(function(f){return f.name+'('+(f.type==='multi'?'多选':f.type==='single'?'单选':'文本')+')';}).join('、'):'(无)'));
+    addChat('bot','你好，我是 AI 字段助手。可用自然语言让我帮你：\n· 新建字段（指定名称/类型/提示词/选项）\n· 删除字段\n· 修改字段名或提示词\n· 导入标签体系（粘贴体系描述，我帮你建多个字段）\n· 批量隐藏/显示列（如"隐藏 ASIN、价格 两列"）\n· 冻结至某列\n\n当前字段：'+(aiFields.length?aiFields.map(function(f){return f.name+'('+(f.type==='multi'?'多选':f.type==='single'?'单选':'文本')+')';}).join('、'):'(无)'));
   }
   if(p.classList.contains('open')) setTimeout(function(){var i=document.getElementById('acInput'); if(i)i.focus();},220);
 }
@@ -3733,8 +3740,14 @@ async function sendChat(){
     '  {"action":"rename","from":"旧名","to":"新名"},\n'+
     '  {"action":"delete","name":"字段名"},\n'+
     '  {"action":"modify","name":"字段名","prompt":"新提示词","type":"single","options":["..."],"strict":false},\n'+
-    '  {"action":"import","desc":"标签体系描述文本"}\n]}\n'+
-    '只有明确需要改动字段时才填 actions；普通问答只给 reply。create 时若用户没给选项，options 给 []；type 默认 multi。import 的 desc 用于从标签体系描述中提取多个字段。';
+    '  {"action":"import","desc":"标签体系描述文本"},\n'+
+    '  {"action":"hideCols","columns":["列名1","列名2"]},\n'+
+    '  {"action":"showCols","columns":["列名1","列名2"]},\n'+
+    '  {"action":"showAllCols"},\n'+
+    '  {"action":"freezeTo","column":"列名"}\n'+
+    ']}\n'+
+    '只有明确需要改动字段或表格时才填 actions；普通问答只给 reply。create 时若用户没给选项，options 给 []；type 默认 multi。import 的 desc 用于从标签体系描述中提取多个字段。\n'+
+    'hideCols 会批量隐藏指定列（列名必须来自上方数据表列，不存在则忽略）；showCols 重新显示指定隐藏列；showAllCols 显示所有被隐藏的列；freezeTo 冻结指定列及其左侧所有列。';
   var userMsg=(hist?hist+'\n\n':'')+'用户最新指令: '+txt;
   try{
     var resp=await callAPI(sysPrompt,userMsg,cfg.key,0.2,4000);
@@ -3760,6 +3773,18 @@ async function execFieldActions(actions){
       else if(a.action==='delete'){ var idx=aiFields.findIndex(function(f){return f.name===a.name;}); if(idx>=0){ deleteFieldSilent(idx); done.push('删除「'+(a.name||'')+'」'); } else done.push('⚠ 未找到「'+(a.name||'')+'」'); }
       else if(a.action==='modify'){ modifyField(a.name,{prompt:a.prompt,type:a.type,options:a.options,strict:a.strict}); done.push('修改「'+(a.name||'')+'」'); }
       else if(a.action==='import'){ var fs=await extractLabelFields(a.desc||'', 'multi', null); var n=applyBuiltFields(fs); done.push('导入标签体系 → 新建 '+n+' 个字段'); }
+      else if(a.action==='hideCols'){
+        var cols=Array.isArray(a.columns)?a.columns:[]; var oc=originalColumns(); var hid=[];
+        cols.forEach(function(c){ if(oc.indexOf(c)>=0 && !hiddenColNames.has(c)){ hiddenColNames.add(c); hid.push(c); } });
+        if(hid.length){ renderTable(); done.push('隐藏列: '+hid.join('、')); } else done.push('⚠ 无匹配列可隐藏');
+      }
+      else if(a.action==='showCols'){
+        var scols=Array.isArray(a.columns)?a.columns:[]; var shown=[];
+        scols.forEach(function(c){ if(hiddenColNames.has(c)){ hiddenColNames.delete(c); shown.push(c); } });
+        if(shown.length){ renderTable(); done.push('显示列: '+shown.join('、')); } else done.push('⚠ 无匹配隐藏列');
+      }
+      else if(a.action==='showAllCols'){ if(hiddenColNames.size){ var cnt=hiddenColNames.size; hiddenColNames.clear(); renderTable(); done.push('显示全部 '+cnt+' 个隐藏列'); } else done.push('当前没有隐藏列'); }
+      else if(a.action==='freezeTo'){ if(a.column){ freezeToColByName(a.column); done.push('冻结至列: '+a.column); } else done.push('⚠ 未指定冻结列'); }
       else done.push('⚠ 未知操作: '+(a.action||''));
     }catch(e){ done.push('⚠ '+(a.name||a.action)+' 失败: '+e.message); }
   }
