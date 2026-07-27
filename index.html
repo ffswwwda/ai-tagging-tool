@@ -2111,13 +2111,14 @@ function bufProg(done,total,t0,per){ _bufProg={done:done,total:total,t0:t0,per:p
 // ============================================================
 function buildPrompt(fld,rowData,oc){
   var resolved=fld.prompt, srcMap={};
+  var refCols=refColsOf(fld);
   for(var ci2=0;ci2<oc.length;ci2++){
     var colName=oc[ci2];
     var safeCol=colName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
     var pattern=new RegExp('\\{\\{'+safeCol+'\\}\\}','g');
     var val=rowData[colName]||'(无)';
     resolved=resolved.replace(pattern,val);
-    srcMap[colName]=val;
+    if(refCols.indexOf(colName)>=0) srcMap[colName]=val;
   }
   var sys='你是专业数据标注助手。严格按指令标注。\n\n## 指令\n'+resolved;
   if(fld.type!=='text'){
@@ -2127,6 +2128,16 @@ function buildPrompt(fld,rowData,oc){
   }
   sys+='\n\n只输出结果，不要解释';
   return {sys:sys,resolved:resolved,srcMap:srcMap,instr:fld.prompt};
+}
+// 解析字段 prompt 中真正被 {{列名}} 引用的列。
+// 这就是用户在字段配置里「引用」选中的几列 —— LLM 验证上下文与 AI 思考展示都只用它们，
+// 不再扫描数据表全部列做启发式识别。
+function refColsOf(fld){
+  var oc=originalColumns();
+  if(!fld||!fld.prompt) return [];
+  var set={}, m, re=/\{\{([^}]+)\}\}/g, p=fld.prompt;
+  while((m=re.exec(p))){ set[m[1]]=true; }
+  return oc.filter(function(c){ return set[c]; });
 }
 function cleanLabel(raw,fld){
   var clean=String(raw==null?'':raw);
@@ -2802,13 +2813,10 @@ async function runLLMValidation(){
         var tag=row[fld.name];
         if(!tag||tag==='--'||tag==='未提及'||String(tag).startsWith('[错]')) continue;
 
+        var refCols=refColsOf(fld);
         var srcMap={};
-        originalColumns().forEach(function(c){ srcMap[c]=row[c]||'(无)'; });
-        var contextParts=[];
-        originalColumns().forEach(function(c){
-          contextParts.push(c+': '+(row[c]||'(无)'));
-        });
-        var context=contextParts.join('\n');
+        refCols.forEach(function(c){ srcMap[c]=row[c]||'(无)'; });
+        var context=refCols.map(function(c){ return c+': '+(row[c]||'(无)'); }).join('\n');
 
         // Update progress
         doneCount++;
@@ -2875,11 +2883,10 @@ function exportLlmVal(){
 async function validateOne(dataIdx, fld, cfg){
   var data=tableData();
   var row=data[dataIdx];
+  var refCols=refColsOf(fld);
   var srcMap={};
-  originalColumns().forEach(function(c){ srcMap[c]=row[c]||'(无)'; });
-  var contextParts=[];
-  originalColumns().forEach(function(c){ contextParts.push(c+': '+(row[c]||'(无)')); });
-  var context=contextParts.join('\n');
+  refCols.forEach(function(c){ srcMap[c]=row[c]||'(无)'; });
+  var context=refCols.map(function(c){ return c+': '+(row[c]||'(无)'); }).join('\n');
   var tag=row[fld.name];
   var userContent=[
     '## 待验证数据（第 '+(dataIdx+1)+' 行）',context,'',
@@ -3022,7 +3029,7 @@ async function runDeepSampling(){
         R.results.push(res); added++;
       }catch(err){
         var _dsRow=data[c.idx]||{}, _dsMap={};
-        originalColumns().forEach(function(col){ _dsMap[col]=_dsRow[col]||'(无)'; });
+        refColsOf(fld).forEach(function(col){ _dsMap[col]=_dsRow[col]||'(无)'; });
         R.results.push({rowIndex:c.idx+1,fieldName:c.field,originalTag:data[c.idx][c.field],llmVerdict:'解析失败',verdict:'incorrect',reason:String(err.message),originalText:'',srcMap:_dsMap,sheetIdx:activeSheetIdx,corrected:false});
         added++;
       }
