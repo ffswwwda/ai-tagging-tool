@@ -227,28 +227,28 @@ body::after {
 
 /* Scroll jump buttons (↑ top / ↓ bottom) */
 .scroll-jump {
-  position: absolute; right: 14px; bottom: 14px;
-  display: flex; flex-direction: column; gap: 4px;
-  z-index: 15; animation: sjFadeIn .2s ease;
+  position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 6px;
+  z-index: 25; animation: sjFadeIn .2s ease;
 }
-@keyframes sjFadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+@keyframes sjFadeIn { from{opacity:0} to{opacity:1} }
 .sj-btn {
-  width: 32px; height: 32px; border-radius: 50%;
+  width: 36px; height: 36px; border-radius: 50%;
   border: none; cursor: pointer;
-  background: var(--panel-solid);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  color: var(--text-secondary); font-size: 15px; font-weight: 700;
-  box-shadow: 0 2px 10px rgba(0,0,0,.12), 0 1px 3px rgba(0,0,0,.08);
+  background: #fff;
+  color: #555; font-size: 16px; font-weight: 500;
+  box-shadow: 0 2px 12px rgba(0,0,0,.10), 0 1px 4px rgba(0,0,0,.06);
   display: grid; place-items: center; transition: all .18s ease;
   line-height: 1; padding: 0;
-  border: 1px solid var(--border-glass);
+  border: 1px solid rgba(0,0,0,.08);
 }
 .sj-btn:hover {
-  color: #fff; background: var(--rad-grad);
-  box-shadow: 0 4px 16px rgba(0,212,255,.25), 0 2px 6px rgba(168,85,247,.18);
-  transform: scale(1.08); border-color: transparent;
+  color: #111; background: #f8f9fa;
+  box-shadow: 0 4px 20px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.08);
+  transform: scale(1.06);
 }
+body.dark .sj-btn { background: var(--panel-solid); color: var(--text-secondary); border-color: var(--border); }
+body.dark .sj-btn:hover { background: var(--surface); color: var(--text-primary); }
 
 .prog-track { height: 2px; position: absolute; top:0; left:0; right:0; z-index: 20; opacity: 0; transition: opacity 0.2s; }
 .prog-track.vis { opacity: 1; background: var(--border); }
@@ -803,8 +803,12 @@ body::after {
         <div class="prog-track" id="progTrack"><div class="prog-fill" id="progFill"></div></div>
         <!-- Scroll jump buttons -->
         <div class="scroll-jump" id="scrollJump" style="display:none">
-          <button class="sj-btn sj-top" onclick="document.getElementById('tableWrap').scrollTop=0" title="回到顶部">↑</button>
-          <button class="sj-btn sj-bottom" onclick="var tw=document.getElementById('tableWrap');tw.scrollTop=tw.scrollHeight" title="跳到底部">↓</button>
+          <button class="sj-btn sj-top" onclick="document.getElementById('tableWrap').scrollTop=0" title="回到顶部">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+          </button>
+          <button class="sj-btn sj-bottom" onclick="var tw=document.getElementById('tableWrap');tw.scrollTop=tw.scrollHeight" title="跳到底部">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+          </button>
         </div>
         <div class="empty-state" id="emptyState">
           <div class="empty-icon"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg></div><div class="empty-title">暂无数据</div>
@@ -1157,8 +1161,8 @@ function renderTable(){
       _scrollTop=wrap.scrollTop; vrSchedule();
       // Show/hide scroll jump buttons
       var sj=document.getElementById('scrollJump');
-      if(sj && td.length > 20){
-        sj.style.display = (wrap.scrollTop > 200) ? 'flex' : 'none';
+      if(sj && td.length > 10){
+        sj.style.display = (wrap.scrollTop > 80 || wrap.scrollHeight > wrap.clientHeight + 100) ? 'flex' : 'none';
       }
     }, {passive:true});
     _scrollAttached=true;
@@ -1175,7 +1179,8 @@ function renderTable(){
   applyFreeze();
   // Init scroll jump buttons visibility
   var sj=document.getElementById('scrollJump');
-  if(sj) sj.style.display = (td.length > 20 && document.getElementById('tableWrap').scrollTop > 200) ? 'flex' : 'none';
+  var tw=document.getElementById('tableWrap');
+  if(sj) sj.style.display = (td.length > 10 && tw && (tw.scrollTop > 80 || tw.scrollHeight > tw.clientHeight + 100)) ? 'flex' : 'none';
   updateHiddenBar();
   updStatus();
   updateSelBtns();
