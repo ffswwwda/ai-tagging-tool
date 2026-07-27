@@ -549,27 +549,25 @@ body::after {
 .pill-deep { background:#e0e7ff; color:#3730a3; }
 .think-hl { background:rgba(37,99,235,0.06) !important; }
 
-/* Expandable table cell */
-.exp-cell { cursor:pointer; position:relative; padding:4px 6px; transition:background .15s; }
-.exp-cell:hover { background:var(--accent-soft); border-radius:4px; }
+/* Expandable table cell — hover to show full text tooltip */
+.exp-cell { position:relative; padding:4px 6px; cursor:default; }
 .exp-cell .exp-cnt {
   line-height:1.55; color:var(--text-secondary); word-break:break-all;
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-  overflow:hidden; max-height:3.1em; transition:max-height .3s ease, color .2s, background .2s;
-  position: relative;
+  overflow:hidden; max-height:3.1em;
 }
-.exp-cell.expanded .exp-cnt {
-  -webkit-line-clamp:unset !important; max-height:none !important; display:block; color:var(--text-primary); background:rgba(0,212,255,.03); border-radius:3px; padding:2px 4px;
+/* Global hover tooltip for table cells */
+#cellTooltip {
+  position:fixed; z-index:99999; pointer-events:none;
+  max-width:480px; max-height:260px; overflow:auto;
+  padding:10px 14px; border-radius:8px;
+  background:var(--glass-bg); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+  border:1px solid var(--border); box-shadow:0 8px 32px rgba(0,0,0,.18), 0 2px 8px rgba(0,212,255,.08);
+  font-size:12.5px; line-height:1.65; color:var(--text-primary);
+  opacity:0; transform:translateY(4px); transition:opacity .12s ease, transform .12s ease;
+  word-break:break-word; white-space:pre-wrap;
 }
-.exp-cell.expanded { background:rgba(0,212,255,.06); border-radius:4px; }
-/* Explicit toggle link (replaces unreliable ::after pseudo-element in tables) */
-.exp-toggle {
-  display:inline-block; margin-left:6px; font-size:10px; color:var(--accent);
-  cursor:pointer; white-space:nowrap; vertical-align:baseline;
-  user-select:none; flex-shrink:0; opacity:.85; transition:opacity .15s;
-  padding:1px 4px; border-radius:3px; position:relative; z-index:2;
-}
-.exp-toggle:hover { opacity:1; background:var(--accent-light); }
+#cellTooltip.visible { opacity:1; transform:translateY(0); }
 
 /* Deep analysis toggle */
 .rec-reason { display:flex; align-items:center; gap:7px; margin-top:7px; font-size:11px; color:var(--text-secondary); cursor:pointer; user-select:none; }
@@ -2430,13 +2428,13 @@ function paintThink(){
               <td style="text-align:center;font-size:15px;color:${vc}" onclick="event.stopPropagation()">${vi}</td>
               <td style="text-align:center" onclick="event.stopPropagation()">${r.row!=null?r.row+1:'-'}</td>
               <td onclick="event.stopPropagation()">${esc(r.field||'')}</td>
-              <td onclick="event.stopPropagation();toggleCellExpand(this)" class="exp-cell">${expCellHtml(origText)}</td>
-              <td onclick="event.stopPropagation();toggleCellExpand(this)" class="exp-cell">${cnText ? expCellHtml(cnText) : '<span style="color:var(--text-tertiary);font-style:italic">(无翻译)</span>'}</td>
+              <td class="exp-cell" data-fulltext="${origText.replace(/"/g,'&quot;')}">${expCellHtml(origText)}</td>
+              <td class="exp-cell" data-fulltext="${(cnText||'').replace(/"/g,'&quot;')}">${cnText ? expCellHtml(cnText) : '<span style="color:var(--text-tertiary);font-style:italic">(无翻译)</span>'}</td>
               <td onclick="event.stopPropagation()">${isErr
                 ? '<span style="color:var(--error);font-size:11px">'+esc(String(r.clean||'').substring(0,40))+'</span>'
                 : '<span class="tag-pill" style="background:rgba(37,99,235,0.1);color:#2563EB;border:1px solid rgba(37,99,235,0.2)">'+esc(String(r.clean||'').substring(0,30))+'</span>'
               }</td>
-              <td onclick="event.stopPropagation();toggleCellExpand(this)" class="exp-cell">${assessText ? expCellHtml(assessText) : '<span style="color:var(--text-tertiary);font-style:italic">'+(deepOn?'(无 — 开启「深度分析」获取)':'(无分析文本)')+'</span>'}</td>
+              <td class="exp-cell" data-fulltext="${assessText.replace(/"/g,'&quot;')}">${assessText ? expCellHtml(assessText) : '<span style="color:var(--text-tertiary);font-style:italic">'+(deepOn?'(无 — 开启「深度分析」获取)':'(无分析文本)')+'</span>'}</td>
             </tr>`;
           }).join('')}</tbody>
         </table>
@@ -2541,36 +2539,49 @@ function extractChineseText(srcMap){
   return bestKey ? String(srcMap[bestKey]||'') : '';
 }
 
-// Toggle expand/collapse for table cells (assessment / original text)
-function toggleCellExpand(td){
-  if(!td) return;
-  var isExp = td.classList.contains('expanded');
-  if(isExp){
-    td.classList.remove('expanded');
-    // Re-apply clamp
-    var cnt = td.querySelector('.exp-cnt');
-    if(cnt){ cnt.style.webkitLineClamp='2'; cnt.style.maxHeight='3.1em'; }
-    // Toggle link text
-    var lnk = td.querySelector('.exp-toggle');
-    if(lnk){ lnk.textContent = '展开 ▾'; }
-  } else {
-    td.classList.add('expanded');
-    // Remove clamp
-    var cnt = td.querySelector('.exp-cnt');
-    if(cnt){ cnt.style.webkitLineClamp='unset'; cnt.style.maxHeight='none'; }
-    // Toggle link text
-    var lnk = td.querySelector('.exp-toggle');
-    if(lnk){ lnk.textContent = '收起 ▴'; }
-  }
-}
+// --- Hover tooltip for table cells (replaces unreliable click expand) ---
+(function(){
+  var tip = document.createElement('div');
+  tip.id = 'cellTooltip';
+  document.body.appendChild(tip);
+  var _hideTimer = null;
 
-// Helper: generate expandable cell HTML with explicit toggle link
+  document.addEventListener('mouseover', function(e){
+    var cell = e.target.closest('.exp-cell');
+    if(!cell) return;
+    // Get full text from data attribute or innerText
+    var full = cell.getAttribute('data-fulltext') || cell.textContent || '';
+    if(!full.trim()) return;
+    clearTimeout(_hideTimer);
+    tip.textContent = full;
+    tip.classList.add('visible');
+    // Position: below and to the right of cursor, but keep within viewport
+    var rect = cell.getBoundingClientRect();
+    var x = Math.min(rect.left, window.innerWidth - 500);
+    var y = rect.bottom + 8;
+    // If too close to bottom, show above instead
+    if(y + 260 > window.innerHeight){
+      y = rect.top - 270;
+      if(y < 0) y = 8;
+    }
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+  });
+
+  document.addEventListener('mouseout', function(e){
+    var cell = e.target.closest('.exp-cell');
+    if(!cell) return;
+    // Only hide if leaving the cell entirely (not moving to tooltip - though tooltip is pointer-events:none)
+    _hideTimer = setTimeout(function(){
+      tip.classList.remove('visible');
+    }, 80);
+  });
+})();
+
+// Helper: generate expandable cell HTML with data-fulltext for hover tooltip
 function expCellHtml(content){
   var safe = content || '';
-  var hasContent = String(safe).trim().length > 0;
-  return '<div class="exp-cnt">' + esc(safe)
-    + (hasContent ? '<span class="exp-toggle" onclick="event.stopPropagation();toggleCellExpand(this.closest(\'td\'))">展开 ▾</span>' : '')
-    + '</div>';
+  return '<div class="exp-cnt">' + esc(safe) + '</div>';
 }
 
 // --- Full ---
@@ -2982,14 +2993,14 @@ function renderLlmVal(c){
               <td style="text-align:center;font-size:15px;color:${vc}">${vi}</td>
               <td style="text-align:center">${res.rowIndex}</td>
               <td>${esc(res.fieldName)}</td>
-              <td onclick="toggleCellExpand(this)" class="exp-cell" title="点击展开/收起完整原文">${expCellHtml(enTxt)}</td>
-              <td onclick="toggleCellExpand(this)" class="exp-cell">${cnTxt ? expCellHtml(cnTxt) : '<span style="color:var(--text-tertiary);font-style:italic">(无翻译)</span>'}</td>
+              <td class="exp-cell" data-fulltext="${(enTxt||'').replace(/"/g,'&quot;')}">${expCellHtml(enTxt)}</td>
+              <td class="exp-cell" data-fulltext="${(cnTxt||'').replace(/"/g,'&quot;')}">${cnTxt ? expCellHtml(cnTxt) : '<span style="color:var(--text-tertiary);font-style:italic">(无翻译)</span>'}</td>
               <td id="tagcell_${ri}">${tagCell}</td>
               <td>${(isCorr || res.verdict==='correct')
                 ? '<span class="tag-pill" style="background:rgba(16,185,129,0.1);color:#059669;border:1px solid rgba(16,185,129,0.25);font-weight:600">✓ correct</span>'
                 : '<span class="tag-pill" style="background:rgba(245,158,11,0.1);color:#b45309;border:1px solid rgba(245,158,11,0.25)">'+esc(String(res.llmVerdict))+'</span>'
               }</td>
-              <td onclick="toggleCellExpand(this)" class="exp-cell" title="点击展开/收起完整评估">${expCellHtml(res.reason)}</td>
+              <td class="exp-cell" data-fulltext="${(res.reason||'').replace(/"/g,'&quot;')}">${expCellHtml(res.reason)}</td>
             </tr>`;
           }).join('')}</tbody>
         </table>
