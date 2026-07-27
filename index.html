@@ -634,13 +634,12 @@ body::after {
     <button class="tbtn" onclick="openLabelSystemDrawer()" title="导入标签体系，AI 自动建字段写提示词">+ 导入标签体系</button>
     <button class="tbtn pri" onclick="toggleChat()" title="AI 字段助手：用自然语言新建/删除/改名/改提示词字段，或导入标签体系" style="font-weight:600;letter-spacing:0.3px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M18 14l.9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9z"/></svg> AI 助手</button>
     <div class="divider"></div>
-    <button class="tbtn" id="vCfgBtn" onclick="doImportExport()">导入/导出配置</button>
     <button class="tbtn" id="showHidBtn" onclick="showAllHiddenCols()" style="display:none">显示隐藏列</button>
     <div class="divider"></div>
     <!-- 筛选/分组/排序暂移除，待设计 -->
     <div class="divider"></div>
-    <button class="tbtn" title="撤销"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10h13a4 4 0 010 8H9"/></svg></button>
-    <button class="tbtn" title="重做"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10H8a4 4 0 000 8h7"/></svg></button>
+    <button class="tbtn" id="undoBtn" onclick="doUndo()" title="撤销" style="opacity:0.4"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10h13a4 4 0 010 8H9"/></svg></button>
+    <button class="tbtn" id="redoBtn" onclick="doRedo()" title="重做" style="opacity:0.4"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10H8a4 4 0 000 8h7"/></svg></button>
     <div style="flex:1"></div>
     <label style="font-size:11.5px;color:var(--text-tertiary);margin-right:2px">全局范围</label>
     <select id="tagRangeSel" onchange="onTagRangeChange()" style="height:30px;border:1px solid var(--border);border-radius:6px;font-size:12px;padding:0 6px;background:var(--surface);color:var(--text-primary)">
@@ -1141,6 +1140,9 @@ function startCellEdit(td,colIdx,colName){
 
 function finishCellEdit(inp,rowIdx,colName){
   const newVal=inp.value.trim();
+  const oldVal=tableData()[rowIdx][colName]||'';
+  if(newVal===oldVal){ updCellFast(rowIdx,colName,oldVal); return; }
+  pushUndo(rowIdx,colName,oldVal,newVal);
   tableData()[rowIdx][colName]=newVal;
   updCellFast(rowIdx,colName,newVal);
   saveState();
@@ -1159,7 +1161,10 @@ function removeTag(spanEl,ci,colName){
   const current=String(row[colName]||'');
   const tags=current.split(',').map(t=>t.trim()).filter(Boolean);
   const filtered=tags.filter(t=>t!==tagText);
-  row[colName]=filtered.join(', ');
+  const oldVal=current;
+  const newVal=filtered.join(', ');
+  pushUndo(rowIdx,colName,oldVal,newVal);
+  row[colName]=newVal;
   vrRenderIfVisible(rowIdx);
   saveState();
   log('info',`删标签 R${rowIdx+1} ${colName}: -"${tagText}"`);
@@ -1186,7 +1191,10 @@ function commitAddTag(inp,rowIdx,colName){
   const current=String(row[colName]||'');
   const tags=current.split(',').map(t=>t.trim()).filter(Boolean);
   if(tags.indexOf(newVal)<0) tags.push(newVal);
-  row[colName]=tags.join(', ');
+  const oldVal=current;
+  const joinedVal=tags.join(', ');
+  pushUndo(rowIdx,colName,oldVal,joinedVal);
+  row[colName]=joinedVal;
   vrRenderIfVisible(rowIdx);
   saveState();
   log('info',`加标签 R${rowIdx+1} ${colName}: +"${newVal}"`);
@@ -2906,6 +2914,46 @@ async function validateOne(dataIdx, fld, cfg){
 // REQ 6: 同类错误深度抽样 (find similar-to-error samples, re-validate, repeatable)
 // ============================================================
 var _deepStop=false, _deepSamplingRunning=false;
+
+// --- Undo/Redo system ---
+var _undoStack=[], _redoStack=[], _undoMax=50;
+function pushUndo(rowIdx, colName, oldVal, newVal){
+  _undoStack.push({rowIdx:rowIdx, colName:colName, oldVal:oldVal, newVal:newVal, ts:Date.now()});
+  if(_undoStack.length>_undoMax) _undoStack.shift();
+  _redoStack=[]; // new action clears redo
+  updateUndoRedoBtns();
+}
+function doUndo(){
+  if(!_undoStack.length) return;
+  var action=_undoStack.pop();
+  var row=tableData()[action.rowIdx];
+  if(!row){ updateUndoRedoBtns(); return; }
+  var current=row[action.colName]||'';
+  row[action.colName]=action.oldVal;
+  vrRenderIfVisible(action.rowIdx);
+  saveState();
+  _redoStack.push({rowIdx:action.rowIdx, colName:action.colName, oldVal:current, newVal:action.oldVal, ts:Date.now()});
+  updateUndoRedoBtns();
+  log('info','撤销 R'+(action.rowIdx+1)+' '+action.colName);
+}
+function doRedo(){
+  if(!_redoStack.length) return;
+  var action=_redoStack.pop();
+  var row=tableData()[action.rowIdx];
+  if(!row){ updateUndoRedoBtns(); return; }
+  var current=row[action.colName]||'';
+  row[action.colName]=action.newVal;
+  vrRenderIfVisible(action.rowIdx);
+  saveState();
+  _undoStack.push({rowIdx:action.rowIdx, colName:action.colName, oldVal:current, newVal:action.newVal, ts:Date.now()});
+  updateUndoRedoBtns();
+  log('info','重做 R'+(action.rowIdx+1)+' '+action.colName);
+}
+function updateUndoRedoBtns(){
+  var ub=document.getElementById('undoBtn'), rb=document.getElementById('redoBtn');
+  if(ub){ ub.style.opacity=_undoStack.length?'1':'0.4'; ub.title=_undoStack.length?'撤销 ('+_undoStack.length+')':'无可撤销'; }
+  if(rb){ rb.style.opacity=_redoStack.length?'1':'0.4'; rb.title=_redoStack.length?'重做 ('+_redoStack.length+')':'可重做'; }
+}
 function _tokSet(t){
   t=String(t==null?'':t).toLowerCase();
   var sig=new Set();
@@ -3022,7 +3070,7 @@ function toggleTheme(){
 }
 (function initTheme(){
   var saved='light';
-  try{ saved=localStorage.getItem('att-theme')||'dark'; }catch(e){}
+  try{ saved=localStorage.getItem('att-theme')||'light'; }catch(e){}
   document.body.classList.remove('light','dark');
   document.body.classList.add(saved);
   applyThemeIcon();
@@ -3495,7 +3543,13 @@ function _renderLog(){
 ['apiKeySm','apiBaseSm','apiModelSm'].forEach(id=>{
   document.getElementById(id).addEventListener('change',e=>localStorage.setItem('ait-'+id,e.target.value));
 });
-document.addEventListener('keydown',e=>{if(e.key==='Escape') closeDrv();});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') closeDrv();
+  // Undo: Ctrl+Z (skip when in input/textarea)
+  if((e.ctrlKey||e.metaKey) && e.key==='z' && !e.shiftKey && !['INPUT','TEXTAREA'].includes(e.target.tagName)){ e.preventDefault(); doUndo(); }
+  // Redo: Ctrl+Shift+Z or Ctrl+Y
+  if(((e.ctrlKey||e.metaKey) && e.key==='z' && e.shiftKey) || ((e.ctrlKey||e.metaKey) && e.key==='y')){ if(!['INPUT','TEXTAREA'].includes(e.target.tagName)){ e.preventDefault(); doRedo(); } }
+});
 
 document.body.addEventListener('dragover',e=>{e.preventDefault();});
 document.body.addEventListener('drop',e=>{
