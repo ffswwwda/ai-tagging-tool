@@ -2841,7 +2841,7 @@ function renderLlmVal(c){
     <div id="llmValProgress" style="display:${isProcessing?'block':'none'};margin-top:12px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <span style="font-size:12px;color:var(--text-secondary);font-weight:500" id="llmValProgText">${isProcessing?'验证中...':'准备中...'}</span>
-        <button class="btn btn-ghost" onclick="_stopRequested=true" style="font-size:11px;padding:3px 12px;height:26px">停止</button>
+        <button class="btn btn-ghost" onclick="stopRequested=true" style="font-size:11px;padding:3px 12px;height:26px">停止</button>
       </div>
       <div style="background:var(--border);border-radius:6px;height:8px;overflow:hidden"><div id="llmValProgBar" style="width:0%;height:100%;background:linear-gradient(90deg,#00d4ff,#a855f7);transition:width .3s;border-radius:6px"></div></div>
     </div>
@@ -3119,8 +3119,11 @@ async function runLLMValidation(){
     progBar.style.width=stopRequested?'60%':'100%';
     setSt('done', stopRequested?'已停止':'验证完成');
     log('info', 'LLM 验证完成: '+accuracy+'% ('+correct+'/'+totalChecked+')');
-    swView('llmval');
     saveState();
+    // Reset button/processing state BEFORE re-render so panel shows completed state (not stuck progress)
+    btn.disabled=false; btn.textContent='运行 LLM 验证';
+    isProcessing=false; setProc(false); updateRunUI();
+    swView('llmval');
 
   } catch(err){
     if(err.name!=='AbortError'){
@@ -3134,6 +3137,7 @@ async function runLLMValidation(){
   // Reset button
   btn.disabled=false; btn.textContent='运行 LLM 验证';
   isProcessing=false; setProc(false); updateRunUI();
+  if(curView==='llmval') renderLlmVal(document.getElementById('docLlmVal'));
 }
 
 function exportLlmVal(){
