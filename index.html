@@ -150,10 +150,12 @@ body::after {
 .sb-mini:hover { background: var(--accent-light); }
 /* Toolbar — position:relative 让内部 absolute 定位的 aiColHint 正确锚定 */
 .toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 10px; position: relative; }
-.fld-list { display: flex; flex-direction: column; gap: 6px; max-height: 34vh; overflow-y: auto; }
-.fld-row { background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 7px 9px; transition: border-color .2s, box-shadow .2s; }
-/* 选中AI字段列头时高亮侧边栏字段卡片 */
+.fld-list { display: flex; flex-wrap: wrap; gap: 10px; max-height: 42vh; overflow-y: auto; align-items: stretch; }
+.fld-row { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; width: calc(25% - 8px); min-width: 180px; display: flex; flex-direction: column; gap: 6px; transition: border-color .2s, box-shadow .2s, transform .15s; }
+.fld-row:hover { box-shadow: 0 6px 20px rgba(0,0,0,.07); border-color: var(--accent); }
 .fld-row.hl-active { border-color: var(--accent); box-shadow: 0 0 16px rgba(0,212,255,.25), 0 0 4px rgba(168,85,247,.15); animation: fldHlPulse 2.5s ease-out; }
+.fld-row.hl-running { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,212,255,.15); }
+/* 选中AI字段列头时高亮侧边栏字段卡片 */
 @keyframes fldHlPulse {
   0%   { box-shadow: 0 0 20px rgba(0,212,255,.4), 0 0 6px rgba(168,85,247,.25); }
   50%  { box-shadow: 0 0 12px rgba(0,212,255,.2), 0 0 3px rgba(168,85,247,.12); }
@@ -205,15 +207,19 @@ body::after {
 .fld-name { flex: 1; font-size: 11.5px; font-weight: 600; color: var(--text-primary); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fld-name:hover { color: var(--accent); text-decoration: underline; }
 .fld-type { font-size: 9px; color: var(--accent); background: var(--accent-light); padding: 1px 5px; border-radius: 4px; flex-shrink: 0; }
-.fld-run { background: var(--accent); color: #fff; border: none; border-radius: 5px; font-size: 10.5px; font-weight: 600; padding: 3px 9px; cursor: pointer; font-family: inherit; flex-shrink: 0; }
-.fld-run:hover { background: var(--accent); }
-.fld-run:disabled { opacity: 0.4; cursor: not-allowed; }
-.fld-del { background: none; border: none; color: var(--text-tertiary); cursor: pointer; font-size: 13px; padding: 0 2px; line-height: 1; flex-shrink: 0; }
-.fld-del:hover { color: var(--error); }
-.fld-cfg { display: flex; gap: 8px; margin-top: 6px; }
-.fld-cfg label { display: flex; align-items: center; gap: 3px; font-size: 10px; color: var(--text-tertiary); }
-.fld-cfg input { width: 52px; padding: 3px 5px; border: 1px solid var(--border); border-radius: 5px; font-size: 11px; outline: none; font-family: inherit; }
+.fld-run { background: linear-gradient(135deg,#0ea5e9,#6366f1); color: #fff; border: none; border-radius: 6px; font-size: 10.5px; font-weight: 600; padding: 4px 10px; cursor: pointer; font-family: inherit; flex-shrink: 0; transition: transform .15s, box-shadow .15s; }
+.fld-run:hover { transform: translateY(-1px); box-shadow: 0 3px 12px rgba(14,165,233,.3); }
+.fld-run:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+.fld-stop { background: linear-gradient(135deg,#ef4444,#f97316); color: #fff; border: none; border-radius: 6px; font-size: 10.5px; font-weight: 600; padding: 4px 10px; cursor: pointer; font-family: inherit; flex-shrink: 0; transition: transform .15s, box-shadow .15s; }
+.fld-stop:hover { transform: translateY(-1px); box-shadow: 0 3px 12px rgba(239,68,68,.3); }
+.fld-del { background: none; border: 1px solid var(--border); color: var(--text-tertiary); cursor: pointer; font-size: 10px; padding: 4px 8px; border-radius: 6px; flex-shrink: 0; transition: all .15s; }
+.fld-del:hover { color: var(--error); border-color: var(--error); background: rgba(239,68,68,.08); }
+.fld-cfg { display: flex; gap: 5px; margin-top: 2px; padding: 6px; background: var(--bg); border-radius: 6px; flex-wrap: wrap; }
+.fld-cfg label { display: flex; align-items: center; gap: 2px; font-size: 9.5px; color: var(--text-tertiary); }
+.fld-cfg input { width: 46px; padding: 2px 4px; border: 1px solid var(--border); border-radius: 4px; font-size: 10.5px; outline: none; font-family: inherit; }
 .fld-cfg input:focus { border-color: var(--accent); }
+.fld-cfg select { height: 24px; border: 1px solid var(--border); border-radius: 4px; font-size: 10px; padding: 0 3px; background: var(--surface); color: var(--text-primary); font-family: inherit; }
+.fld-actions { display: flex; gap: 6px; align-items: center; padding-top: 6px; border-top: 1px solid var(--border); margin-top: 2px; }
 
 
 /* ===== RIGHT MAIN ===== */
@@ -336,7 +342,8 @@ body.dark .sj-btn:hover { background: var(--surface); color: var(--text-primary)
 .data-table th.col-sel { background: var(--accent-light); box-shadow: inset 0 -3px 0 var(--accent); }
 .data-table th.col-sel .col-name { color: var(--accent); font-weight: 700; }
 
-.col-rn { width: 42px !important; text-align: center !important; padding: 0 !important; color: var(--text-tertiary); font-size: 11px; font-weight: 500; }
+.col-rn { width: 36px !important; text-align: right !important; padding: 0 10px 0 0 !important; color: var(--text-tertiary); font-size: 12px; font-weight: 400; border: none !important; background: transparent !important; }
+.dt .col-rn { border: none !important; background: transparent !important; }
 .col-cb { width: 30px !important; text-align: center !important; padding: 0 !important; }
 .col-cb input { accent-color: var(--accent); cursor: pointer; }
 .col-cb-input {
@@ -358,11 +365,18 @@ body.dark .sj-btn:hover { background: var(--surface); color: var(--text-primary)
 .data-table td.cerr { box-shadow: inset 3px 0 0 var(--error); background: var(--accent-soft); }
 
 .cell-txt { line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+.exp-cell .cell-txt { max-width: none; overflow: visible; white-space: pre-wrap; word-break: break-word; }
 .cell-tags { display: flex; flex-wrap: wrap; gap: 3px; }
+/* 主表虚拟滚动：固定数据行高度，避免标签/文本换行把真实行高撑得≠ROW_H，
+   进而导致 scrollHeight 随滚动位置漂移、拉到底部时 scrollTop 被夹取自激抖动。
+   溢出内容由 exp-cell 的 hover 浮层(data-fulltext)完整展示，不受影响。 */
+#dtBody tr[data-ri] > td { max-height: var(--row-h); overflow: hidden; }
+#dtBody tr[data-ri] > td.exp-cell { white-space: nowrap; }
+#dtBody tr[data-ri] .cell-tags { max-height: calc(var(--row-h) - 8px); overflow: hidden; }
+#dtBody tr[data-ri] .cell-txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tag-pill {
   display: inline-flex; align-items: center; padding: 1px 7px 1px 6px; border-radius: 3px;
-  font-size: 11px; font-weight: 500; line-height: 1.5; white-space: nowrap;
-  max-width: 120px; overflow: hidden; text-overflow: ellipsis;
+  font-size: 11px; font-weight: 500; line-height: 1.5; white-space: normal;
 }
 .tag-rm { margin-left:3px; font-size:13px; cursor:pointer; opacity:.45; line-height:1; font-weight:400; transition:opacity .15s; }
 .tag-rm:hover { opacity:1; color:var(--error); }
@@ -454,6 +468,7 @@ body.dark .sj-btn:hover { background: var(--surface); color: var(--text-primary)
 .dt { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
 .dt th { background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); padding: 8px 12px; text-align: left; font-weight: 600; font-size: 11px; color: var(--text-secondary); border: 1px solid var(--border); white-space: nowrap; letter-spacing: 0.15px; }
 .dt td { padding: 7px 12px; border: 1px solid var(--border); font-size: 11.5px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dt td.exp-cell { max-width: none; overflow: visible; text-overflow: unset; white-space: normal; }
 .dt tr:nth-child(even) td { background: var(--surface); }
 /* Sticky first column (status) for validation table */
 .dt.freeze-first th:first-child,
@@ -465,6 +480,42 @@ body.dark .sj-btn:hover { background: var(--surface); color: var(--text-primary)
 }
 .dt.freeze-first tr:nth-child(even) td:first-child {
   background: var(--surface);
+}
+/* 验证明细表 checkbox：清晰可见的飞书风格 */
+.dt.freeze-first input[type="checkbox"].excl-cb,
+.dt.freeze-first input[type="checkbox"] {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 14px !important; height: 14px !important;
+  border: 1.5px solid var(--text-tertiary) !important;
+  border-radius: 3px !important;
+  background: #fff !important;
+  cursor: pointer;
+  vertical-align: middle;
+  position: relative;
+  flex-shrink: 0;
+  padding: 0 !important;
+  margin: 0 !important;
+  transition: all .15s ease;
+}
+.dt.freeze-first input[type="checkbox"].excl-cb:hover,
+.dt.freeze-first input[type="checkbox"]:hover {
+  border-color: var(--accent) !important;
+}
+.dt.freeze-first input[type="checkbox"].excl-cb:checked,
+.dt.freeze-first input[type="checkbox"]:checked {
+  background: var(--error) !important;
+  border-color: var(--error) !important;
+}
+.dt.freeze-first input[type="checkbox"].excl-cb:checked::after,
+.dt.freeze-first input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px; top: 1.5px;
+  width: 3.5px; height: 7px;
+  border: solid #fff;
+  border-width: 0 1.6px 1.6px 0;
+  transform: rotate(45deg);
 }
 
 .sc { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 14px; }
@@ -884,8 +935,8 @@ body.dark .sj-btn:hover { background: var(--surface); color: var(--text-primary)
       </div>
     </div>
 
-    <!-- Table View -->
-    <div class="table-view" id="tableView">
+    <!-- Table View (初始隐藏，等 loadState 完成后再显示正确看板，避免刷新闪烁) -->
+    <div class="table-view" id="tableView" style="display:none">
       <!-- Hidden cols bar -->
       <div class="hid-cols-bar" id="hidBar" style="display:none">
         <span>已隐藏:</span><span id="hidTags"></span>
@@ -957,6 +1008,17 @@ body.dark .sj-btn:hover { background: var(--surface); color: var(--text-primary)
       <div class="df"><label>提示词指令 <span style="color:var(--error)">*</span> <span class="h">({{列名}} 引用)</span></label>
         <textarea id="dfPrompt" rows="5" placeholder="请根据{{标题}}和{{卖点}}的内容，识别产品的内部纹理特征..."></textarea>
         <div class="rcs" id="refChips"></div>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <button class="tbtn" style="font-size:11px;padding:4px 9px" onclick="aiEnhancePrompt()" id="aiEnhBtn">✨ AI 强化打标提示词</button>
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);cursor:pointer">
+            <input type="checkbox" id="dfEnhanceOn" style="accent-color:var(--accent)"> 打标签时用强化版
+          </label>
+          <span id="aiEnhStatus" style="font-size:10.5px;color:var(--text-tertiary)"></span>
+        </div>
+        <div id="aiEnhWrap" style="display:none;margin-top:8px">
+          <label style="font-size:11px;color:var(--text-secondary)">强化版提示词（可直接编辑，保存后打标签使用）</label>
+          <textarea id="dfPromptEnhanced" rows="6" style="margin-top:4px" placeholder="点击「✨ AI 强化打标提示词」生成"></textarea>
+        </div>
       </div>
       <div class="df"><label style="display:flex;align-items:center;gap:6px;cursor:pointer">
         <input type="checkbox" id="dfStrict" style="accent-color:var(--accent)"> 仅限预设选项
@@ -1231,7 +1293,7 @@ function renderTable(){
   if(!td.length){ document.getElementById('dt').style.display='none'; document.getElementById('emptyState').style.display='flex'; }
   else { document.getElementById('dt').style.display='table'; document.getElementById('emptyState').style.display='none'; }
 
-  th.innerHTML='<tr><th class="col-rn">#</th><th class="col-cb"><input type="checkbox" id="cbAll" onchange="toggleAll(this.checked)"></th>'+
+  th.innerHTML='<tr><th class="col-rn"></th><th class="col-cb"><input type="checkbox" id="cbAll" onchange="toggleAll(this.checked)"></th>'+
     visCols.map(function(c, i){
       var ci=allCols.indexOf(c), isAI=aiFields.find(function(f){return f.name===c;}), hid=hiddenColNames.has(c);
       var selCls = selectedCols.has(c) ? ' col-sel' : '';
@@ -1288,6 +1350,8 @@ function vrVisibleRange(){
 }
 function vrRenderBody(){
   var tb=document.getElementById('dtBody'); if(!tb)return;
+  // 清除 hover tooltip，防止 DOM 重建后显示旧单元格内容
+  if(window._hideCellTooltip) window._hideCellTooltip();
   var td=tableData();
   if(!td.length){ tb.innerHTML=''; return; }
   var range=vrVisibleRange();
@@ -1300,13 +1364,25 @@ function vrRenderBody(){
       '<td class="col-cb"><input type="checkbox" class="rcb" data-ri="'+ri+'"></td>'+
       rowCellsHTML(ri, td[ri])+'</tr>';
   }
-  html+='<tr style="height:'+botPad+'px"></tr>';
+  html+='<tr id="vrBotPad" style="height:'+botPad+'px"></tr>';
   tb.innerHTML=html;
+  // 补偿：渲染后测量真实可见行高，校正底部填充，使总 scrollHeight 严格恒定，
+  // 消除「渲染→scrollHeight 变化→scrollTop 被夹取→再渲染」的自激抖动（尤其拉到底部时）。
+  try{
+    var realH=0, vrows=tb.querySelectorAll('tr[data-ri]');
+    for(var k=0;k<vrows.length;k++){ realH += vrows[k].offsetHeight; }
+    var rendered = range.last - range.first;
+    var botPad2 = (td.length - range.last)*ROW_H + (rendered*ROW_H - realH);
+    var botTr = document.getElementById('vrBotPad');
+    if(botTr) botTr.style.height = Math.max(0, botPad2) + 'px';
+  }catch(e){}
   applyFreeze(); // re-apply frozen-column stickiness after window rebuild
 }
 // re-render a single visible row from current data (used during tagging / edits)
 function vrRenderIfVisible(ri){
   if(ri==null) return;
+  // 清除 hover tooltip，防止单行重建后 tooltip 指向旧内容
+  if(window._hideCellTooltip) window._hideCellTooltip();
   var wrap=document.getElementById('tableWrap');
   _scrollTop = wrap?wrap.scrollTop:_scrollTop;
   var range=vrVisibleRange();
@@ -1328,13 +1404,10 @@ function renderCell(ri,row,col,ci){
   const v=row[col], fld=aiFields.find(f=>f.name===col);
   if(v===undefined||v===null||v==='') return `<td data-ci="${ci}" onclick="startCellEdit(this,${ci},'${escAttr(col)}')"><span class="tag-empty">--</span></td>`;
   if(fld&&(fld.type==='multi'||fld.type==='single')){
-    // 构建 data-fulltext: 该字段引用列的原始内容（用于 hover 浮层展��打标依据）
-    var refText='';
-    try{ var rcs=refColsOf(fld); if(rcs.length) refText=rcs.map(function(rc){ return rc+': '+(row[rc]||'(无)'); }).join('\n'); }catch(e){ refText=''; }
-    // fallback: 无引用列则展示该行所有原始数据列
-    if(!refText){ try{ refText=originalColumns().map(function(c){ return c+': '+(row[c]||'(无)'); }).join('\n'); }catch(e2){ refText=''; } }
-    const tags=String(v).split(',').map(t=>t.trim()).filter(Boolean);
-    return `<td data-ci="${ci}" class="exp-cell" data-fulltext="${escAttr(refText)}"><div class="cell-tags">`+tags.map((t,i)=>
+    // hover 浮层展示该字段已打出的全部标签值（兼容逗号和竖线两种分隔符）
+    const sep = String(v).indexOf(' | ') >= 0 ? ' | ' : /[,;，；、]+/;
+    const tags=String(v).split(sep).map(t=>t.trim()).filter(Boolean);
+    return `<td data-ci="${ci}" class="exp-cell" data-fulltext="${escAttr(tags.join('、'))}"><div class="cell-tags">`+tags.map((t,i)=>
       `<span class="tag-pill ${TC[i%TC.length]}" title="${esc(t)}">${esc(t)}<span class="tag-rm" onclick="event.stopPropagation();removeTag(this,${ci},'${escAttr(col)}')" title="删除此标签">&times;</span></span>`
     ).join('')+`<span class="tag-add" onclick="event.stopPropagation();addTagInline(this,${ci},'${escAttr(col)}')" title="添加标签">+</span>`+'</div></td>';
   }
@@ -1848,6 +1921,10 @@ function openDrvNew(hint){
   document.getElementById('dfName').value=hint||''; document.getElementById('dfPrompt').value='';
   document.getElementById('dfStrict').checked=false; pkType('multi');
   document.getElementById('optsList').innerHTML='';
+  document.getElementById('dfPromptEnhanced').value='';
+  document.getElementById('dfEnhanceOn').checked=false;
+  document.getElementById('aiEnhWrap').style.display='none';
+  document.getElementById('aiEnhStatus').textContent='';
   document.getElementById('drvOverlay').classList.add('open'); buildRefs();
 }
 
@@ -1857,10 +1934,122 @@ function openDrvEdit(f){
   document.getElementById('dfStrict').checked=!!f.strict; pkType(f.type||'multi');
   const ol=document.getElementById('optsList'); ol.innerHTML='';
   if(f.options&&f.options.length) f.options.forEach(o=>addORow(o));
+  document.getElementById('dfPromptEnhanced').value=(f.promptEnhanced||'');
+  document.getElementById('dfEnhanceOn').checked=!!f.aiEnhance;
+  document.getElementById('aiEnhWrap').style.display=(f.promptEnhanced?'block':'none');
+  document.getElementById('aiEnhStatus').textContent=f.promptEnhanced?('已存在强化版'+(f.aiEnhance?' · 当前启用':'')):'';
   document.getElementById('drvOverlay').classList.add('open'); buildRefs();
 }
 
 function closeDrv(){document.getElementById('drvOverlay').classList.remove('open'); editingIdx=-1;}
+
+// ============================================================
+// AI 强化打标提示词
+// 把用户原始（可能口语/简略/有歧义）的提示词，改写为「强引导版」标注指令，
+// 对标验证那套脚手架（角色定位 + 判定优先级 + 输出契约 + 边界处理 + few-shot 示例），
+// 以提升打标签准确度。生成一次缓存进 fld.promptEnhanced，打标签时零额外 API 开销。
+// ⚠ 仅影响打标签（buildPrompt 切换基准），验证路径仍用 fld.prompt，不受影响。
+// ============================================================
+async function aiEnhancePrompt(){
+  var cfg=apiCfg();
+  if(!cfg.key){ alert('请先在左侧 API 配置区填写 API Key'); return; }
+  var base=document.getElementById('dfPrompt').value.trim();
+  if(!base){ alert('请先填写原始提示词，再点强化'); return; }
+  var type=drvType||'multi';
+  var opts=getOpts();
+  var strict=document.getElementById('dfStrict').checked;
+  // 分隔要求：依据原始提示词字面（与 cleanLabel 的 wantsBar 判据一致），不写死默认
+  var wantsBar=/竖线|分隔符?|竖线分隔|用.{0,4}竖线|以.{0,4}竖线|结构|拆分|合并|规范|规则|6\.[1-5]|\|/.test(base);
+  var sepHint = wantsBar ? '竖线 | ' : '逗号 , ';
+  // 样本：取当前表前 3 行，仅展示被 {{列名}} 引用的列（与 refColsOf 一致），供构造示例
+  var rows=tableData().slice(0,3);
+  var refs=(base.match(/\{\{([^}]+)\}\}/g)||[]).map(function(s){return s.slice(2,-2);});
+  var sampleTxt=rows.map(function(r,i){
+    var parts=refs.length?refs:Object.keys(r).slice(0,3);
+    return '样本'+(i+1)+': '+parts.map(function(c){return c+': '+(r[c]!=null?String(r[c]).slice(0,120):'(无)');}).join('；');
+  }).join('\n');
+  if(!sampleTxt) sampleTxt='（当前未加载数据，跳过示例）';
+  var userContent=[
+    '## 字段配置',
+    '类型: '+(type==='single'?'单选':type==='text'?'文本':'多选'),
+    '可选标签: '+(opts.length?opts.join('、'):'无'),
+    '严格模式: '+(strict?'是（只能从可选标签选）':'否'),
+    '分隔要求: '+sepHint,
+    '',
+    '## 原始提示词',
+    base,
+    '',
+    '## 真实样本数据（理解数据形态、构造示例用）',
+    sampleTxt
+  ].join('\n');
+  var sys='你是「标注提示词增强器」。用户有一条已经很详细的原始标注提示词（含规则、格式、{{列名}}引用）。你的任务不是重写它，而是在它**前后加上精炼的强引导脚手架**，让打标签模型更准。\n\n'+
+    '## 输出结构（必须严格按此模板拼接，不要自由发挥）\n\n'+
+    '### 第一段：角色与任务（1-2句话）\n'+
+    '用「你是XXX专家。你的任务是XXX。」开头，明确角色和核心任务。\n\n'+
+    '### 第二段：判定优先级（2-3行）\n'+
+    '给出简短优先级：字段定义含义 > 原文内容语义'+(strict?' > 必须来自可选标签':'')+'。\n'+
+    '不要重复用户已有的详细规则！只补「优先级框架」这个骨架。\n\n'+
+    '### 第三段：用户的原始提示词（原样粘贴，一字不改！）\n'+
+    '【以下是标注规则】\n'+base+'\n【规则结束】\n\n'+
+    '### 第四段：输出契约（1-2行）\n'+
+    '明确输出形式：'+(type==='single'?'单选，只输出一个标签':type==='text'?'自由文本输出':'多选，多个标签按用户提示词（第三段）要求的分隔符分隔')+
+    '。所有格式、分隔符、未匹配时的写法，严格以第三段「用户的原始提示词」为准，不得自行添加任何规则（包括不得自行决定"未提及"等兜底词）。\n\n'+
+    '### 第五段：边界与示例（3-4行）\n'+
+    '补充 1-2 个基于真实样本的「输入→应输出」示例（仅演示格式）。若有歧义情况说明如何取舍。示例中也要保留 {{列名}} 占位符格式。\n\n'+
+    '## 关键约束（违反任何一条都将导致打标签失败！）\n'+
+    '- ⚠️ 原始提示词中的 {{列名}} 引用（如{{内容}}{{标题}}等）是数据占位符，**绝对不能删除、替换或改写**！它们会在运行时被真实数据替换。\n'+
+    '- 绝不删除/改写/简化用户的原始规则！原始提示词必须完整保留在第三段。\n'+
+    '- 总长度控制在原 prompt 的 1.5 倍以内，宁可精炼也不要冗长。\n'+
+    '- 只输出拼接好的完整增强版正文，不要解释、不要代码块。';
+  var btn=document.getElementById('aiEnhBtn');
+  var old=btn.textContent; btn.disabled=true; btn.textContent='强化中…';
+  document.getElementById('aiEnhStatus').textContent='正在调用 AI 优化提示词…';
+  try{
+    // 独立请求（带完整响应日志，方便排查空内容根因）
+    var msgs=[{role:'system',content:sys},{role:'user',content:userContent}];
+    var resp=await fetch(cfg.base+'/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.key},
+      body:JSON.stringify({model:cfg.model,messages:msgs,temperature:0.3,max_tokens:4000})
+    });
+    var respText=await resp.text().catch(function(){return '';});
+    console.log('[aiEnhance] HTTP status:', resp.status, 'body length:', respText.length, 'body preview:', respText.slice(0,300));
+    if(!resp.ok){
+      alert('API 请求失败 (HTTP '+resp.status+'):\n'+respText.slice(0,500));
+      return;
+    }
+    var d;
+    try{ d=JSON.parse(respText); }catch(pe){
+      alert('API 返回了非 JSON 响应:\n'+respText.slice(0,500));
+      return;
+    }
+    // 兼容多种返回结构
+    var raw='';
+    if(d.choices && d.choices[0]){
+      var m=d.choices[0].message;
+      raw=m?(m.content||''):'';
+    }
+    // 某些模型可能把内容放在其他位置
+    if(!raw && d.output){ raw=d.output.text||d.output.content||''; }
+    if(!raw){ raw=d.text||d.content||''; }
+
+    raw=String(raw||'').replace(/^```(?:json|text|markdown)?\s*/i,'').replace(/\s*```$/,'');
+    raw=raw.trim();
+    if(!raw){
+      alert('强化返回为空。\n\n完整 API 响应已打印到浏览器控制台（F12 → Console）。\n\n请打开控制台查看 [aiEnhance] 开头的日志，里面包含 HTTP 状态码和响应体预览。把控制台截图发我即可定位原因。\n\n常见原因：当前模型('+cfg.model+')对长文本任务可能返回空 content；可尝试换模型或增大 max_tokens。');
+      return;
+    }
+    document.getElementById('dfPromptEnhanced').value=raw;
+    document.getElementById('aiEnhWrap').style.display='block';
+    document.getElementById('dfEnhanceOn').checked=true;
+    document.getElementById('aiEnhStatus').textContent='已生成强化版 · 保存后生效';
+  }catch(e){
+    alert('强化失败：'+(e&&e.message?e.message:e));
+    document.getElementById('aiEnhStatus').textContent='强化失败，请重试';
+  }finally{
+    btn.disabled=false; btn.textContent=old;
+  }
+}
 
 function pkType(t){
   drvType=t; document.querySelectorAll('#tpPick .to').forEach(el=>el.classList.toggle('on',el.dataset.t===t));
@@ -1877,9 +2066,12 @@ function getOpts(){return Array.from(document.querySelectorAll('#optsList input'
 function saveFld(){
   const name=document.getElementById('dfName').value.trim(), prompt=document.getElementById('dfPrompt').value.trim();
   if(!name){alert('填字段名');return;} if(!prompt){alert('填提示词');return;}
+  const enhanced=document.getElementById('dfPromptEnhanced').value.trim();
+  const useEnh=document.getElementById('dfEnhanceOn').checked;
+  if(useEnh && !enhanced){ alert('已勾选「打标签时用强化版」，但强化版提示词为空，请先点「✨ AI 强化打标提示词」生成'); return; }
   const dup=aiFields.findIndex((f,i)=>f.name===name&&i!==editingIdx);
   if(dup>=0){alert('字段名重复');return;}
-  const fld={name,prompt,type:drvType,options:drvType==='text'?[]:getOpts(),strict:document.getElementById('dfStrict').checked};
+  const fld={name,prompt,type:drvType,options:drvType==='text'?[]:getOpts(),strict:document.getElementById('dfStrict').checked,promptEnhanced:enhanced,aiEnhance:useEnh};
   if(editingIdx>=0){
     const old=aiFields[editingIdx].name;
     if(old!==name) sheets.forEach(s=>s.data.forEach(r=>{if(r.hasOwnProperty(old)){r[name]=r[old];delete r[old];}}));
@@ -1983,30 +2175,43 @@ async function aiBuildLabelSystem(){
 
 只输出 JSON 数组，不要任何解释文字、markdown 代码块标记、或其他内容。`;
 
-  var userMsg = `【当前数据表的列名】\n${originalColumns().join(', ') || '(尚未上传数据文件)'}\n\n【标签体系文档内容】\n${desc}\n\n【输出格式偏好】默认: ${lsType}\n\n请仔细分析以上文档，提取所有标注维度，为每个维度生成完整的字段配置。确保 prompt 中包含文档中的关键判断规则。`;
+  // 长文档截断策略：超过 15000 字时自动截取核心部分，避免输入过长导致输出被截断
+  var descToSend = desc;
+  if(desc.length > 15000){
+    descToSend = desc.slice(0, 6000) +
+      '\n\n--- [文档中间部分已省略，以下为尾部关键内容] ---\n\n' +
+      desc.slice(-8000);
+    log('info','标签体系文档过长('+desc.length+'字)，已截断至 '+descToSend.length+' 字（前6000+后8000）');
+  }
+
+  var userMsg = `【当前数据表的列名】\n${originalColumns().join(', ') || '(尚未上传数据文件)'}\n\n【标签体系文档内容】\n${descToSend}\n\n【输出格式偏好】默认: ${lsType}\n\n请仔细分析以上文档，提取所有标注维度，为每个维度生成完整的字段配置。确保 prompt 中包含文档中的关键判断规则。`;
 
   try{
-    const raw=await callAPI(sysPrompt,userMsg,cfg.key,0.4,8000);
-    // 更健壮的 JSON 提取：尝试多种方式
+    // 长文档需要更大的输出空间：9个模块 × 每个含详细prompt+大量选项 → 8000不够
+    const maxTok = desc.length > 10000 ? 16000 : 8000;
+    const raw=await callAPI(sysPrompt,userMsg,cfg.key,0.4, maxTok);
+    console.log('[aiBuildLabelSystem] 原始返回长度='+raw.length+', max_tokens='+maxTok+', 文档长度='+desc.length);
+    // 更健壮的 JSON 提取与修复：LLM 输出常有截断/换行/特殊字符问题
     var jsonStr = raw;
     var m = raw.match(/\[[\s\S]*\]/);
     if(m) jsonStr = m[0];
     // 去掉可能的 markdown 代码块包裹
     jsonStr = jsonStr.replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/\s*```\s*$/,'').trim();
 
-    // JSON 截断修复：LLM 输出可能因 max_tokens 不够被截断
     var fields;
     try {
       fields = JSON.parse(jsonStr);
     } catch(parseErr) {
-      // 尝试修复截断的 JSON
-      var repaired = repairTruncatedJSON(jsonStr);
-      if(repaired) {
-        try { fields = JSON.parse(repaired); }
-        catch(e2) { throw new Error('AI 返回的 JSON 格式不完整，文档可能过长导致输出被截断。建议：缩短标签体系描述内容后重试。\n\n原始错误: '+parseErr.message); }
-      } else {
-        throw new Error('AI 返回的 JSON 格式不完整，文档可能过长导致输出被截断。建议：缩短标签体系描述内容后重试。\n\n原始错误: '+parseErr.message);
-      }
+      // 多级修复策略
+      var repaired = null;
+      // 策略1: 修复常见 LLM JSON 畸形（换行/引号/尾逗号）
+      repaired = repairMalformedJSON(jsonStr);
+      if(repaired) { try { fields=JSON.parse(repaired); } catch(e1){ repaired=null; } }
+      // 策略2: 截断修复（补括号）
+      if(!fields && !repaired) { repaired=repairTruncatedJSON(jsonStr); if(repaired) { try{ fields=JSON.parse(repaired); }catch(e2){} } }
+      // 策略3: 截断+畸形组合修复
+      if(!fields) { var fixed=repairMalformedJSON(jsonStr); if(fixed){var t=repairTruncatedJSON(fixed);if(t){try{fields=JSON.parse(t);}catch(e3){}}} }
+      if(!fields) throw new Error('AI 返回的 JSON 格式不完整，文档可能过长导致输出被截断。建议：缩短标签体系描述内容后重试。\n\n原始错误: '+parseErr.message+'\n\n返回内容前200字: '+raw.slice(0,200));
     }
     if(!Array.isArray(fields)||!fields.length) throw new Error('AI 未返回有效字段');
 
@@ -2041,6 +2246,62 @@ async function aiBuildLabelSystem(){
  * LLM 输出常因 max_tokens 限制在字符串/数组中间截断
  * 策略：从末尾回溯，找到最后一个完整对象后截断闭合
  */
+/**
+ * 修复 LLM 输出的畸形 JSON（非截断类问题）。
+ * 常见问题：
+ * - 字符串值内含真实换行（应转义为 \n）
+ * - 字符串值内含未转义的引号
+ * - 尾逗号（trailing comma）
+ * - 中文标点混入 JSON 结构
+ */
+function repairMalformedJSON(str){
+  if(!str || typeof str!=='string') return null;
+  var s = str.trim();
+  if(!s.startsWith('[')) return null;
+
+  // 逐字符重建 JSON，修复字符串内的换行和引号
+  var out=[];
+  var inStr=false, escape=false;
+  for(var i=0;i<s.length;i++){
+    var c=s[i];
+    if(escape){ out.push(c); escape=false; continue; }
+    if(c==='\\'){ out.push(c); escape=true; continue; }
+    if(inStr){
+      if(c==='"'){ inStr=false; out.push(c); continue; }
+      // 字符串内：真实换行 → \n，制表符 → \t
+      if(c==='\n'){ out.push('\\n'); continue; }
+      if(c==='\r'){ continue; } // skip \r
+      if(c==='\t'){ out.push('\\t'); continue; }
+      // 字符串内未转义的引号 → 转义
+      if(c==="'"){ out.push(c); continue; } // 单引号保留
+      out.push(c);
+      continue;
+    }
+    // 非字符串区域
+    if(c==='"'){ inStr=true; out.push(c); continue; }
+    out.push(c);
+  }
+
+  var repaired = out.join('');
+
+  // 去除尾逗号（},] 前的 ,）
+  repaired = repaired.replace(/,\s*([}\]])/g,'$1');
+
+  // 尝试解析
+  try { JSON.parse(repaired); return repaired; }
+  catch(e) { /* 继续尝试更激进的修复 */ }
+
+  // 激进模式：用 eval 安全子集尝试（仅处理字面量结构）
+  // 将单引号转为双引号（LLM 有时输出单引号 key/value）
+  var ag2 = repaired.replace(/'([^']*)'/g,function(m,q){
+    return '"'+q.replace(/"/g,'\\"')+'"';
+  });
+  try { JSON.parse(ag2); return ag2; }
+  catch(e2) {}
+
+  return null;
+}
+
 function repairTruncatedJSON(str){
   if(!str || typeof str!=='string') return null;
   var s = str.trim();
@@ -2155,6 +2416,21 @@ function renderFpCards(){
         '<span class="fp-card-label">提示词</span>'+
         '<textarea class="fp-card-prompt" id="fpPrompt_'+i+'" placeholder="打标指令：说明识别什么、判断规则、未提及处理..." onchange="fpUpdateField('+i+',\'prompt\',this.value)">'+esc(f.prompt||'')+'</textarea>'+
       '</div>'+
+      // ---- AI 强化：上下对齐布局 ----
+      '<div class="fp-card-row">'+
+        '<span class="fp-card-label">强化提示词</span>'+
+        '<div style="flex:1;display:flex;flex-direction:column;gap:6px">'+
+          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+            '<button type="button" onclick="fpAiEnhancePrompt('+i+')" id="fpEnhBtn_'+i+'" style="font-size:11.5px;padding:4px 12px;border:none;border-radius:7px;background:linear-gradient(135deg,#0ea5e9,#6366f1);color:#fff;cursor:pointer;white-space:nowrap;font-weight:600;box-shadow:0 2px 6px rgba(14,165,233,.3)">✨ AI 强化打标提示词</button>'+
+            '<label style="font-size:11px;color:var(--text-secondary);display:flex;align-items:center;gap:3px;cursor:pointer'+(!f.promptEnhanced ? ';opacity:.4' : '')+'">'+
+              '<input type="checkbox" onchange="fpUpdateField('+i+',\'aiEnhance\',this.checked);this.parentNode.style.opacity=this.checked?\'1\':\'.4\';var a=document.getElementById(\'fpEnhArea_'+i+'\');if(a)a.style.display=this.checked?\'block\':\'none\'" '+(f.aiEnhance?'checked':'')+' id="fpEnhChk_'+i+'"/> 打标签用强化版'+
+            '</label>'+
+            '<span id="fpEnhStatus_'+i+'" style="font-size:10.5px;color:var(--text-tertiary)"></span>'+
+          '</div>'+
+          '<textarea id="fpEnhText_'+i+'" class="fp-card-prompt" style="display:'+(f.aiEnhance?'block':'none')+';color:#0369a1;border-color:rgba(14,165,233,.25);min-height:60px" placeholder="点击上方按钮生成 AI 强化版提示词…" onchange="fpUpdateField('+i+',\'promptEnhanced\',this.value)">'+esc(f.promptEnhanced||'')+'</textarea>'+
+          (f.promptEnhanced ? '<div style="font-size:9.5px;color:var(--text-tertiary);margin-top:2px">保存字段后生效 · 可手动编辑或重新生成</div>' : '')+
+        '</div>'+
+      '</div>'+
       '<div class="fp-card-row">'+
         '<span class="fp-card-label">选项</span>'+optsHtml+
       '</div>'+
@@ -2162,6 +2438,118 @@ function renderFpCards(){
       '</div>';
   }).join('');
   // Attach delegated keydown handler for option inputs (avoids quote-nesting issues in inline handlers)
+}
+
+// AI 建议字段配置弹窗：强化单个字段的提示词
+async function fpAiEnhancePrompt(idx){
+  // 同步确认 —— 排除"函数没被调用"的可能
+  console.log('[fpAiEnhance] clicked idx=',idx, '_fpFields.length=',_fpFields?.length);
+
+  if(typeof _fpFields==='undefined' || !_fpFields || !Array.isArray(_fpFields)){
+    alert('内部错误：字段列表未初始化。请关闭弹窗后重新打开「AI建议字段配置」');
+    return;
+  }
+  if(idx<0||idx>=_fpFields.length){ alert('字段索引无效（'+idx+'），共 '+_fpFields.length+' 个字段'); return; }
+  var f = _fpFields[idx];
+  if(!f){ alert('字段 #'+idx+' 数据为空'); return; }
+  if(!f.prompt || !f.prompt.trim()){ alert('请先填写「提示词」再进行 AI 强化'); return; }
+  var cfg = apiCfg();
+  if(!cfg){ alert('请先在左侧设置栏配置 API 连接（模型地址 + Key）'); return; }
+  if(!cfg.key || !cfg.key.trim()){ alert('请先填写 API Key'); return; }
+
+  var btn=document.getElementById('fpEnhBtn_'+idx);
+  var st=document.getElementById('fpEnhStatus_'+idx);
+  var area=document.getElementById('fpEnhArea_'+idx);
+  var chk=document.getElementById('fpEnhChk_'+idx);
+
+  // null guard —— 任一元素缺失时仍给出反馈
+  if(!btn){ alert('内部错误：按钮元素未找到（id=fpEnhBtn_'+idx+'）。请刷新页面重试'); return; }
+
+  btn.disabled=true; btn.textContent='⏳ 强化中…'; btn.style.opacity='.7';
+  if(st){ st.textContent='正在调用 AI 优化提示词…'; st.style.color='var(--text-secondary)'; }
+
+  try{
+    var base=f.prompt.trim();
+    var type=f.type||'multi';
+    var strict=!!f.strict;
+    var opts=Array.isArray(f.options)?f.options:[];
+    var sepHint = (base.indexOf('|')>=0 && !base.indexOf(',')>=0) ? '竖线（|）' : '英文逗号或竖线';
+
+    // 取前3行样本
+    var rows=tableData(); var samples=[];
+    for(var si=0;si<Math.min(3,rows.length);si++){
+      var rowObj={};
+      originalColumns().forEach(function(c){ rowObj[c]=String(rows[si][c]||''); });
+      samples.push(JSON.stringify(rowObj));
+    }
+    var sampleText=samples.length?'真实数据样本（前'+samples.length+'行）：\n'+samples.join('\n'):'（暂无数据）';
+
+    var sys='你是「标注提示词增强器」。用户有一条已经很详细的原始标注提示词（含规则、格式、{{列名}}引用）。你的任务不是重写它，而是在它**前后加上精炼的强引导脚手架**，让打标签模型更准。\n\n'+
+      '## 输出结构（必须严格按此模板拼接，不要自由发挥）\n\n'+
+      '### 第一段：角色与任务（1-2句话）\n'+
+      '用「你是XXX专家。你的任务是XXX。」开头，明确角色和核心任务。\n\n'+
+      '### 第二段：判定优先级（2-3行）\n'+
+      '给出简短优先级：字段定义含义 > 原文内容语义'+(strict?' > 必须来自可选标签':'')+'。\n'+
+      '不要重复用户已有的详细规则！只补「优先级框架」这个骨架。\n\n'+
+      '### 第三段：用户的原始提示词（原样粘贴，一字不改！）\n'+
+      '【以下是标注规则】\n'+base+'\n【规则结束】\n\n'+
+      '### 第四段：输出契约（1-2行）\n'+
+      '明确：'+(type==='single'?'单选，只输出一个标签':type==='text'?'自由文本输出':'多选，多个标签用'+sepHint+'分隔')+
+      '; 无匹配输出"未提及"。严格保持用户要求的分隔符('+sepHint+')。\n\n'+
+      '### 第五段：边界与示例（3-4行）\n'+
+      '补充 1-2 个基于真实样本的「输入→应输出」示例（仅演示格式）。若有歧义情况说明如何取舍。\n\n'+
+      '## 关键约束\n'+
+      '- 绝不删除/改写/简化用户的原始规则！原始提示词必须完整保留在第三段。\n'+
+      '- {{列名}} 是运行时数据占位符，绝对不能删除、替换或改写！如果原提示词含{{列名}}，增强版中必须原样保留。\n'+
+      '- 总长度控制在原 prompt 的 1.5 倍以内，宁可精炼也不要冗长。\n'+
+      '- 只输出拼接好的完整增强版正文，不要解释、不要代码块。';
+
+    var userContent='字段名称：'+f.name+'\n字段类型：'+type+(strict?'（严格模式）':'')+
+      (opts.length?'\n可选标签：'+opts.join(', '):'')+'\n\n'+sampleText;
+
+    var resp=await fetch(cfg.base+'/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.key},
+      body:JSON.stringify({model:cfg.model,messages:[{role:'system',content:sys},{role:'user',content:userContent}],temperature:0.3,max_tokens:4000})
+    });
+    var data=await resp.json();
+    console.log('[fpAiEnhance] HTTP '+resp.status+', body keys='+Object.keys(data).join(','));
+
+    var raw='';
+    if(data.choices && data.choices[0]){
+      raw=data.choices[0].message?.content||data.choices[0].text||'';
+    } else if(data.output && data.output.text){
+      raw=data.output.text;
+    } else { raw=String(data.content||data.text||''); }
+
+    raw=String(raw||'').replace(/^```(?:json|text|markdown)?\s*/i,'').replace(/\s*```$/,'');
+    raw=raw.trim();
+
+    if(!raw){
+      var diag='status='+resp.status+', keys='+Object.keys(data)+', content_len='+(data.choices?.[0]?.message?.content||'').length;
+      alert('强化返回为空。\n\n可能原因：模型不支持该请求长度 / API Key 额度不足 / 当前模型返回空内容。\n\n诊断：'+diag);
+      if(btn){ btn.disabled=false; btn.textContent='✨ AI 强化打标提示词'; btn.style.opacity=''; }
+      if(st){ st.textContent='❌ 返回为空'; st.style.color='var(--error,#dc2626)'; }
+      return;
+    }
+
+    // 存入 _fpFields 并更新 UI
+    f.promptEnhanced=raw;
+    f.aiEnhance=true;
+    fpUpdateField(idx,'promptEnhanced',raw);
+    fpUpdateField(idx,'aiEnhance',true);
+
+    var txtEl=document.getElementById('fpEnhText_'+idx);
+    if(txtEl){ txtEl.value=raw; txtEl.style.display='block'; }
+    if(chk){ chk.checked=true; if(chk.parentNode) chk.parentNode.style.opacity='1'; }
+    if(st){ st.textContent='✅ 已生成强化版（'+raw.length+'字）'; st.style.color='var(--success,#059669)'; }
+  }catch(err){
+    console.error('[fpAiEnhance]',err);
+    if(st){ st.textContent='❌ 失败：'+err.message; st.style.color='var(--error,#dc2626)'; }
+    else{ alert('AI 强化失败：'+err.message); }
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent='✨ AI 强化打标提示词'; btn.style.opacity=''; }
+  }
 }
 
 // Event delegation: handle Enter key on .fp-opt-input elements
@@ -2259,7 +2647,10 @@ function confirmFieldsFromPreview(){
       prompt: f.prompt.trim(),
       type: f.type || lsType || 'multi',
       options: Array.isArray(f.options) ? f.options : [],
-      strict: !!f.strict && (f.type || lsType || 'multi') !== 'text'
+      strict: !!f.strict && (f.type || lsType || 'multi') !== 'text',
+      // AI 强化字段
+      promptEnhanced: f.promptEnhanced || '',
+      aiEnhance: !!f.aiEnhance && !!f.promptEnhanced
     });
   });
   closeFieldPreview();
@@ -2378,15 +2769,22 @@ async function startTagging(opts){
   var targetIdx=opts.targetIdx, sheet=sheets[targetIdx], localData=sheet.data, sheetName=sheet.name;
   var fields=opts.fields.filter(function(f){ return f && (f.name||'').trim(); });
   if(!fields.length){ if(opts.isGlobal) alert('先配置 AI 字段'); return; }
-  if(sheetProc[targetIdx] && sheetProc[targetIdx].active){ alert('「'+sheetName+'」正在打标中，请先停止'); return; }
   var cfg=apiCfg(); if(!cfg.key){alert('填 API Key');return;}
+
+  // 字段级：过滤已在跑的字段，防重复并发
+  fields=fields.filter(function(f){ return !f._running; });
+  if(!fields.length){ if(opts.isGlobal) alert('没有可打标的字段（可能都已在运行中）'); return; }
 
   var total=0;
   fields.forEach(function(f){ total+=getFieldRows(f).length; });
   if(!total){alert('打标范围为 0，请检查行设置');return;}
 
   var done=0, skipped=0, t0=Date.now(), perTimes=[];
-  sheetProc[targetIdx]={active:true,done:0,total:total,start:t0,name:sheetName,stop:false};
+  if(!sheetProc[targetIdx]) sheetProc[targetIdx]={};
+  sheetProc[targetIdx].stop=false;
+  // 标记每个参与字段在跑
+  fields.forEach(function(f){ f._running=true; });
+  sheetProc[targetIdx].active = aiFields.some(function(f){return f._running;});
   updateRunUI(); renderFieldPanel();
   if(targetIdx===activeSheetIdx){ setSt('running','处理中...'); }
 
@@ -2405,7 +2803,10 @@ async function startTagging(opts){
       rows.forEach(function(ri){ if(ri<localData.length) localData[ri][fld.name]=''; });
     }
     for(var r=0;r<rows.length;r++){
-      if(sheetProc[targetIdx].stop) break;
+      if(sheetProc[targetIdx].stop || fld._stop){ 
+        log('info','检测到停止信号，中断字段「'+fld.name+'」打标 (已完成 '+r+'/'+rows.length+' 行)'); 
+        fld._running=false; fld._stop=false; renderFieldPanel(); updateRunUI(); break; 
+      }
       var ri=rows[r];
       if(ri>=localData.length) continue;
       var rowData=localData[ri];
@@ -2422,17 +2823,41 @@ async function startTagging(opts){
 
       var bp=buildPrompt(fld,rowData,sheet.originalColumns);
       var sys=bp.sys, srcMap=bp.srcMap, instr=bp.instr;
+      // 记录是否用了强化版（用于降级重试）
+      var usedEnhanced = !!(fld.aiEnhance && fld.promptEnhanced);
+      // 保留原 prompt 的 buildPrompt 结果（降级用）
+      var fallbackSys = null;
+      if(usedEnhanced){
+        var _origBase = fld.prompt;
+        fld.aiEnhance = false; // 临时关闭
+        var _fb = buildPrompt(fld,rowData,sheet.originalColumns);
+        fallbackSys = _fb.sys;
+        fld.aiEnhance = true; // 恢复
+      }
       if(isDeepAnalysis()){
-        sys+='\n\n请严格只输出一个 JSON 对象（不要代码块标记、不要任何解释文字）：{"分析":"你对上述原文的语义识别过程与判断依据","标签":"最终标签，多值用英文逗号分隔"}';
+        // ⚠ 深度分析要求 LLM 必须输出分析依据（不再"可选"，否则 reason 为空 → 展示端 fallback 到 raw 标签文本 → 变成重复标签）
+        // 格式：第一行=标签（严格按用户提示词格式），第二行起=【分析：判断过程】
+        sys+='\n\n【深度分析模式】你必须分两行输出：\n第1行：最终标签（严格按上述「指令」要求的格式）\n第2行：【分析：你对原文的语义理解与判断依据（用2-3句话说明为什么选这些标签）】\n不要输出 JSON，不要省略分析部分。';
       }
       if(onScreen) bufProc(ri,true);
       var ts=Date.now();
       try {
         var raw=await callAPI(sys,'',cfg.key,0.2);
+        // 强化版降级：如果返回空且用的是强化版，用原 prompt 重试一次
+        if((!raw || typeof raw!=='string' || !raw.trim()) && fallbackSys){
+          console.warn('[tagFieldLane] 强化版返回空，降级使用原 prompt 重试', fld.name);
+          raw = await callAPI(fallbackSys,'',cfg.key,0.2);
+          instr = fld.prompt; // 降级后 instr 回退为原 prompt
+          usedEnhanced = false;
+        }
         if(typeof raw!=='string' || !raw) throw new Error('API返回空或非文本 (type='+(typeof raw)+')');
         var reason='', parseRaw=raw;
         if(isDeepAnalysis()){
-          try{ var jm=raw.match(/\{[\s\S]*\}/); var jo=JSON.parse(jm[0]); reason=String(jo.分析||''); parseRaw=String(jo.标签!=null?jo.标签:raw); }catch(e){ reason=''; parseRaw=raw; }
+          try{
+            var am = raw.match(/【分析(?::|：|】)\s*([\s\S]*)$/);
+            if(am){ reason=String(am[1]).trim(); parseRaw=raw.replace(/【分析(?::|：|】)\s*[\s\S]*$/,'').trim(); }
+            else { reason=''; parseRaw=raw; }
+          }catch(e){ reason=''; parseRaw=raw; }
         }
         var clean=cleanLabel(parseRaw,fld);
         rowData[fld.name]=clean;
@@ -2455,6 +2880,7 @@ async function startTagging(opts){
       logThrottled('ok','['+fld.name+'] R'+(ri+1)+': '+String(clean||'').substring(0,40));
       await sleep(60);
     }
+    fld._running=false; fld._stop=false; renderFieldPanel(); updateRunUI();
   }
 
   // 多字段并行：每个字段独立 lane，最多 4 个并发，但全部字段并行推进
@@ -2467,9 +2893,10 @@ async function startTagging(opts){
   log('info',(sheetProc[targetIdx].stop?'已停止 ':'全部完成 ')+done+'/'+total+' (表: '+sheetName+')'+resumeNote);
   if(targetIdx===activeSheetIdx){ refreshDoc(); updStatus(); }
   saveState();
-  sheetProc[targetIdx].active=false;
+  fields.forEach(function(f){ f._running=false; f._stop=false; });
+  sheetProc[targetIdx].active = aiFields.some(function(f){return f._running;});
   updateRunUI(); renderFieldPanel();
-  setTimeout(function(){ if(sheetProc[targetIdx]) sheetProc[targetIdx].active=false; updateRunUI(); renderFieldPanel(); }, 2000);
+  setTimeout(function(){ fields.forEach(function(f){ f._running=false; f._stop=false; }); sheetProc[targetIdx].active = aiFields.some(function(f){return f._running;}); updateRunUI(); renderFieldPanel(); }, 2000);
 }
 
 // 全局按钮：并行打全部字段（受各字段自己的范围/模式约束）
@@ -2481,19 +2908,23 @@ async function runBatchTagging(){
   if(!cfg.key){alert('API Key 未填写');return;}
   try {
     var mode=document.getElementById('tagModeSel')?document.getElementById('tagModeSel').value:'resume';
-    log('info','开始全局打标：'+aiFields.length+' 个字段，模式='+mode);
-    await startTagging({targetIdx:activeSheetIdx, fields:curSheet().aiFields.slice(), mode:mode, isGlobal:true});
+    var fieldsToTag = (selectedCols && selectedCols.size) ? curSheet().aiFields.filter(function(f){ return selectedCols.has(f.name); }) : curSheet().aiFields.slice();
+    log('info','开始打标：'+(selectedCols&&selectedCols.size?('选中列优先，'+fieldsToTag.length+' 个字段'):(aiFields.length+' 个字段'))+'，模式='+mode);
+    await startTagging({targetIdx:activeSheetIdx, fields:fieldsToTag, mode:mode, isGlobal:true});
   } catch(e) {
     alert('打标出错：'+(e.message||e));
-    log('err','全局打标异常: '+(e.message||e));
+    log('err','打标异常: '+(e.message||e));
     setSt('done','出错');
-    sheetProc[activeSheetIdx]={active:false}; updateRunUI(); renderFieldPanel();
+    aiFields.forEach(function(f){ f._running=false; f._stop=false; });
+    if(sheetProc[activeSheetIdx]) sheetProc[activeSheetIdx].active=false;
+    updateRunUI(); renderFieldPanel();
   }
 }
 // 字段级按钮：只打这一列
 async function runFieldTagging(i){
   if(!curSheet()){alert('先上传数据');return;}
   if(!aiFields[i]) return;
+  if(aiFields[i]._running){ alert('「'+aiFields[i].name+'」正在打标中'); return; }
   try {
     var mode=document.getElementById('tagModeSel')?document.getElementById('tagModeSel').value:'resume';
     log('info','开始单字段打标：'+aiFields[i].name+'，模式='+mode);
@@ -2502,8 +2933,24 @@ async function runFieldTagging(i){
     alert('打标出错：'+(e.message||e));
     log('err','单字段打标异常['+aiFields[i].name+']: '+(e.message||e));
     setSt('done','出错');
-    sheetProc[activeSheetIdx]={active:false}; updateRunUI(); renderFieldPanel();
+    aiFields[i]._running=false; aiFields[i]._stop=false;
+    if(sheetProc[activeSheetIdx]) sheetProc[activeSheetIdx].active = aiFields.some(function(f){return f._running;});
+    updateRunUI(); renderFieldPanel();
   }
+}
+// 单字段停止：只停这一列（不影响其他字段）
+function stopFieldTagging(i){
+  if(!aiFields[i]) return;
+  if(aiFields[i]._stop){ return; } // 防重复点击
+  aiFields[i]._stop=true;
+  log('info','已请求停止字段「'+aiFields[i].name+'」的打标，将在当前行完成后中断');
+  // 即时视觉反馈：按钮变「停止中…」
+  var btns=document.querySelectorAll('.fld-stop');
+  btns.forEach(function(b){
+    if(b.getAttribute('onclick')&&b.getAttribute('onclick').indexOf('stopFieldTagging('+i+')')!==-1){
+      b.textContent='停止中…'; b.style.opacity='0.6'; b.style.cursor='wait';
+    }
+  });
 }
 
 // 重试失败行：只对 [错] 开头的单元格重新打标（续打模式，自动跳过成功行）
@@ -2535,7 +2982,9 @@ async function retryFailedRows(){
     alert('重试出错：'+(e.message||e));
     log('err','重试失败行异常: '+(e.message||e));
     setSt('done','出错');
-    sheetProc[activeSheetIdx]={active:false}; updateRunUI(); renderFieldPanel();
+    aiFields.forEach(function(f){ f._running=false; f._stop=false; });
+    if(sheetProc[activeSheetIdx]) sheetProc[activeSheetIdx].active=false;
+    updateRunUI(); renderFieldPanel();
   }
 }
 
@@ -2546,30 +2995,32 @@ function renderFieldPanel(){
   if(!curSheet() || !aiFields.length){ bar.style.display='none'; return; }
   bar.style.display='';
   document.getElementById('fldCountBadge').textContent = aiFields.length+' 个';
-  var running = !!(sheetProc[activeSheetIdx] && sheetProc[activeSheetIdx].active);
   list.innerHTML=aiFields.map(function(f,i){
     var tp = f.type==='multi'?'多选':f.type==='single'?'单选':'文本';
     var start = (f.tagStart&&f.tagStart>0)?f.tagStart:1;
     var count = (f.tagCount&&f.tagCount>0)?f.tagCount:'';
     var isCustom = !!f._customMode;
-    // Range select matching global style
     var rangeSelVal = isCustom ? 'custom' : (count ? (count>=tableData().length?'all':String(count)) : 'all');
-    return '<div class="fld-row">'+
+    var isRunning = !!f._running;
+    var runBtn = isRunning
+      ? '<button class="fld-stop" onclick="stopFieldTagging('+i+')" title="停止这一列">停止</button>'
+      : '<button class="fld-run" onclick="runFieldTagging('+i+')" title="只打这一列">打标签</button>';
+    return '<div class="fld-row'+(isRunning?' hl-running':'')+'">'+
       '<div class="fld-top"><span class="fld-name" onclick="openDrvEdit(aiFields['+i+'])">'+esc(f.name)+'</span>'+
-      '<span class="fld-type">'+tp+'</span>'+
-      '<button class="fld-run" onclick="runFieldTagging('+i+')" '+(running?'disabled':'')+' title="只打这一列">打</button>'+
-      '<button class="fld-del" onclick="deleteField('+i+')" title="删除字段">'+ICON('close')+'</button></div>'+
+      '<span class="fld-type">'+tp+'</span></div>'+
       '<div class="fld-cfg">'+
         '<label>起<input type="number" min="1" value="'+start+'" onchange="setFldRange('+i+',\'start\',this.value)"></label>'+
-        '<label>范围<select onchange="setFldRangeFromSel('+i+',this.value)" style="width:80px;height:26px;border:1px solid var(--border);border-radius:5px;font-size:11px;padding:0 4px;background:var(--surface);color:var(--text-primary);font-family:inherit">'+
+        '<label>范围<select onchange="setFldRangeFromSel('+i+',this.value)">'+
           '<option value="all"'+(rangeSelVal==='all'?' selected':'')+'>全部</option>'+
           '<option value="50"'+(rangeSelVal==='50'?' selected':'')+'>前50</option>'+
           '<option value="100"'+(rangeSelVal==='100'?' selected':'')+'>前100</option>'+
           '<option value="200"'+(rangeSelVal==='200'?' selected':'')+'>前200</option>'+
           '<option value="custom"'+(rangeSelVal==='custom'?' selected':'')+'>自定义</option>'+
         '</select></label>'+
-        (isCustom?'<input type="number" min="1" placeholder="行数" value="'+count+'" style="width:56px;height:26px;border:1px solid var(--border);border-radius:5px;font-size:11px;padding:0 4px" onchange="setFldRange('+i+',\'count\',this.value)">':'')+
+        (isCustom?'<input type="number" min="1" placeholder="行数" value="'+count+'" onchange="setFldRange('+i+',\'count\',this.value)">':'')+
       '</div>'+
+      '<div class="fld-actions">'+runBtn+
+        '<button class="fld-del" onclick="deleteField('+i+')" title="删除字段">删除</button></div>'+
     '</div>';
   }).join('');
 }
@@ -2671,8 +3122,11 @@ function bufProg(done,total,t0,per){ _bufProg={done:done,total:total,t0:t0,per:p
 // Shared prompt builder + label cleaner (used by tagField & reTagRow)
 // ============================================================
 function buildPrompt(fld,rowData,oc){
-  var resolved=fld.prompt, srcMap={};
-  var refCols=refColsOf(fld);
+  // 打标签基准：开启 AI 强化且已生成强化版时，用强化版；否则用用户原提示词。
+  // 验证路径(validateOne/llmGenSuggestion/llmVerifySuggestion)始终用 fld.prompt，不受影响。
+  var basePrompt=(fld.aiEnhance && fld.promptEnhanced)?fld.promptEnhanced:fld.prompt;
+  var resolved=basePrompt, srcMap={};
+  var refCols=refColsOf(fld, basePrompt);
   for(var ci2=0;ci2<oc.length;ci2++){
     var colName=oc[ci2];
     var safeCol=colName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
@@ -2683,66 +3137,52 @@ function buildPrompt(fld,rowData,oc){
   }
   var sys='你是专业数据标注助手。严格按指令标注。\n\n## 指令\n'+resolved;
   if(fld.type!=='text'){
-    if(fld.options.length>0){ sys+='\n\n## 可选标签\n'; for(var oi=0;oi<fld.options.length;oi++){ sys+=(oi+1)+'. '+fld.options[oi]+'\n'; } }
-    // ── L2-L3 输出格式要求 ──
-    sys+='\n\n## 输出格式（必须遵守）\n';
-    sys+='每条标签必须使用「L2维度-具体标签」格式输出，即先写抽象的二级分类(L2)，再写具体标签(L3)，中间用短横线(-)连接。\n';
-    sys+='正确示例：「质量问题-电池不耐用」「操作困难-找不到按钮」「价格敏感-太贵了」「外观设计-颜色丑」\n';
-    sys+='错误示例（禁止）：只写「电池不耐用」（缺L2前缀）\n';
+    // ⚠ 字段提示词是最高准则：只补充"不冲突的元数据"，绝不追加任何格式/兜底规则
+    // 可选标签来自用户自己的字段配置（用户填的），作为参考列出，明确标注"以提示词为准"，不覆盖提示词
     if(fld.options.length>0){
-      // 如果选项本身已带 L2 前缀，直接用；否则模型自行归纳 L2
-      var hasL2Prefix=fld.options.some(function(o){ return o.indexOf('-')>0; });
-      if(hasL2Prefix) sys+='注意：可选标签中已包含 L2 前缀的，请保持其原有 L2 归属。\n';
-      else sys+='注意：可选标签没有 L2 前缀，请根据语义自动归类到合适的 L2 维度后输出。\n';
+      sys+='\n\n## 可选标签（参考，来自你的字段配置，最终以你的提示词为准）\n';
+      for(var oi=0;oi<fld.options.length;oi++){ sys+=(oi+1)+'. '+fld.options[oi]+'\n'; }
     }
     if(fld.strict && fld.options.length>0){
-      var mt=fld.type==='multi'?'多选用逗号分隔':'单选唯一';
-      sys+='\n## 约束\n只能从可选标签中选择。'+mt+'。无匹配则输出"未提及"';
-    } else {
-      var ot=fld.type==='multi'?'多选标签逗号分隔':'单选最匹配的一个';
-      sys+=ot+'。无匹配则"未提及"';
+      sys+='\n## 约束\n只能从可选标签中选择。';
     }
+    // ⚠ 不再硬编码"无匹配则输出未提及"——兜底写法完全交给用户提示词决定（用户写什么就按什么来，不替用户加规则）
   }
   sys+='\n\n只输出结果，不要解释';
-  return {sys:sys,resolved:resolved,srcMap:srcMap,instr:fld.prompt};
+  // ⚠ 格式强化（近因偏差）：最后一条指令权重最高
+  // 字段提示词中的格式要求（如竖线|分隔、逗号分隔等）是最高准则，不得被任何其他规则覆盖
+  if(fld.type!=='text'){
+    sys+='\n\n【格式强制】输出格式严格遵照上述「指令」中的分隔符要求，不得自行改用其他分隔符。';
+  }
+  return {sys:sys,resolved:resolved,srcMap:srcMap,instr:basePrompt};
 }
 // 解析字段 prompt 中真正被 {{列名}} 引用的列。
 // 这就是用户在字段配置里「引用」选中的几列 —— LLM 验证上下文与 AI 思考展示都只用它们，
 // 不再扫描数据表全部列做启发式识别。
-function refColsOf(fld){
+function refColsOf(fld, promptText){
   var oc=originalColumns();
-  if(!fld||!fld.prompt) return [];
-  var set={}, m, re=/\{\{([^}]+)\}\}/g, p=fld.prompt;
+  // 优先使用传入的 promptText（强化模式下的 promptEnhanced），
+  // 否则回退到 fld.prompt（原提示词/验证路径）。
+  var p = promptText || (fld && fld.prompt) || '';
+  if(!p) return [];
+  var set={}, m, re=/\{\{([^}]+)\}\}/g;
   while((m=re.exec(p))){ set[m[1]]=true; }
   return oc.filter(function(c){ return set[c]; });
 }
 function cleanLabel(raw,fld){
-  var clean=String(raw==null?'':raw);
-  // 去掉代码块包裹
-  clean=clean.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
-  // 去掉首尾引号
-  clean=clean.replace(/^\s*["'“”‘’]+/,'').replace(/["'“”‘’]+\s*$/,'');
-  // 去掉前缀编号（如 "1. " / "1、"）
-  clean=clean.replace(/^\d+[.\uff0e\u3001\u3002、\s]*/gm,'');
-  clean=clean.trim();
-  if(!clean) return '未提及';
-  if(fld && fld.type!=='text'){
-    var parts=clean.split(/[,;\uff0c\uff1b\n]+/);
-    var out=[];
-    for(var pi=0;pi<parts.length;pi++){
-      var tp=String(parts[pi]).trim().replace(/^["'“”‘’\s]+/,'').replace(/["'“”‘’\s]+$/,'');
-      // 只保留文字/数字/空格/常用分隔符，剥离 emoji 与几何符号（△★※▶◀ 等）
-      tp=tp.replace(/[^\p{L}\p{N}\s、·\-/]/gu,'').trim();
-      if(tp && tp!=='未提及' && out.indexOf(tp)<0) out.push(tp);
-    }
-    out=out.slice(0, fld.type==='single'?1:20);
-    clean=out.join(', ');
-  } else if(fld && fld.type==='text'){
-    // 文本字段：剥离 emoji/符号，保留正常标点
-    clean=clean.replace(/[^\p{L}\p{N}\s、，。·\-\/：:（）()！？；;%.,]/gu,'').trim();
+  // ⚠ 2026-07-28 实验：移除全部"写死重写"逻辑——白名单字符清洗、强制 |/, 重拼、截断、wantsBar 改写、兜底词注入。
+  // 改为最小化安全清理，只做非破坏性操作：去代码块包裹、去整串外层引号、去首尾空白。
+  // 分隔符 / 符号 / 结构 / 兜底写法 一律保留 LLM 按提示词输出的原样 —— 提示词为主。
+  var s=String(raw==null?'':raw);
+  // 去掉代码块包裹（```json / ```）
+  s=s.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
+  // 去首尾空白
+  s=s.trim();
+  // 若整串被一层引号包裹，去掉这层（避免把 "标签" 存成带引号）
+  if(s.length>=2 && /^(["'“”‘’])([\s\S]*)\1$/.test(s)){
+    s=RegExp.$2.trim();
   }
-  if(!clean) clean='未提及';
-  return clean;
+  return s;
 }
 
 function ctxReTagRow(){
@@ -2766,16 +3206,32 @@ async function reTagRow(ri){
       var rowData=tableData()[ri];
       var bp=buildPrompt(fld,rowData,originalColumns());
       var sys=bp.sys, resolved=bp.resolved, srcMap=bp.srcMap, instr=bp.instr;
+      // 强化版降级（与 tagFieldLane 同逻辑）
+      var _usedEnh = !!(fld.aiEnhance && fld.promptEnhanced);
+      var _fallbackSys = null;
+      if(_usedEnh){
+        fld.aiEnhance=false; var _fb=buildPrompt(fld,rowData,originalColumns()); _fallbackSys=_fb.sys; fld.aiEnhance=true;
+      }
       if(isDeepAnalysis()){
-        sys+='\n\n请严格只输出一个 JSON 对象（不要代码块标记、不要任何解释文字）：{"分析":"你对上述原文的语义识别过程与判断依据","标签":"最终标签，多值用英文逗号分隔"}';
+        // ⚠ 深度分析要求 LLM 必须输出分析依据（不再"可选"，否则 reason 为空 → 展示端 fallback 到 raw 标签文本 → 变成重复标签）
+        // 格式：第一行=标签（严格按用户提示词格式），第二行起=【分析：判断过程】
+        sys+='\n\n【深度分析模式】你必须分两行输出：\n第1行：最终标签（严格按上述「指令」要求的格式）\n第2行：【分析：你对原文的语义理解与判断依据（用2-3句话说明为什么选这些标签）】\n不要输出 JSON，不要省略分析部分。';
       }
       bufProc(ri,true);
       try{
         var raw=await callAPI(sys,'',cfg.key,0.2);
+        if((!raw || typeof raw!=='string' || !raw.trim()) && _fallbackSys){
+          console.warn('[reTagRow] 强化版返回空，降级使用原 prompt', fld.name);
+          raw = await callAPI(_fallbackSys,'',cfg.key,0.2); instr=fld.prompt; _usedEnh=false;
+        }
         if(typeof raw!=='string' || !raw){ throw new Error('API返回空或非文本 (type='+(typeof raw)+')'); }
         var reason='', parseRaw=raw;
         if(isDeepAnalysis()){
-          try{ var jm=raw.match(/\{[\s\S]*\}/); var jo=JSON.parse(jm[0]); reason=String(jo.分析||''); parseRaw=String(jo.标签!=null?jo.标签:raw); }catch(e){ reason=''; parseRaw=raw; }
+          try{
+            var am = raw.match(/【分析(?::|：|】)\s*([\s\S]*)$/);
+            if(am){ reason=String(am[1]).trim(); parseRaw=raw.replace(/【分析(?::|：|】)\s*[\s\S]*$/,'').trim(); }
+            else { reason=''; parseRaw=raw; }
+          }catch(e){ reason=''; parseRaw=raw; }
         }
         var clean=cleanLabel(parseRaw,fld);
         rowData[fld.name]=clean; bufCell(ri,fld.name,clean,'ok',fld);
@@ -2862,6 +3318,9 @@ function swView(v){
   document.querySelectorAll('.vcard').forEach(c=>c.classList.toggle('on',c.dataset.v===v));
   const tableView = document.getElementById('tableView');
   const docViews = ['docStats','docValidate','docLlmVal','docThink'];
+  // AI 字段面板：只在主数据表视图显示，其他看板默认隐藏
+  var fpBar = document.getElementById('fldPanelBar');
+  if(fpBar) fpBar.style.display = (v === 'table') ? '' : 'none';
   if(v === 'table'){
     tableView.style.display = 'flex';
     docViews.forEach(id => document.getElementById(id).classList.remove('active'));
@@ -2945,18 +3404,21 @@ function paintThink(){
             if(r.srcMap && Object.keys(r.srcMap).length){
               cnText = extractChineseText(r.srcMap);
             }
-            var assessText = r.reason || r.raw || '';
+            // reason 为空时不要 fallback 到 r.raw（raw 就是标签文本本身，会变成"重复标签"）
+            // 改为显示明确提示：深度分析开启但 LLM 未返回分析 / 深度分析未开启
+            var assessText = r.reason || '';
+            var assessFallback = deepOn ? (r.raw && r.raw.trim() ? '⚠ LLM 未按格式返回分析（原始输出见「打出标签」列）' : '（无分析文本）') : '（未开启深度分析）';
             return `<tr style="border-left:3px solid ${vc};cursor:pointer"${idx===_thinkIdx?' class="think-hl"':''} onclick="thinkSelect(${idx})">
               <td style="text-align:center;font-size:15px;color:${vc}" onclick="event.stopPropagation()">${vi}</td>
               <td style="text-align:center" onclick="event.stopPropagation()">${r.row!=null?r.row+1:'-'}</td>
               <td onclick="event.stopPropagation()">${esc(r.field||'')}</td>
               <td class="exp-cell" data-fulltext="${origText.replace(/"/g,'&quot;')}">${expCellHtml(origText)}</td>
               <td class="exp-cell" data-fulltext="${(cnText||'').replace(/"/g,'&quot;')}">${cnText ? expCellHtml(cnText) : '<span style="color:var(--text-tertiary);font-style:italic">(无翻译)</span>'}</td>
-              <td onclick="event.stopPropagation()">${isErr
-                ? '<span style="color:var(--error);font-size:11px">'+esc(String(r.clean||'').substring(0,40))+'</span>'
-                : '<span class="tag-pill" style="background:rgba(37,99,235,0.1);color:#2563EB;border:1px solid rgba(37,99,235,0.2)">'+esc(String(r.clean||'').substring(0,30))+'</span>'
+              <td class="exp-cell" data-fulltext="${escAttr(String(r.clean||''))}" onclick="event.stopPropagation()">${isErr
+                ? '<span style="color:var(--error);font-size:11px">'+esc(String(r.clean||''))+'</span>'
+                : '<span class="tag-pill" style="background:rgba(37,99,235,0.1);color:#2563EB;border:1px solid rgba(37,99,235,0.2)">'+esc(String(r.clean||''))+'</span>'
               }</td>
-              <td class="exp-cell" data-fulltext="${assessText.replace(/"/g,'&quot;')}">${assessText ? expCellHtml(assessText) : '<span style="color:var(--text-tertiary);font-style:italic">'+(deepOn?'(无 — 开启「深度分析」获取)':'(无分析文本)')+'</span>'}</td>
+              <td class="exp-cell" data-fulltext="${escAttr(assessText || assessFallback)}">${assessText ? expCellHtml(assessText) : '<span style="color:var(--text-tertiary);font-style:italic">'+esc(assessFallback)+'</span>'}</td>
             </tr>`;
           }).join('')}</tbody>
         </table>
@@ -3067,21 +3529,30 @@ function extractChineseText(srcMap){
   tip.id = 'cellTooltip';
   document.body.appendChild(tip);
   var _hideTimer = null;
+  var _lastCellKey = null;
+  var _cooldownUntil = 0; // VR重建后的冷却截止时间戳，防止重建后立即弹出错位内容
 
   document.addEventListener('mouseover', function(e){
     var cell = e.target.closest('.exp-cell');
     if(!cell) return;
-    // Get full text from data attribute or innerText
+    // 冷却期内不弹出（VR重建DOM后300ms内禁止）
+    if(Date.now() < _cooldownUntil) return;
+    var tr = cell.closest('tr[data-ri]');
+    var ri = tr ? tr.getAttribute('data-ri') : null;
+    var ci = cell.getAttribute('data-ci');
+    var cellKey = (ri!=null && ci!=null) ? ri+':'+ci : null;
+    if(cellKey && cellKey===_lastCellKey) return;
+    _lastCellKey = cellKey;
+    // 安全检查：确认单元格仍在 DOM 中
+    if(!document.body.contains(cell)) return;
     var full = cell.getAttribute('data-fulltext') || cell.textContent || '';
     if(!full.trim()) return;
     clearTimeout(_hideTimer);
     tip.textContent = full;
     tip.classList.add('visible');
-    // Position: below and to the right of cursor, but keep within viewport
     var rect = cell.getBoundingClientRect();
     var x = Math.min(rect.left, window.innerWidth - 500);
     var y = rect.bottom + 8;
-    // If too close to bottom, show above instead
     if(y + 260 > window.innerHeight){
       y = rect.top - 270;
       if(y < 0) y = 8;
@@ -3093,11 +3564,19 @@ function extractChineseText(srcMap){
   document.addEventListener('mouseout', function(e){
     var cell = e.target.closest('.exp-cell');
     if(!cell) return;
-    // Only hide if leaving the cell entirely (not moving to tooltip - though tooltip is pointer-events:none)
+    _lastCellKey = null;
     _hideTimer = setTimeout(function(){
       tip.classList.remove('visible');
     }, 80);
   });
+
+  // 暴露清除方法：虚拟滚动重建DOM后隐藏tooltip + 进入300ms冷却期
+  window._hideCellTooltip = function(){
+    clearTimeout(_hideTimer);
+    tip.classList.remove('visible');
+    _lastCellKey = null;
+    _cooldownUntil = Date.now() + 300;
+  };
 })();
 
 // Helper: generate expandable cell HTML with data-fulltext for hover tooltip
@@ -3130,6 +3609,7 @@ var _l4TagsCache={};    // dimKey -> tags array (for AI call)
 // L2 dimension summary caches (AI groups L3 tags into L2 dimensions)
 var _l2AiCache={};      // modKey -> [{dim, members:[...], reason}]
 var _l2TagsCache={};    // modKey -> tags array (for AI call)
+var _l2CellIdMap={};    // modKey -> DOM cellId (for aiSummarizeAllL2 lookup)
 
 /**
  * Lightweight L4 suggestion.
@@ -3256,6 +3736,43 @@ var sys='你是标签体系归纳专家。任务：将下面一组具体标签(L
   }
 }
 
+// AI 全部归纳：一键归纳所有含"(未分类)" L2 维度的字段
+async function aiSummarizeAllL2(){
+  if(!aiFields.length){ alert('暂无 AI 字段'); return; }
+  var cfg=apiCfg(); if(!cfg.key){ alert('请先填写 API Key'); return; }
+  // 收集所有有未分类标签的字段
+  var targets=[];
+  Object.keys(_l2TagsCache).forEach(function(mod){
+    if(_l2TagsCache[mod] && _l2TagsCache[mod].length) targets.push(mod);
+  });
+  if(!targets.length){
+    alert('没有需要归纳的未分类 L2 标签（所有字段已归纳或无数据）');
+    return;
+  }
+  if(!confirm('将对 '+targets.length+' 个字段的未分类标签进行 AI 归纳（'+targets.join(', ')+')。\n\n确认执行？')) return;
+  for(var ti=0;ti<targets.length;ti++){
+    var mod=targets[ti];
+    log('info','['+(ti+1)+'/'+targets.length+'] AI 归纳 L2: '+mod);
+    // 优先从映射表取 cellId（renderStats 时记录），兜底再查 DOM
+    var cellId=_l2CellIdMap[mod]||'';
+    if(!cellId){
+      var c=document.getElementById('docStats');
+      if(c){
+        var cells=c.querySelectorAll('[id^="l2cell_"]');
+        for(var ci=0;ci<cells.length;ci++){
+          if(cells[ci].textContent.indexOf(mod)>=0 && cells[ci].id) { cellId=cells[ci].id; break; }
+        }
+      }
+    }
+    try{ await aiSummarizeL2(mod, cellId); }
+    catch(e){ log('err','归纳 '+mod+' 失败: '+e.message); }
+    // 短暂延迟避免 API 限流
+    if(ti<targets.length-1) await new Promise(function(r){setTimeout(r,300);});
+  }
+  saveState();
+  log('info','✅ AI 全部归纳完成 ('+targets.length+' 个字段)');
+}
+
 function renderStats(c){
   if(!aiFields.length){c.innerHTML='<div class="de"><div class="de-t">暂无 AI 字段统计数据</div></div>';return;}
 
@@ -3332,7 +3849,7 @@ function renderStats(c){
 
   // Hierarchical table: L1模块 | L2维度 | L3标签 | 数量 | 4级建议
   html+='<div style="overflow-x:auto"><table class="dt"><thead><tr>';
-  html+='<th style="width:110px">L1 模块</th><th style="width:100px">L2 维度</th><th style="min-width:140px">L3 标签</th><th style="text-align:right;width:70px">数量</th><th style="min-width:180px;max-width:260px">4级标签建议</th>';
+  html+='<th style="width:110px">L1 模块</th><th style="width:100px">L2 维度 <button class="tbtn pri" onclick="aiSummarizeAllL2()" title="一键归纳所有「未分类」的 L2 维度" style="font-size:10px;padding:1px 8px;margin-left:4px;white-space:nowrap;background:var(--rad-grad);color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:600;vertical-align:middle">＋ 全部归纳</button></th><th style="min-width:140px">L3 标签</th><th style="text-align:right;width:70px">数量</th><th style="min-width:180px;max-width:260px">4级标签建议</th>';
   html+='</tr></thead><tbody>';
 
   // Pre-calculate module rowspans
@@ -3373,6 +3890,7 @@ function renderStats(c){
             _l2TagsCache[mod]=tags;
             _cellSeq++;
             var l2CellId='l2cell_'+_cellSeq;
+            _l2CellIdMap[mod]=l2CellId;  // 记录映射，供 aiSummarizeAllL2 查找
             // 安全转义: mod 用于 onclick 字符串参数(单引号内部)，需转义单引号&反斜杠&特殊HTML字符
             var safeMod=mod.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
             html+='<td id="'+l2CellId+'" rowspan="'+tags.length+'" style="'+dimStyle+'">'+esc(dim)
@@ -3488,13 +4006,75 @@ function renderValidate(c){
 }
 
 // --- LLM Validation ---
+// 验证字段多选：_valFieldSel 为空表示验证全部 AI 字段
+let _valFieldSel = new Set();
+function getValAiFields(){
+  if(!_valFieldSel || _valFieldSel.size===0) return aiFields.slice();
+  return aiFields.filter(function(f){ return _valFieldSel.has(f.name); });
+}
+function renderValFieldChips(){
+  if(!aiFields.length) return '<span style="font-size:11px;color:var(--text-tertiary)">无 AI 字段</span>';
+  var allOn = !_valFieldSel || _valFieldSel.size===0;
+  var chips = '<span onclick="toggleValFieldChip(\'__ALL__\')" class="'+(allOn?'llm-chip-on':'')+'" data-fchip="__ALL__">全部</span>';
+  chips += aiFields.map(function(f){
+    var on = allOn || _valFieldSel.has(f.name);
+    return '<span onclick="toggleValFieldChip(\''+escAttr(f.name)+'\')" class="'+(on?'llm-chip-on':'')+'" data-fchip="'+escAttr(f.name)+'">'+esc(f.name)+'</span>';
+  }).join('');
+  return chips;
+}
+function toggleValFieldChip(name){
+  if(!_valFieldSel) _valFieldSel=new Set();
+  if(name==='__ALL__'){
+    // 点击「全部」：清空选择集 = 全选模式
+    _valFieldSel.clear();
+  } else {
+    // 点击具体字段
+    if(_valFieldSel.has(name)) _valFieldSel.delete(name); else _valFieldSel.add(name);
+    // 如果逐个选中了所有字段，自动回到「全选」（清空）
+    if(_valFieldSel.size === aiFields.length) _valFieldSel.clear();
+    // 如果之前是全选模式（空集），点击某个字段后切换到单选模式
+    else if(_valFieldSel.size === 1 && aiFields.some(function(f){return f.name===name;})){
+      // 从全选切到部分选中：把其他所有字段都加进选择集
+      aiFields.forEach(function(f){ if(f.name!==name) _valFieldSel.add(f.name); });
+      _valFieldSel.delete(name); // 当前点的这个反转为不选中？不——点就是选中
+      // 重新来：从全选(空集)点到具体字段 → 只选中这一个
+      _valFieldSel.clear();
+      _valFieldSel.add(name);
+    }
+  }
+  var box=document.getElementById('valFieldChips');
+  if(box) box.innerHTML=renderValFieldChips();
+  refreshValStats();
+}
+// 根据当前选中的验证字段动态刷新统计数字
+function refreshValStats(){
+  var selFields = getValAiFields();
+  var totalRows = tableData().length;
+  var taggedCount = 0;
+  tableData().forEach(function(r){
+    selFields.forEach(function(f){ var v=r[f.name]; if(v!=null&&v!==''&&v!=='--') taggedCount++; });
+  });
+  var totEl = document.getElementById('valStatTotal');
+  var tagEl = document.getElementById('valStatTagged');
+  var fldEl = document.getElementById('valStatFields');
+  if(totEl) totEl.textContent = totalRows;
+  if(tagEl) tagEl.textContent = taggedCount;
+  if(fldEl) fldEl.textContent = selFields.length + (selFields.length ? ' ('+selFields.map(function(f){return f.name}).join(', ')+')' : '');
+}
 function renderLlmVal(c){
+  try {
   // Build the config panel HTML (used both for "no results" state and as re-run header)
   var totalRows = tableData().length;
   var taggedCount = 0;
   tableData().forEach(function(r){
     aiFields.forEach(function(f){ var v=r[f.name]; if(v!=null&&v!==''&&v!=='--') taggedCount++; });
   });
+
+  // 从已保存的配置恢复表单值（避免切换看板后表单重置为默认值）
+  var _savedCfg = llmValResults ? {sampleN: llmValResults.cfgSampleN||100, rangeSel: llmValResults.cfgRangeSel||'random', customN: llmValResults.cfgCustomN||''} : null;
+  var _prevSampleN = document.getElementById('valSampleN') ? document.getElementById('valSampleN').value : (_savedCfg?_savedCfg.sampleN:100);
+  var _prevRangeSel = document.getElementById('valRangeSel') ? document.getElementById('valRangeSel').value : (_savedCfg?_savedCfg.rangeSel:'random');
+  var _prevCustomN = document.getElementById('valRangeCustom') ? document.getElementById('valRangeCustom').value : (_savedCfg?_savedCfg.customN:'');
 
   var cfgPanel = `<div class="dsec llm-cfg-panel">
     <div class="ds-title" style="border:none;padding-bottom:0;margin-bottom:16px;display:flex;align-items:center;gap:10px">
@@ -3507,23 +4087,29 @@ function renderLlmVal(c){
       <div class="llm-cfg-item">
         <label class="llm-cfg-label">抽样数量</label>
         <div class="llm-cfg-desc">每次验证抽取的样本行数</div>
-        <input type="number" id="valSampleN" value="${document.getElementById('valSampleN')?document.getElementById('valSampleN').value:100}" min="5" max="${totalRows||5000}" class="llm-cfg-input">
+        <input type="number" id="valSampleN" value="${_prevSampleN||100}" min="5" max="${totalRows||5000}" class="llm-cfg-input">
       </div>
 
-      <div class="llm-cfg-item" style="flex:1.4">
+      <div class="llm-cfg-item llm-cfg-item--fields">
+        <label class="llm-cfg-label">验证字段</label>
+        <div class="llm-cfg-desc">可多选，默认全部</div>
+        <div id="valFieldChips" class="llm-chip-bar">${renderValFieldChips()}</div>
+      </div>
+
+      <div class="llm-cfg-item">
         <label class="llm-cfg-label">抽样范围</label>
         <div class="llm-cfg-desc">选择数据抽样方式</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <div style="display:flex;gap:6px;align-items:center">
           <select id="valRangeSel" onchange="var s=this.value;document.getElementById('valRangeCustomRow').style.display=s==='topcustom'?'flex':'none';document.getElementById('valSampleN').disabled=s==='all'" class="llm-cfg-select">
-            <option value="random" ${(!document.getElementById('valRangeSel')||document.getElementById('valRangeSel').value==='random')?'selected':''}>随机抽样</option>
-            <option value="all" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='all'?'selected':''}>全部已打标行</option>
-            <option value="top50" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='top50'?'selected':''}>前 50 行</option>
-            <option value="top100" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='top100'?'selected':''}>前 100 行</option>
-            <option value="top200" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='top200'?'selected':''}>前 200 行</option>
-            <option value="topcustom" ${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='topcustom'?'selected':''}>自定义前 N 行</option>
+            <option value="random" ${_prevRangeSel==='random'?'selected':''}>随机抽样</option>
+            <option value="all" ${_prevRangeSel==='all'?'selected':''}>全部已打标行</option>
+            <option value="top50" ${_prevRangeSel==='top50'?'selected':''}>前 50 行</option>
+            <option value="top100" ${_prevRangeSel==='top100'?'selected':''}>前 100 行</option>
+            <option value="top200" ${_prevRangeSel==='top200'?'selected':''}>前 200 行</option>
+            <option value="topcustom" ${_prevRangeSel==='topcustom'?'selected':''}>自定义前 N 行</option>
           </select>
-          <div id="valRangeCustomRow" style="display:${document.getElementById('valRangeSel')&&document.getElementById('valRangeSel').value==='topcustom'?'flex':'none'};align-items:center;gap:4px">
-            <input type="number" id="valRangeCustom" placeholder="N" value="${document.getElementById('valRangeCustom')?document.getElementById('valRangeCustom').value:''}" min="5" max="${totalRows||50000}" class="llm-cfg-input" style="width:80px">
+          <div id="valRangeCustomRow" style="display:${_prevRangeSel==='topcustom'?'flex':'none'};align-items:center;gap:4px">
+            <input type="number" id="valRangeCustom" placeholder="N" value="${_prevCustomN||''}" min="5" max="${totalRows||50000}" class="llm-cfg-input" style="width:68px">
             <span style="font-size:11px;color:var(--text-tertiary);white-space:nowrap">行</span>
           </div>
         </div>
@@ -3531,9 +4117,9 @@ function renderLlmVal(c){
     </div>
 
     <div class="llm-cfg-summary">
-      <span>数据总量: <strong>${totalRows}</strong> 行</span>
-      <span>已打标: <strong>${taggedCount}</strong> 行</span>
-      <span>AI 字段: <strong>${aiFields.length}</strong> 个${aiFields.length? ' ('+aiFields.map(function(f){return f.name}).join(', ')+')':''}</span>
+      <span>数据总量: <strong id="valStatTotal">${totalRows}</strong> 行</span>
+      <span>已打标: <strong id="valStatTagged">${taggedCount}</strong> 行</span>
+      <span>AI 字段: <strong id="valStatFields">${aiFields.length}</strong> 个${aiFields.length? ' ('+aiFields.map(function(f){return f.name}).join(', ')+')':''}</span>
     </div>
 
     <button class="btn btn-primary-lg" id="llmValRunBtn" onclick="runLLMValidation()" ${isProcessing?'disabled':''} style="margin-top:14px;width:100%;height:42px;font-size:14px;border-radius:10px;background:var(--rad-grad);color:#fff;border:none;cursor:pointer;font-weight:600;letter-spacing:0.5px;transition:transform .15s,box-shadow .15s;display:flex;align-items:center;justify-content:center;gap:8px">
@@ -3552,16 +4138,23 @@ function renderLlmVal(c){
   var sampleSizeHint = '';
   if(!llmValResults){
     c.innerHTML = cfgPanel + `<style>
-.llm-cfg-panel{background:linear-gradient(135deg,rgba(0,212,255,.04),rgba(168,85,247,.04));border:1px solid rgba(0,212,255,.12);border-radius:14px;padding:24px}
-.llm-cfg-grid{display:flex;gap:18px;margin-bottom:16px;flex-wrap:wrap}
-.llm-cfg-item{min-width:180px;display:flex;flex-direction:column;gap:4px}
-.llm-cfg-label{font-size:12.5px;font-weight:600;color:var(--text-primary);letter-spacing:0.2px}
-.llm-cfg-desc{font-size:11px;color:var(--text-tertiary)}
-.llm-cfg-input{height:34px;border:1px solid var(--border);border-radius:8px;font-size:13px;padding:0 10px;background:var(--surface);color:var(--text-primary);font-family:inherit;transition:border-color .15s}
+.llm-cfg-panel{background:linear-gradient(135deg,rgba(0,212,255,.04),rgba(168,85,247,.04));border:1px solid rgba(0,212,255,.12);border-radius:14px;padding:22px 24px}
+.llm-cfg-grid{display:flex;gap:12px;align-items:stretch}
+.llm-cfg-item{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.llm-cfg-item--fields{flex:1.5}
+.llm-cfg-label{font-size:12px;font-weight:600;color:var(--text-primary);letter-spacing:0.15px}
+.llm-cfg-desc{font-size:10.5px;color:var(--text-tertiary);line-height:1.3;margin-bottom:1px}
+.llm-cfg-input{height:34px;border:1px solid #d4d4d8;border-radius:8px;font-size:13px;padding:0 10px;background:#fff;color:var(--text-primary);font-family:inherit;transition:border-color .15s,box-shadow .15s}
+.llm-cfg-input:hover{border-color:#a1a1aa}
 .llm-cfg-input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px rgba(0,212,255,.1)}
-.llm-cfg-select{flex:1;min-width:160px;height:34px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;padding:0 10px;background:var(--surface);color:var(--text-primary);font-family:inherit;cursor:pointer;appearance:none;-webkit-appearance:none}
+.llm-cfg-select{width:100%;height:34px;border:1px solid #d4d4d8;border-radius:8px;font-size:12px;padding:0 28px 0 10px;background:#fff;color:var(--text-primary);font-family:inherit;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;transition:border-color .15s}
+.llm-cfg-select:hover{border-color:#a1a1aa}
 .llm-cfg-select:focus{border-color:var(--accent);outline:none}
-.llm-cfg-summary{display:flex;gap:20px;flex-wrap:wrap;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:11.5px;color:var(--text-secondary)}
+.llm-chip-bar{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.llm-chip-bar span{font-size:11px;padding:4px 11px;border-radius:16px;border:1px solid var(--border);background:var(--bg);color:var(--text-secondary);cursor:pointer;user-select:none;transition:all .15s;white-space:nowrap;line-height:1.4}
+.llm-chip-bar span:hover{border-color:var(--accent);color:var(--accent)}
+.llm-chip-on{border-color:var(--accent)!important;background:rgba(0,212,255,.1)!important;color:var(--accent)!important;font-weight:600}
+.llm-cfg-summary{display:flex;gap:20px;flex-wrap:wrap;padding:10px 14px;background:var(--surface);border-radius:8px;font-size:11.5px;color:var(--text-secondary);margin-top:14px}
 .llm-cfg-summary strong{color:var(--text-primary)}
 .btn-primary-lg:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,212,255,.25)}
 .btn-primary-lg:active{transform:translateY(0)}
@@ -3577,17 +4170,26 @@ function renderLlmVal(c){
     if(_dpw) _savedDeepProg=_dpw.outerHTML;
   }
   const R=llmValResults;
+  // 可矫正 = 判定 incorrect 且未被排除（partial 不纳入自动矫正，见 #59）
+  var _corr = getCorrectableCount(R);
   sampleSizeHint = R.sampleSize+' 条 / '+({random:'随机',all:'全部',top50:'前50',top100:'前100',top200:'前200',topcustom:'自定义'}[R.rangeMode]||R.rangeMode);
   c.innerHTML=`<style>
-.llm-cfg-panel{background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:18px}
-.llm-cfg-grid{display:flex;gap:16px;flex-wrap:wrap}
-.llm-cfg-item{min-width:160px;display:flex;flex-direction:column;gap:3px}
+.llm-cfg-panel{background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px}
+.llm-cfg-grid{display:flex;gap:10px;align-items:stretch}
+.llm-cfg-item{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:10px 12px}
+.llm-cfg-item--fields{flex:1.4}
 .llm-cfg-label{font-size:11.5px;font-weight:600;color:var(--text-primary)}
-.llm-cfg-desc{font-size:10.5px;color:var(--text-tertiary)}
-.llm-cfg-input{height:32px;border:1px solid var(--border);border-radius:7px;font-size:12.5px;padding:0 8px;background:var(--surface);color:var(--text-primary);font-family:inherit}
+.llm-cfg-desc{font-size:10px;color:var(--text-tertiary);line-height:1.3;margin-bottom:1px}
+.llm-cfg-input{height:32px;border:1px solid #d4d4d8;border-radius:7px;font-size:12.5px;padding:0 8px;background:#fff;color:var(--text-primary);font-family:inherit;transition:border-color .15s}
+.llm-cfg-input:hover{border-color:#a1a1aa}
 .llm-cfg-input:focus{border-color:var(--accent);outline:none}
-.llm-cfg-select{flex:1;min-width:140px;height:32px;border:1px solid var(--border);border-radius:7px;font-size:12px;padding:0 8px;background:var(--surface);color:var(--text-primary);font-family:inherit;cursor:pointer}
-.llm-cfg-summary{display:flex;gap:16px;flex-wrap:wrap;padding:8px 12px;background:var(--surface);border-radius:7px;font-size:11px;color:var(--text-secondary);margin-top:10px}
+.llm-cfg-select{width:100%;height:32px;border:1px solid #d4d4d8;border-radius:7px;font-size:11.5px;padding:0 24px 0 8px;background:#fff;color:var(--text-primary);font-family:inherit;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;transition:border-color .15s}
+.llm-cfg-select:hover{border-color:#a1a1aa}
+.llm-chip-bar{display:flex;flex-wrap:wrap;gap:5px;margin-top:2px}
+.llm-chip-bar span{font-size:10.5px;padding:3px 10px;border-radius:15px;border:1px solid var(--border);background:var(--bg);color:var(--text-secondary);cursor:pointer;user-select:none;transition:all .15s;white-space:nowrap;line-height:1.35}
+.llm-chip-bar span:hover{border-color:var(--accent);color:var(--accent)}
+.llm-chip-on{border-color:var(--accent)!important;background:rgba(0,212,255,.1)!important;color:var(--accent)!important;font-weight:600}
+.llm-cfg-summary{display:flex;gap:16px;flex-wrap:wrap;padding:8px 12px;background:var(--surface);border-radius:8px;font-size:11px;color:var(--text-secondary);margin-top:12px}
 .llm-cfg-summary strong{color:var(--text-primary)}
 .btn-primary-lg{height:38px;font-size:13px;border-radius:9px;background:var(--rad-grad);color:#fff;border:none;cursor:pointer;font-weight:600;letter-spacing:.3px;display:flex;align-items:center;justify-content:center;gap:6px;transition:transform .15s,box-shadow .15s}
 .btn-primary-lg:hover{transform:translateY(-1px);box-shadow:0 3px 14px rgba(0,212,255,.2)}
@@ -3606,24 +4208,6 @@ function renderLlmVal(c){
     </div></div>
 
     <div class="dsec">
-      <div class="ds-title">一键矫正</div>
-      <div class="ds-meta">
-        <span>待修正条目: <strong style="color:var(--error)">${R.incorrect}</strong> 条</span>
-        <span style="color:var(--text-tertiary);font-size:11px">（将把判定为「部分正确 / 不正确」的标签替换为 AI 建议标签）</span>
-      </div>
-      <div style="display:flex;gap:10px;align-items:center;margin-top:10px">
-        <button class="btn btn-warn" id="corrBtn" onclick="runCorrection()" ${R.incorrect>0?'':'disabled'}>一键矫正 ${R.incorrect>0?'('+R.incorrect+')':''}</button>
-        <button class="btn btn-ghost" id="corrStopBtn" onclick="_corrStop=true" style="display:none">停止</button>
-        <span id="corrStatus" style="font-size:11px;color:var(--text-secondary)"></span>
-      </div>
-      <div id="corrProgWrap" style="display:none;margin-top:8px">
-        <div style="height:6px;background:var(--border);border-radius:4px;overflow:hidden">
-          <div id="corrProgBar" style="height:100%;width:0%;background:var(--warning);transition:width .2s"></div>
-        </div>
-        <div id="corrProgText" style="font-size:11px;color:var(--text-secondary);margin-top:4px"></div>
-      </div>
-
-      <div style="height:1px;background:var(--border);margin:20px 0 16px"></div>
       <div class="ds-title" style="margin-bottom:4px">同类错误深度抽样</div>
       <div class="ds-meta"><span style="color:var(--text-tertiary);font-size:11px">基于上面检查出的错误类型，在数据中寻找「相似的未验证样本」重新做 LLM 验证，可逐轮递归深挖，是否继续由你决定。</span></div>
       <div class="deep-cfg" style="margin-top:10px">
@@ -3639,43 +4223,80 @@ function renderLlmVal(c){
         </div>
         <div id="deepProgText" style="font-size:11px;color:var(--text-secondary);margin-top:4px"></div>
       </div>
+
+      <div style="height:1px;background:var(--border);margin:20px 0 16px"></div>
+      <div class="ds-title">一键矫正</div>
+      <div class="ds-meta">
+        <span>可矫正条目: <strong style="color:var(--error)">${_corr}</strong> 条</span>
+        <span style="color:var(--text-tertiary);font-size:11px">（将把判定为「不正确」的标签替换为 AI 建议标签；可勾选明细行排除）</span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:10px">
+        <button class="btn btn-warn" id="corrBtn" onclick="runCorrection()" ${_corr>0?'':'disabled'}>一键矫正 (${_corr})</button>
+        <button class="btn btn-ghost" id="corrStopBtn" onclick="_corrStop=true" style="display:none">停止</button>
+        <span id="corrStatus" style="font-size:11px;color:var(--text-secondary)"></span>
+      </div>
+      <div id="corrProgWrap" style="display:none;margin-top:8px">
+        <div style="height:6px;background:var(--border);border-radius:4px;overflow:hidden">
+          <div id="corrProgBar" style="height:100%;width:0%;background:var(--warning);transition:width .2s"></div>
+        </div>
+        <div id="corrProgText" style="font-size:11px;color:var(--text-secondary);margin-top:4px"></div>
+      </div>
     </div>
 
     <div class="dsec"><div class="ds-title">逐条验证明细</div>
       <div style="overflow-x:auto">
         <table class="dt freeze-first" style="font-size:12px;min-width:1050px">
           <thead><tr>
-            <th style="width:45px;text-align:center">状态</th>
-            <th style="width:50px;text-align:center">行</th>
+            <th style="width:36px;text-align:center;padding:6px 2px">
+              <span style="font-size:10.5px;color:var(--text-secondary);font-weight:500">状态</span>
+            </th>
+            <th style="width:48px;text-align:center;padding:6px 2px">
+              <div style="display:flex;align-items:center;justify-content:center;gap:3px">
+                <input type="checkbox" id="exclAllChk" onchange="toggleExcludeAll(this.checked)" title="全选排除" class="excl-cb">
+                <span style="font-size:10.5px;color:var(--text-secondary);font-weight:500">排除</span>
+              </div>
+            </th>
             <th style="width:100px">字段</th>
             <th style="min-width:170px;max-width:280px">原文(英文)</th>
             <th style="min-width:150px;max-width:220px">内容翻译</th>
             <th style="min-width:120px;max-width:180px">打标签</th>
             <th style="min-width:120px;max-width:180px">建议标签</th>
             <th style="min-width:260px;max-width:380px">评估</th>
+            <th style="width:64px;text-align:center">操作</th>
           </tr></thead>
           <tbody>${R.results.map(function(res, ri){
             var isCorr=res.corrected;
             var vc = isCorr?'var(--success)':(res.verdict==='correct'?'var(--success)':res.verdict==='partial'?'var(--warning)':'var(--error)');
-            var vi = isCorr?viIco('ok'):(res.verdict==='correct'?viIco('ok'):res.verdict==='partial'?viIco('warn'):viIco('bad'));
             var showTag = isCorr ? res.llmVerdict : res.originalTag;
             var enTxt = res.srcMap ? extractEnglishText(res.srcMap) : res.originalText;
             var cnTxt = res.srcMap ? extractChineseText(res.srcMap) : '';
             var tagCell = isCorr
               ? `<span class="tag-pill" style="background:rgba(16,185,129,0.12);color:#059669;border:1px solid rgba(16,185,129,0.35)">${esc(String(res.llmVerdict))}</span><span style="display:inline-block;margin-left:5px;font-size:9px;color:#059669;background:rgba(16,185,129,0.12);padding:1px 5px;border-radius:4px;vertical-align:middle">已修正</span>`
               : `<span class="tag-pill" style="background:rgba(37,99,235,0.1);color:#2563EB;border:1px solid rgba(37,99,235,0.2)">${esc(String(res.originalTag))}</span>`;
-            return `<tr style="border-left:3px solid ${vc}">
-              <td style="text-align:center;font-size:15px;color:${vc}">${vi}</td>
-              <td style="text-align:center">${res.rowIndex}</td>
+            // 状态图标（第一列）+ 排除checkbox（第二列）
+            var statusIcon = (res.verdict==='correct' || res.corrected)
+              ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(16,185,129,0.1);color:#059669;font-size:10px;font-weight:700">✓</span>'
+              : res.verdict==='partial'
+                ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(245,158,11,0.1);color:#b45309;font-size:11px;font-weight:700">!</span>'
+                : '<span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(239,68,68,0.1);color:#dc2626;font-size:10px;font-weight:700">✗</span>';
+            return `<tr id="resrow_${ri}" style="border-left:3px solid ${vc}">
+              <td style="text-align:center;padding:4px 2px;vertical-align:middle">${statusIcon}</td>
+              <td style="text-align:center;padding:4px 2px;vertical-align:middle">
+                <div style="display:flex;align-items:center;justify-content:center;gap:5px">
+                  <span style="color:var(--text-tertiary);font-size:12px;font-variant-numeric:tabular-nums;user-select:none">${ri+1}</span>
+                  <input type="checkbox" id="excl_${ri}" ${res.excluded?'checked':''} onchange="toggleExclude(${ri},this.checked)" title="排除此条不��与矫正" class="excl-cb">
+                </div>
+              </td>
               <td>${esc(res.fieldName)}</td>
               <td class="exp-cell" data-fulltext="${(enTxt||'').replace(/"/g,'&quot;')}">${expCellHtml(enTxt)}</td>
               <td class="exp-cell" data-fulltext="${(cnTxt||'').replace(/"/g,'&quot;')}">${cnTxt ? expCellHtml(cnTxt) : '<span style="color:var(--text-tertiary);font-style:italic">(无翻译)</span>'}</td>
-              <td id="tagcell_${ri}">${tagCell}</td>
-              <td>${(isCorr || res.verdict==='correct')
+              <td id="tagcell_${ri}" class="exp-cell" data-fulltext="${escAttr(String(showTag||''))}">${tagCell}</td>
+              <td id="verdictcell_${ri}">${(isCorr || res.verdict==='correct')
                 ? '<span class="tag-pill" style="background:rgba(16,185,129,0.1);color:#059669;border:1px solid rgba(16,185,129,0.25);font-weight:600">✓ correct</span>'
                 : '<span class="tag-pill" style="background:rgba(245,158,11,0.1);color:#b45309;border:1px solid rgba(245,158,11,0.25)">'+esc(String(res.llmVerdict))+'</span>'
               }</td>
-              <td class="exp-cell" data-fulltext="${(res.reason||'').replace(/"/g,'&quot;')}">${expCellHtml(res.reason)}</td>
+              <td id="reasoncell_${ri}" class="exp-cell" data-fulltext="${(res.reason||'').replace(/"/g,'&quot;')}">${expCellHtml(res.reason)}</td>
+              <td style="text-align:center"><button class="tbtn" id="reval_${ri}" onclick="revalidateRow(${ri})">重验</button></td>
             </tr>`;
           }).join('')}</tbody>
         </table>
@@ -3685,6 +4306,12 @@ function renderLlmVal(c){
   if(_savedDeepProg){
     var _target=document.getElementById('deepProgWrap');
     if(_target) _target.outerHTML=_savedDeepProg;
+  }
+  // 同步表头全选排除框状态
+  _syncExclAllChk();
+  } catch(err) {
+    c.innerHTML = '<div style="padding:30px;text-align:center;color:var(--error);font-size:13px"><p style="margin:0 0 10px">⚠ LLM 验证看板渲染异常</p><p style="margin:0;color:var(--text-secondary);font-size:11.5px">'+esc(err.message||String(err))+'</p><button class="tbtn" onclick="renderLlmVal(document.getElementById(\'docLlmVal\'))" style="margin-top:12px">重新渲染</button></div>';
+    log('err', 'renderLlmVal 异常: ' + (err.message || err));
   }
 }
 
@@ -3756,13 +4383,14 @@ async function runLLMValidation(){
   isProcessing=true; setProc(true); setSt('running','LLM 验证中...');
   stopRequested=false;
   var valSheetIdx=activeSheetIdx;  // 验证时所在工作表，用于矫正时定位
+  var valFields=getValAiFields();  // 仅验证选中的字段（为空=全部）
 
   var results=[]; var correct=0; var incorrect=0;
-  var totalTasks=sample.length*aiFields.filter(function(f){return true;}).length;
+  var totalTasks=sample.length*valFields.length;
   // Recalculate: count actual tasks (any non-null, non-empty, non-'--' value counts)
   totalTasks=0;
   sample.forEach(function(sr){
-    aiFields.forEach(function(fld){
+    valFields.forEach(function(fld){
       var tag=sr.data[fld.name];
       if(tag!=null&&tag!==''&&tag!=='--') totalTasks++;
     });
@@ -3780,9 +4408,9 @@ async function runLLMValidation(){
       var dataIdx=sItem.idx;
       var row=sItem.data;
 
-      for(var fi=0;fi<aiFields.length;fi++){
+      for(var fi=0;fi<valFields.length;fi++){
         if(stopRequested) break;
-        var fld=aiFields[fi];
+        var fld=valFields[fi];
         var tag=row[fld.name];
         // Only skip truly untouched cells (null/empty/'--'); validate everything else including 未提及/[错]/空标签
         if(tag==null||tag===''||tag==='--') continue;
@@ -3792,16 +4420,22 @@ async function runLLMValidation(){
         refCols.forEach(function(c){ srcMap[c]=row[c]||'(无)'; });
         var context=refCols.map(function(c){ return c+': '+(row[c]||'(无)'); }).join('\n');
 
-        // Update progress
+        // Update progress — 每次重新取 DOM 引用，防止切换看板后 renderLlmVal 重建 innerHTML 导致旧引用失效（幽灵节点）
         doneCount++;
         var pct=Math.round(doneCount/totalTasks*100);
-        progText.textContent='验证中... '+doneCount+'/'+totalTasks+' ('+pct+'%)';
-        progBar.style.width=pct+'%';
+        var _pt=document.getElementById('llmValProgText');
+        var _pb=document.getElementById('llmValProgBar');
+        if(_pt) _pt.textContent='验证中... '+doneCount+'/'+totalTasks+' ('+pct+'%)';
+        if(_pb) _pb.style.width=pct+'%';
         log('info', '[验证 '+doneCount+'/'+totalTasks+'] R'+(dataIdx+1)+' '+fld.name);
 
         markP(dataIdx,true);
         try{
           var res=await validateOne(dataIdx,fld,cfg);
+          // 校准：以评估(reason)为规则源，确保建议标签与评估规则一致
+          if(res.verdict!=='correct'){
+            res=await reconcileVerdict(res, fld, cfg);
+          }
           results.push(res);
           if(res.verdict==='correct') correct++; else incorrect++;
           log('ok', '[验证] R'+(dataIdx+1)+' '+fld.name+': '+res.verdict);
@@ -3817,16 +4451,21 @@ async function runLLMValidation(){
 
     var totalChecked=results.length;
     var accuracy=totalChecked?Math.round(correct/totalChecked*100):0;
-    llmValResults={sampleSize:sample.length,rangeMode:rangeSel,fields:aiFields.map(function(f){return f.name;}),timestamp:new Date().toLocaleString('zh-CN'),accuracy:accuracy,correct:correct,incorrect:incorrect,results:results,sheetIdx:valSheetIdx};
+    llmValResults={sampleSize:sample.length,rangeMode:rangeSel,fields:valFields.map(function(f){return f.name;}),timestamp:new Date().toLocaleString('zh-CN'),accuracy:accuracy,correct:correct,incorrect:incorrect,results:results,sheetIdx:valSheetIdx,
+      // 保存配置状态，让切换看板/刷新后表单值不丢失
+      cfgSampleN:sampleN,cfgRangeSel:rangeSel,cfgCustomN:document.getElementById('valRangeCustom')?document.getElementById('valRangeCustom').value:''};
 
-    // Complete progress
-    progText.textContent=(stopRequested?'已停止 · ':'完成! ')+'准确率 '+accuracy+'% ('+correct+'/'+totalChecked+')';
-    progBar.style.width=stopRequested?'60%':'100%';
+    // Complete progress — 重新取 DOM 引用
+    var _pt2=document.getElementById('llmValProgText');
+    var _pb2=document.getElementById('llmValProgBar');
+    var _btn2=document.getElementById('llmValRunBtn');
+    if(_pt2) _pt2.textContent=(stopRequested?'已停止 · ':'完成! ')+'准确率 '+accuracy+'% ('+correct+'/'+totalChecked+')';
+    if(_pb2) _pb2.style.width=stopRequested?'60%':'100%';
     setSt('done', stopRequested?'已停止':'验证完成');
     log('info', 'LLM 验证完成: '+accuracy+'% ('+correct+'/'+totalChecked+')');
-    saveState();
+    saveStateNow();
     // Reset button/processing state BEFORE re-render so panel shows completed state (not stuck progress)
-    btn.disabled=false; btn.textContent='运行 LLM 验证';
+    if(_btn2){ _btn2.disabled=false; _btn2.textContent='运行 LLM 验证'; }
     isProcessing=false; setProc(false); updateRunUI();
     swView('llmval');
 
@@ -3834,13 +4473,16 @@ async function runLLMValidation(){
     if(err.name!=='AbortError'){
       setSt('error','验证出错');
       log('err', '验证中断: '+err.message);
-      progText.textContent='出错: '+err.message;
-      progBar.style.background='var(--error)';
+      var _pt3=document.getElementById('llmValProgText');
+      var _pb3=document.getElementById('llmValProgBar');
+      if(_pt3) _pt3.textContent='出错: '+err.message;
+      if(_pb3) _pb3.style.background='var(--error)';
     }
   }
 
-  // Reset button
-  btn.disabled=false; btn.textContent='运行 LLM 验证';
+  // Reset button (fallback — 正常路径已在 try 内重置，这里保底)
+  var _btnF=document.getElementById('llmValRunBtn');
+  if(_btnF){ _btnF.disabled=false; _btnF.textContent='运行 LLM 验证'; }
   isProcessing=false; setProc(false); updateRunUI();
   if(curView==='llmval') renderLlmVal(document.getElementById('docLlmVal'));
 }
@@ -3849,7 +4491,7 @@ function exportLlmVal(){
   if(!llmValResults){alert('没有可导出的验证结果');return;}
   const R=llmValResults;
   let csv='Row,Field,Original Tag,Suggestion,Verdict,Reason,Original Text\n';
-  R.results.forEach(r=>{
+  R.results.filter(function(r){ return !r.excluded; }).forEach(r=>{
     csv+=`${r.rowIndex},"${r.fieldName}","${r.originalTag.replace(/"/g,'""')}","${r.llmVerdict.replace(/"/g,'""')}","${r.verdict}","${r.reason.replace(/"/g,'""')}","${(r.originalText||'').replace(/"/g,'""').replace(/\n/g,'\\n')}"\n`;
   });
   download(csv,`llm-validation-${Date.now()}.csv`,'text/csv'); log('info','已导出 LLM 验证结果 CSV');
@@ -3873,26 +4515,377 @@ async function validateOne(dataIdx, fld, cfg){
     (fld.options.length?'可选标签: '+fld.options.join(', '):''),
     (fld.strict?'(严格模式: 只能从可选标签中选择)':'')
   ].join('\n');
-  var systemPrompt='你是一个专业的数据标注质量审核员。你的任务是独立判断已有的标签是否准确。\n\n'+
-    '## 审核标准\n'+
-    '1. 根据原始数据的实际内容，判断当前标签是否语义上正确\n'+
-    '2. 如果标签是多个值的组合，逐个判断是否都合理\n'+
-    '3. 考虑边界情况：是否遗漏了更合适的标签，或包含了不相关的标签\n\n'+
-    '## 输出格式（严格 JSON）\n'+
-    '{"verdict":"correct|incorrect|partial","verdict_tag":"你给出的正确标签(如果原标签不对)","reason":"一句话解释判断理由"}\n\n'+
-    '只输出 JSON，不要其他文字。';
+  var systemPrompt='你是一个专业的数据标注质量审核员。请独立判断「当前标签」对该条数据是否准确。\n\n'+
+    '## 判定优先级（务必按顺序）\n'+
+    '1. 字段定义/用途（第一优先级）：以「字段定义」描述的该字段应当表达的含义为准。标签若偏离字段定义，即为不准确。\n'+
+    '2. 原始内容（第二优先级）：结合原始数据内容判断标签是否贴合实际语义。\n'+
+    '3. 严格模式：若字段开启严格模式，标签必须来自「可选标签」列表，否则判为 incorrect。\n\n'+
+    '## 三级判定标准\n'+
+    '- correct：标签与字段定义及内容完全一致，无需修改。\n'+
+    '- partial：方向基本正确但不够完整/精确（如漏了并列标签、粒度偏粗、含轻微多余信息），仍可部分保留。\n'+
+    '- incorrect：与字段定义或内容明显不符、错误或缺失关键信息，应被替换。\n\n'+
+    '## 输出格式（严格 JSON，只输出 JSON 不要其他文字）\n'+
+    '{"verdict":"correct|incorrect|partial","reason":"一句话说明判断依据，并指出应做的调整类型：分拆/改格式(竖线分隔)/删除冗余/重写语义等"}';
   var raw=await callAPI(systemPrompt,userContent,cfg.key,0.1);
   if(typeof raw!=='string'||!raw) throw new Error('API返回空或非文本');
   var jsonMatch=raw.match(/\{[\s\S]*\}/);
   if(!jsonMatch) throw new Error('无法解析验证结果 (raw: '+raw.substring(0,80)+')');
   var parsed=JSON.parse(jsonMatch[0]);
+  var verdict = parsed.verdict==='correct'?'correct':(parsed.verdict==='partial'?'partial':'incorrect');
   return {
     rowIndex:dataIdx+1, fieldName:fld.name, originalTag:tag,
-    llmVerdict:parsed.verdict_tag||parsed.verdict||'未知',
-    verdict:parsed.verdict==='correct'?'correct':(parsed.verdict==='partial'?'partial':'incorrect'),
+    llmVerdict:'',  // 由后续 reconcileVerdict 按评估类型（轻量规则修正/重量LLM重写）生成
+    verdict:verdict,
     reason:parsed.reason||'',
     originalText:context, srcMap:srcMap, sheetIdx:activeSheetIdx, corrected:false
   };
+}
+
+// ============================================================
+// AUTO-RECONCILE: 加载旧缓存结果后，自动从评估中提取修正标签
+// 旧版结果：validateOne 一步返回的 verdict_tag 可能=原标签（未校准）
+// 新版流程：validateOne 只返回评估 → reconcileVerdict 三步生成建议
+// ============================================================
+function autoReconcileResults(){
+  if(!llmValResults || !llmValResults.results) return;
+  var fixedCount = 0;
+  llmValResults.results.forEach(function(res){
+    // 跳过已有校准标记的 / correct / 无评估的
+    if(res._reconcileMode || res.verdict==='correct' || !res.reason) return;
+    try{
+      var evaluation = res.reason || '';
+      var fld = aiFields.find(function(f){ return f.name===res.fieldName; });
+      
+      // 旧版特征：建议标签=原标签（说明没经过校准，LLM照搬了原标签）
+      var isStale = (res.llmVerdict === res.originalTag) || 
+                     (res.llmVerdict === 'incorrect') || 
+                     (res.llmVerdict === 'partial') ||
+                     (res.llmVerdict === '未知') ||
+                     (!res.llmVerdict && res.verdict!=='correct');
+      
+      if(isStale && res.originalTag){
+        // 从评估中尝试提取修正标签
+        var extracted = extractSuggestionFromEvaluation(evaluation, res.originalTag, fld);
+        if(extracted && extracted !== res.originalTag){
+          var oldV = res.llmVerdict;
+          res.llmVerdict = normalizeCorrLabel(extracted, fld);
+          res.reason = evaluation + '\n\n[⚡ 自动校准] 旧版结果未校准，已按评估内容提取修正 → ' + res.llmVerdict + '（原建议: '+oldV+'）';
+          res._reconcileMode = 'auto-extract';
+          fixedCount++;
+        } else {
+          // 提取不到 → 标记需重验
+          res._reconcileMode = 'auto-needs-reverify';
+          res.reason = evaluation + '\n\n[⚡ 需重验] 建议标签与原标签相同，点击「重验」触发三步校准';
+        }
+      }
+    }catch(e){}
+  });
+  if(fixedCount > 0){
+    log('info','[自动校准] 已从评估中提取修正 '+fixedCount+' 条旧版结果的建议标签');
+    saveStateNow();
+  }
+}
+
+// 从评估文本中提取修正后的标签（客户端规则，不调LLM）
+// 从评估文本中提取建议标签 —— 按优先级匹配评估中明确给出的修正目标
+// 优先级1: 「应重写为/应改为/正确格式」后的目标文本（最明确）
+// 优先级2: 评估中引用的格式示例（如「如'尺寸偏小（正文：Smaller than expected）'」→ 提取引号内）
+// 优先级3: 「语义理解/语义拆解」段落中描述的正确标签
+// 优先级4: 「→ 标签值」/「建议标签→」等简单箭头格式
+function extractSuggestionFromEvaluation(evaluation, originalTag, fld){
+  if(!evaluation || !originalTag) return null;
+
+  // ===== 优先级1: 明确的改写目标 =====
+  var targetPatterns = [
+    /应重写为["''](.+?)["'']/,          // 应重写为'XXX'
+    /应重写为[：:]\s*(.+?)(?:[。\n]|$)/,     // 应重写为：XXX
+    /应改为["''](.+?)["'']/,             // 应改为"XXX"
+    /应改为[：:]\s*(.+?)(?:[。\n]|$)/,        // 应改为：XXX
+    /正确格式(?:是|为)[：:]?\s*["''](.+?)["'']/, // 正确格式是'XXX'
+    /正确格式(?:是|为)[：:]\s*(.+?)(?:[。\n]|$)/,
+    /(?:格式|结构)(?:应为|应该是|应是)[：:]?\s*["''](.+?)["'']/
+  ];
+  for(var i=0; i<targetPatterns.length; i++){
+    var m = evaluation.match(targetPatterns[i]);
+    if(m && m[1]){
+      var c = cleanExtracted(m[1], originalTag);
+      if(c) return c;
+    }
+  }
+
+  // ===== 优先级2: 评估中的格式示例（「如'XXX'」「例如"XXX"」）=====
+  var examplePatterns = [
+    /(?:如|例如|格式[如为])["'']([\s\S]*?)["'']/,   // 如'XXX'（支持多行内容）
+    /(?:如|例如|格式[如为])["''](.+?)["'']/          // 如'XXX'（单行）
+  ];
+  for(var j=0; j<examplePatterns.length; j++){
+    var m2 = evaluation.match(examplePatterns[j]);
+    if(m2 && m2[1]){
+      var c2 = cleanExtracted(m2[1], originalTag);
+      if(c2) return c2;
+    }
+  }
+
+  // ===== 优先级3: 语义理解段落 =====
+  var semPatterns = [
+    /(?:AI\s*)?语义理解[：:]\s*(.+?)(?=(?:\n\n|\n\[⚡]|\n\[\[✓|$))/s,
+    /(?:AI\s*)?语义拆解[：:]\s*(.+?)(?=(?:\n\n|\n\[⚡]|\n\[\[✓|$))/s
+  ];
+  for(var k=0; k<semPatterns.length; k++){
+    var m3 = evaluation.match(semPatterns[k]);
+    if(m3 && m3[1]){
+      var c3 = cleanExtracted(m3[1], originalTag);
+      if(c3) return c3;
+    }
+  }
+
+  // ===== 优先级4: 简单箭头/校准标记 =====
+  var simplePatterns = [
+    /\[⚡\s*校准\][^→]*→\s*(.+?)(?:\n|$)/,       // [⚡ 校准]...→ XXX
+    /\[\[✓\s*校准\]\][^→]*→\s*(.+?)(?:\n|$)/,     // [[✓ 校准]]...→ XXX
+    /建议标签[→:]\s*(.+?)(?:\n|$)/,
+    /→\s*(.+?)(?:\n|$)/
+  ];
+  for(var n=0; n<simplePatterns.length; n++){
+    var m4 = evaluation.match(simplePatterns[n]);
+    if(m4 && m4[1]){
+      var c4 = cleanExtracted(m4[1], originalTag);
+      if(c4) return c4;
+    }
+  }
+
+  return null;
+}
+
+// 清理提取到的候选标签
+function cleanExtracted(candidate, originalTag, fld){
+  if(!candidate) return null;
+  var c = candidate.trim();
+  // 去掉首尾空白和标记符号
+  c = c.replace(/^[✓✗⚡★☆▸▹➜→\s，。；：""''（）()\[\]]+/, '').trim();
+  c = c.replace(/[✓✗⚡★☆▸▹➜→\s，。；：""''（）()\[\]]+$/, '').trim();
+  // 长度过滤
+  if(c.length < 2 || c.length > 300) return null;
+
+  // ===== 模糊去重：规格化后与原标签相同 → 不是真正的修正 =====
+  // 去掉所有空白和常见分隔符后再比较，避免「A,B」vs「A|B」这种仅格式差异被当成"改了"
+  var normC = _normForCompare(c);
+  var normOrig = _normForCompare(originalTag);
+  if(normC && normOrig && normC === normOrig){
+    console.log('[cleanExtracted] 提取结果与原标签模糊相同(均规格化为: '+normOrig+')，视为未修正');
+    return null;
+  }
+
+  // 去掉纯标点/纯空格的结果
+  if(!/[^\s\p{P}]/u.test(c)) return null;
+
+  // ===== 分隔符对齐：字段要求竖线则强制统一为竖线 =====
+  c = _alignDelimiter(c, fld);
+
+  return c;
+}
+
+// 规格化字符串用于模糊比较（去掉所有空白和分隔符）
+function _normForCompare(s){
+  if(!s) return '';
+  return String(s).replace(/[\s,;，；|｜\n\r\t·]+/g, '').toLowerCase();
+}
+
+// 对齐分隔符：如果字段提示词要求竖线，确保输出用竖线；否则保持原样
+function _alignDelimiter(text, fld){
+  if(!text || !fld) return text;
+  var wantsBar = /竖线|分隔符?|竖线分隔|用.{0,4}竖线|以.{0,4}竖线|结构|拆分|合并|规范|规则|6\.[1-5]|\|/.test((fld.prompt||''));
+  if(!wantsBar) return text; // 不要求竖线 → 不动
+
+  // 已经有竖线 → 不动（不管有没有空格）
+  if(/\|/.test(text)) return text;
+
+  // 没有竖线但有逗号/分号/换行 → 拆开用竖线重连
+  if(/[,，;；\n]/.test(text)){
+    var parts = text.split(/[,，;；\n]+/);
+    parts = parts.map(function(p){ return p.trim(); }).filter(function(p){ return p.length > 0; });
+    return parts.join('|');
+  }
+
+  return text; // 单值无分隔符 → 不动
+}
+
+// 强制格式修正：当提取/LLM都返回与原标签相同的内容时，按评估要求强制改格式
+// 至少改分隔符（逗号→竖线），或按评估中的格式示例重写结构
+function _forceFormatChange(originalTag, fld, evaluation){
+  if(!originalTag || !fld) return null;
+  var orig = String(originalTag);
+
+  // 策略1: 字段要求竖线且原标签没有竖线 → 转换分隔符
+  var wantsBar = /竖线|分隔符?|竖线分隔|用.{0,4}竖线|以.{0,4}竖线|结构|拆分|合并|规范|规则|6\.[1-5]|\|/.test((fld.prompt||''));
+  if(wantsBar && !/\|/.test(orig)){
+    // 有逗号等分隔 → 直接转竖线
+    if(/[,，;；\n]/.test(orig)){
+      var parts = orig.split(/[,，;；\n]+/);
+      parts = parts.map(function(p){return p.trim();}).filter(function(p){return p;});
+      if(parts.length > 0 && parts.join('|') !== orig){
+        console.log('[_forceFormatChange] 分隔符转换: '+orig+' → '+parts.join('|'));
+        return parts.join('|');
+      }
+    }
+  }
+
+  // 策略2: 从评估中找格式示例（如「如'皮肤逼真（正文：realistic）'」）→ 按示例结构重组原标签
+  if(evaluation){
+    // 找「如'XXX'」「例如"XXX"」这类格式示例
+    var fmtExample = evaluation.match(/(?:如|例如|格式[如为])["'']([\s\S]*?)["'']/);
+    if(fmtExample && fmtExample[1]){
+      var example = fmtExample[1].trim();
+      // 如果示例有明确的结构（如含｜或（）分组），而原标签是扁平的
+      if((/\|/.test(example) || /[（(]/.test(example)) && !/\|/.test(orig) && !/[（(]/.test(orig)){
+        console.log('[_forceFormatChange] 发现评估格式示例，但无法自动重组非结构化原标签');
+        // 无法智能重组 → 返回null让上层处理
+      }
+    }
+  }
+
+  // 策略3: 实在无法改 → 返回null（上层会标记为 verified-nochange）
+  return null;
+}
+
+// ============================================================
+// 三步串行校准（用户方案 2026-07-27 v2）：
+//   严格时间先后顺序，全部走 LLM：
+//   STEP1: validateOne 已生成评估(verdict+reason) ← 先完成
+//   STEP2: LLM 根据评估直接修改原标签 → 生成建议标签
+//   STEP3: LLM 校验建议标签是否符合评估标准 → 不符合则修正后输出
+// ============================================================
+async function reconcileVerdict(res, fld, cfg){
+  // correct 无需建议；无评估则无法继续
+  if(res.verdict==='correct' || !res.reason){
+    return res;
+  }
+  try{
+    var evaluation = res.reason || '';
+
+    // ========== STEP2: 根据评估修改原标签，生成建议标签 ==========
+    // 策略：先尝试从评估文本中正则提取明确给出的修正标签（零LLM方差）；
+    //       只有评估未给出明确答案时才调用 LLM 生成。
+    var suggestedTag = extractSuggestionFromEvaluation(evaluation, res.originalTag, fld);
+    var extractionSource = null; // 记录来源，用于日志
+    if(suggestedTag){
+      // 最终安全网：模糊去重——提取结果规格化后若与原标签相同 → 视为无效，强制走LLM
+      if(_normForCompare(suggestedTag) === _normForCompare(res.originalTag)){
+        console.log('[reconcile] STEP2 正则提取结果与原标签模糊相同，降级走LLM生成');
+        suggestedTag = null; // 强制走 LLM
+      } else {
+        extractionSource = '正则提取';
+      }
+    }
+    if(!suggestedTag){
+      // 评估中没有明确的修正标签 → 调 LLM 按评估生成
+      suggestedTag = await llmGenSuggestion(res, fld, cfg, evaluation);
+      extractionSource = 'LLM生成';
+      // LLM 后处理：如果 LLM 返回的和原标签模糊相同 → 强制按评估格式要求修分隔符
+      if(suggestedTag && _normForCompare(suggestedTag) === _normForCompare(res.originalTag)){
+        console.log('[reconcile] STEP2 LLM生成结果与原标签模糊相同，尝试格式修正');
+        suggestedTag = _forceFormatChange(res.originalTag, fld, evaluation);
+        extractionSource = suggestedTag ? 'LLM+格式强修' : 'LLM(未变)';
+      }
+    }
+    if(!suggestedTag) suggestedTag = res.originalTag; // 兜底
+    console.log('[reconcile] STEP2 建议标签来源: '+extractionSource+', 值: '+suggestedTag);
+
+    // ========== STEP3: 校验建议标签是否符合评估标准 ==========
+    var verifiedTag = await llmVerifySuggestion(suggestedTag, evaluation, fld, res, cfg);
+    var finalTag = normalizeCorrLabel(verifiedTag || suggestedTag, fld);
+
+    // 记录校准过程到评估末尾
+    if(finalTag !== res.originalTag){
+      res.llmVerdict = finalTag;
+      res.reason = evaluation + '\n\n[⚡ 校准] 已按评估规则生成并校验建议标签 → ' + finalTag;
+      res._reconcileMode = 'verified';
+    } else {
+      // 建议标签和原标签一样（LLM认为无需改），但评估说不符 → 强制标注
+      res.llmVerdict = finalTag;
+      res.reason = evaluation + '\n\n[⚡ 校准] 经评估+生成+校验三步后，建议标签未发生变化（可能原标签已接近正确或评估过于严格）';
+      res._reconcileMode = 'verified-nochange';
+    }
+    return res;
+  }catch(e){
+    log('warn','[校准] R'+res.rowIndex+' '+res.fieldName+': 三步校准失败 ('+e.message+')');
+    if(!res.llmVerdict) res.llmVerdict='解析失败';
+    return res;
+  }
+}
+
+// STEP2: LLM 根据评估反馈，直接修改原标签生成建议标签
+async function llmGenSuggestion(res, fld, cfg, evaluation){
+  var step2Prompt = '你是数据标注修正专家。\n\n'+
+    '## 字段信息\n'+
+    '字段名: '+fld.name+'\n'+
+    '字段定义/用途: '+fld.prompt+'\n'+
+    (fld.options.length ? '可选标签列表: '+fld.options.join(', ')+'\n' : '')+
+    (fld.strict ? '(严格模式: 只能从可选标签中选择)\n' : '')+
+    '\n## 审核评估结论（这是必须遵守的修正指令）\n'+evaluation+'\n\n'+
+    '## 当前原始标签\n'+res.originalTag+'\n\n'+
+    '## 原始数据上下文\n'+(res.originalText||'无')+'\n\n'+
+    '## 你的任务\n'+
+    '根据上面的「审核评估结论」，直接修改「当前原始标签」。\n\n'+
+    '### 关键要求（必须遵守）\n'+
+    '1. **绝对不能返回和原始标签完全一样的内容**——既然评估说不合格，你就必须做出实质修改。\n'+
+    '2. 如果评估结论中已经包含了「语义理解」「应为」「正确格式是」「应改为」「拆分为」等明确的修正方向或标签示例，你必须直接基于此生成新标签。\n'+
+    '3. 如果评估说要改格式/标点/分隔符（如用 | 分隔、拆分合并等），你就按这个要求改格式。\n'+
+    '4. 如果评估说内容语义不对/应重写，你就根据字段定义和原始数据重新写。\n'+
+    '5. 如果评估说要删除某些部分，就删掉。\n\n'+
+    '### 禁止行为\n'+
+    '- 禁止原样返回原始标签。\n'+
+    '- 禁止忽略评估结论中的修正指令。\n'+
+    '- 禁止生成与评估结论相矛盾的结果。\n\n'+
+    '## 输出格式（严格 JSON，只输出 JSON 不要其他文字）\n'+
+    '{"suggested_tag":"修改后的标签（必须与原始标签不同）"}';
+  var raw = await callAPI(step2Prompt, '', cfg.key, 0.1);
+  if(typeof raw!=='string'||!raw) return '';
+  var jm = raw.match(/\{[\s\S]*\}/);
+  if(!jm) return raw.replace(/[{}"]/g,'').replace(/suggested_tag[:：]/,'').trim();
+  try{
+    var p = JSON.parse(jm[0]);
+    return (p.suggested_tag || p.verdict_tag || '').trim();
+  }catch(e){
+    return jm[0].replace(/suggested_tag[:：]|verdict_tag[:：]/,'').replace(/[{}"]/g,'').trim();
+  }
+}
+
+// STEP3: LLM 校验建议标签是否符合评估标准 → 不符合则返回修正后的版本
+async function llmVerifySuggestion(suggestedTag, evaluation, fld, res, cfg){
+  var step3Prompt = '你是数据标注质量终审员。\n\n'+
+    '## 角色\n'+
+    '你的唯一职责：检查「待校验标签」是否严格符合「审核评估结论」中提到的所有规则。\n\n'+
+    '## 审核评估结论（这是必须遵守的规则源）\n'+evaluation+'\n\n'+
+    '## 字段定义\n'+
+    '字段名: '+fld.name+'\n用途: '+fld.prompt+'\n'+
+    (fld.options.length ? '可选标签: '+fld.options.join(', ') : '')+'\n'+
+    '## 原始标签\n'+res.originalTag+'\n\n'+
+    '## 待校验标签\n'+suggestedTag+'\n\n'+
+    '## 校验标准\n'+
+    '逐一对照评估结论中的每一条规则/要求：\n'+
+    '1. 如果评估说要使用特定格式（如 | 分隔、特定结构），待校验标签是否使用了？\n'+
+    '2. 如果评估说要删除某些内容，待校验标签是否已删除？\n'+
+    '3. 如果评估说内容不符，待校验标签是否已按字段定义重写？\n'+
+    '4. 待校验标签是否犯了评估中指出的同样的错误？\n\n'+
+    '## 输出格式（严格 JSON，只输出 JSON 不要其他文字）\n'+
+    '{"passes":true/false,"final_tag":"如果 passes=false 给出修正后的标签，如果 passes=true 则原样返回待校验标签","verify_note":"一句话说明校验结果"}';
+  var raw = await callAPI(step3Prompt, '', cfg.key, 0.1);
+  if(typeof raw!=='string'||!raw) return suggestedTag; // 校验失败则保留建议
+  var jm = raw.match(/\{[\s\S]*\}/);
+  if(!jm) return suggestedTag;
+  try{
+    var p = JSON.parse(jm[0]);
+    if(p.passes === true || p.passes === 'true'){
+      // 校验通过 → 返回原建议标签
+      return suggestedTag;
+    } else {
+      // 校验不通过 → 返回 LLM 修正后的最终标签
+      return (p.final_tag || suggestedTag).trim();
+    }
+  }catch(e){
+    return suggestedTag; // 解析失败则保留建议
+  }
 }
 
 // ============================================================
@@ -4108,9 +5101,15 @@ async function extractLabelFields(desc, typePref, apiKey){
   var fields;
   try{ fields=JSON.parse(jsonStr); }
   catch(parseErr){
-    var repaired=repairTruncatedJSON(jsonStr);
-    if(repaired){ try{ fields=JSON.parse(repaired); }catch(e2){ throw new Error('AI 返回的 JSON 不完整（可能文档过长被截断）。建议缩短描述后重试。'); } }
-    else throw new Error('AI 返回的 JSON 不完整（可能文档过长被截断）。建议缩短描述后重试。');
+    var repaired=null;
+    // 策略1: 修复畸形 JSON（换行/引号/尾逗号）
+    repaired=repairMalformedJSON(jsonStr);
+    if(repaired){ try{ fields=JSON.parse(repaired); }catch(e1){ repaired=null; } }
+    // 策略2: 截断修复
+    if(!fields && !repaired){ repaired=repairTruncatedJSON(jsonStr); if(repaired) try{ fields=JSON.parse(repaired); }catch(e2){} }
+    // 策略3: 组合修复
+    if(!fields){ var f2=repairMalformedJSON(jsonStr); if(f2){var t2=repairTruncatedJSON(f2);if(t2)try{fields=JSON.parse(t2);}catch(e3){}} }
+    if(!fields) throw new Error('AI 返回的 JSON 不完整（可能文档过长被截断或含特殊字符）。建议缩短描述后重试。\n\n原始错误: '+parseErr.message);
   }
   if(!Array.isArray(fields)) throw new Error('AI 未返回字段数组');
   fields.forEach(function(f){
@@ -4230,14 +5229,182 @@ function applyBuiltFields(fields){
   return n;
 }
 
-// --- One-click correction: apply AI suggested tags to data for incorrect/partial entries ---
+// --- Exclude / revalidate helpers for LLM validation detail ---
+// 可矫正 = 判定 incorrect 且未被排除（partial 不纳入自动矫正）
+function getCorrectableCount(R){
+  if(!R||!R.results) return 0;
+  // 与 runCorrection 的过滤条件完全一致，避免「显示N条」与「点击后0条」不匹配
+  return R.results.filter(function(r){ return r.verdict==='incorrect' && !r.excluded && !r.corrected && r.llmVerdict && r.llmVerdict!=='解析失败' && r.llmVerdict!=='未知'; }).length;
+}
+// 仅刷新验证报告顶部汇总数字 + 矫正/抽样按钮状态（不重渲染明细行）
+function llmValStatsRefresh(){
+  if(!llmValResults) return;
+  var R=llmValResults;
+  var vms=document.querySelectorAll('.vs .vm-v');
+  if(vms.length>=3){
+    vms[0].textContent=R.accuracy+'%';
+    vms[0].style.color = R.accuracy>=80?'var(--success)':R.accuracy>=60?'var(--warning)':'var(--error)';
+    vms[1].textContent=R.correct;
+    vms[2].textContent=R.incorrect;
+  }
+  var db=document.getElementById('deepBtn');
+  if(db) db.disabled = R.incorrect>0?false:true;
+  var corr=document.getElementById('corrBtn');
+  if(corr){ var c=getCorrectableCount(R); corr.disabled=c===0; corr.textContent='一键矫正 ('+c+')'; }
+}
+function toggleExclude(ri, checked){
+  if(!llmValResults||!llmValResults.results[ri]) return;
+  llmValResults.results[ri].excluded = !!checked;
+  // 联动表头全选框状态
+  _syncExclAllChk();
+  refreshExcludeUI();
+}
+// 根据当前各行排除状态，同步表头全选 checkbox 的 checked/indeterminate
+function _syncExclAllChk(){
+  var all=document.getElementById('exclAllChk');
+  if(!all || !llmValResults || !llmValResults.results.length) return;
+  var total=llmValResults.results.length;
+  var excl=llmValResults.results.filter(function(r){return r.excluded;}).length;
+  all.checked = (excl===total);
+  all.indeterminate = (excl>0 && excl<total);
+}
+function toggleExcludeAll(checked){
+  if(!llmValResults) return;
+  // 全选/取消全选：控制下面所有行的排除 checkbox（不区分 verdict 类型）
+  llmValResults.results.forEach(function(r, ri){
+    r.excluded = !!checked;
+    var cb=document.getElementById('excl_'+ri);
+    if(cb) cb.checked = checked;
+  });
+  refreshExcludeUI();
+  _syncExclAllChk();
+}
+function refreshExcludeUI(){
+  llmValStatsRefresh();
+}
+// 单条重验：去全局 isProcessing 锁，改用 _revalidating[ri] 防止并发；内联更新该行不整页重渲染
+let _revalidating = {};
+// 单行重验的判定逻辑说明（以「字段提示词」为准，明确标签是否反映内容且属于该字段范围）
+function verdictLogicNote(verdict, fld){
+  var fn = fld ? fld.name : '该字段';
+  if(verdict==='correct') return {txt:'本行重验以「'+fn+'」字段提示词为准：标签反映了内容，且属于该字段范围 → 正确', col:'var(--success)', bg:'rgba(16,185,129,0.1)'};
+  if(verdict==='partial') return {txt:'本行重验以「'+fn+'」字段提示词为准：标签反映了内容，但不严格属于该字段提示词要求的范围 → 存疑（⚠ 请你人工决策，不自动矫正）', col:'var(--warning)', bg:'rgba(245,158,11,0.1)'};
+  return {txt:'本行重验以「'+fn+'」字段提示词为准：标签与字段提示词要求或内容明显不符 → 不正确（可矫正）', col:'var(--error)', bg:'rgba(239,68,68,0.1)'};
+}
+async function revalidateRow(ri){
+  if(!llmValResults) return;
+  var R=llmValResults;
+  var res=R.results[ri];
+  if(!res) return;
+  if(_revalidating[ri]) return;
+  var cfg=apiCfg(); if(!cfg.key){ alert('请先填写 API Key'); return; }
+  var fld=aiFields.find(function(f){ return f.name===res.fieldName; });
+  if(!fld){ alert('找不到字段 '+res.fieldName); return; }
+  _revalidating[ri]=true;
+  var btn=document.getElementById('reval_'+ri);
+  var oldLabel = btn ? btn.textContent : '重验';
+  if(btn){ btn.textContent='验证中'; btn.disabled=true; }
+  var rowEl=document.getElementById('resrow_'+ri);
+  var vcell=document.getElementById('verdictcell_'+ri);
+  var rcell=document.getElementById('reasoncell_'+ri);
+    if(vcell) vcell.innerHTML='<span style="color:var(--accent);font-size:11px;font-weight:500">⟳ 正在使用 LLM 语义理解重验中…</span>';
+    if(rcell) rcell.innerHTML='<span style="color:var(--text-tertiary);font-size:10.5px">等待 LLM 返回判定结果…</span>';
+  try{
+    var dataIdx=res.rowIndex-1;
+    var nv=await validateOne(dataIdx, fld, cfg);
+    // 单条重验也要校准：确保建议标签与评估规则一致
+    if(nv.verdict!=='correct'){
+      nv=await reconcileVerdict(nv, fld, cfg);
+    }
+    // 保留原 excluded / corrected 标记
+    nv.excluded = !!res.excluded; nv.corrected = !!res.corrected;
+    R.results[ri]=nv;
+    // 立即持久化（不等待防抖）：用户可能立刻刷新，必须同步写入
+    saveStateNow();
+    // 内联刷新该行（不整页重渲染）——状态用图标+左边框表达
+    var vc = nv.verdict==='correct'?'var(--success)':nv.verdict==='partial'?'var(--warning)':'var(--error)';
+    if(rowEl) rowEl.style.borderLeftColor=vc;
+    // 更新第一列状态图标（独立列）
+    var firstTd = rowEl ? rowEl.querySelector('td:first-child') : null;
+    if(firstTd){
+      var newIcon = nv.verdict==='correct'
+        ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(16,185,129,0.1);color:#059669;font-size:10px;font-weight:700">✓</span>'
+        : nv.verdict==='partial'
+          ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(245,158,11,0.1);color:#b45309;font-size:11px;font-weight:700">!</span>'
+          : '<span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(239,68,68,0.1);color:#dc2626;font-size:10px;font-weight:700">✗</span>';
+      firstTd.innerHTML = newIcon;
+    }
+    if(vcell){
+      vcell.innerHTML = (nv.corrected || nv.verdict==='correct')
+        ? '<span class="tag-pill" style="background:rgba(16,185,129,0.1);color:#059669;border:1px solid rgba(16,185,129,0.25);font-weight:600">✓ correct</span>'
+        : '<span class="tag-pill" style="background:rgba(245,158,11,0.1);color:#b45309;border:1px solid rgba(245,158,11,0.25)">'+esc(String(nv.llmVerdict))+'</span>';
+    }
+    var showTag = nv.corrected ? nv.llmVerdict : nv.originalTag;
+    var tcell=document.getElementById('tagcell_'+ri);
+    if(tcell){
+      tcell.setAttribute('data-fulltext', escAttr(String(showTag||'')));
+      tcell.innerHTML = nv.corrected
+        ? '<span class="tag-pill" style="background:rgba(16,185,129,0.12);color:#059669;border:1px solid rgba(16,185,129,0.35)">'+esc(String(nv.llmVerdict))+'</span><span style="display:inline-block;margin-left:5px;font-size:9px;color:#059669;background:rgba(16,185,129,0.12);padding:1px 5px;border-radius:4px;vertical-align:middle">已修正</span>'
+        : '<span class="tag-pill" style="background:rgba(37,99,235,0.1);color:#2563EB;border:1px solid rgba(37,99,235,0.2)">'+esc(String(nv.originalTag))+'</span>';
+    }
+    if(rcell){
+      var ln = verdictLogicNote(nv.verdict, fld);
+      rcell.setAttribute('data-fulltext', escAttr(ln.txt + (nv.reason ? '\n\nAI 语义理解：'+nv.reason : '')));
+      rcell.innerHTML = '<div style="font-size:11px;line-height:1.5;padding:5px 7px;border-radius:6px;margin-bottom:5px;color:'+ln.col+';background:'+ln.bg+';border-left:3px solid '+ln.col+'">'+esc(ln.txt)+'</div>' + (nv.reason ? expCellHtml(nv.reason) : '');
+    }
+    // 重新统计准确率与可矫正数
+    var tot=R.results.length;
+    var cor=R.results.filter(function(r){ return r.verdict==='correct'||r.corrected; }).length;
+    R.correct=cor; R.incorrect=tot-cor; R.accuracy=tot?Math.round(cor/tot*100):0;
+    refreshExcludeUI();
+    // 只刷新汇总数字（不动整页）
+    var accEl=document.querySelector('.vs .vm-v');
+    if(accEl) accEl.textContent=R.accuracy+'%';
+    saveState();
+  } catch(err){
+    if(vcell) vcell.innerHTML='<span style="color:var(--error);font-size:11px">重验失败</span>';
+    if(rcell) rcell.innerHTML='<span style="color:var(--error);font-size:11px">'+esc(String(err.message||err).substring(0,60))+'</span>';
+  } finally {
+    _revalidating[ri]=false;
+    if(btn){ btn.textContent=oldLabel; btn.disabled=false; }
+  }
+}
+
+// --- One-click correction: 直接采用 LLM 验证给出的建议标签（verdict_tag）进行矫正 ---
+// 核心原则：用户已认可 LLM 验证的判定与建议，矫正 = 把判定为 incorrect 的标签
+// 替换为 LLM 验证给出的建议标签值；输出标签需符合字段提示词的「输出规则」——
+// 其中「未提及」类写法（未提及/未提到/无/无相关/N/A…）统一规范为「未提及」。
 let _corrStop=false;
+
+// 判断一个标签值是否表达「未提及/不涉及」语义（用于统一规范为「未提及」）
+function isNotMentioned(v){
+  var s=String(v==null?'':v).trim().toLowerCase();
+  if(!s) return true;
+  // 标记后可跟少量虚词/标点（如「未提及。」）。真实标签如「无异味」因含实词而不匹配。
+  var NM_RE=/^(无|空|缺失|未提及|未提到|没提到|未涉及|不涉及|无提及|无相关|无信息|无内容|未标注|无标注|未提及到|没有提到|暂无|不适用|无对应|无关)[的之了。．.\s、，,]*$/;
+  if(NM_RE.test(s)) return true;
+  var EN=['n/a','na','none','null','nil','empty','no mention','not mentioned','unmentioned','unknown'];
+  for(var i=0;i<EN.length;i++){ if(s===EN[i]) return true; }
+  return false;
+}
+
+// 矫正归一化：先复用 cleanLabel 做基础清洗，再把「未提及」类写法统一为「未提及」
+function normalizeCorrLabel(val, fld){
+  var raw=String(val==null?'':val);
+  // 去掉 LLM 常带的尾随解释括号（如「未提及（内容无相关描述）」），避免混入正文
+  raw=raw.replace(/[（(【\[][\s\S]*?[）)\]】]/g,' ').replace(/[（(【\[][\s\S]*$/,'');
+  var v=cleanLabel(raw, fld);
+  if(isNotMentioned(v)) return '未提及';
+  return v;
+}
+
 async function runCorrection(){
   if(!llmValResults){alert('没有验证结果');return;}
   const R=llmValResults;
-  var problems=R.results.filter(function(r){ return r.verdict!=='correct' && !r.corrected && r.llmVerdict && r.llmVerdict!=='解析失败' && r.llmVerdict!=='未知'; });
-  if(!problems.length){ alert('没有可矫正的条目（或全部已修正）'); return; }
-  if(!confirm('即将把 '+problems.length+' 条判定为「部分正确/不正确」的标签，替换为 AI 建议标签。\n\n此操作会直接修改数据表格中的标签值，不可逐条撤销（可重新运行打标覆盖）。\n\n确认矫正？')) return;
+  // 只矫正「不正确(incorrect)」且未被排除的条目；partial 存疑不自动矫正（见 #59）
+  var problems=R.results.filter(function(r){ return r.verdict==='incorrect' && !r.corrected && !r.excluded && r.llmVerdict && r.llmVerdict!=='解析失败' && r.llmVerdict!=='未知'; });
+  if(!problems.length){ alert('没有可矫正的条目（或全部已修正/已排除）'); return; }
+  if(!confirm('即将按「LLM 验证给出的建议标签」矫正 '+problems.length+' 条判定为「不正确」的标签（已排除项不参与）。\n\n矫正 = 直接采用 LLM 验证对每条数据的建议标签值；其中「未提及」类写法（未提及/未提到/无/无相关/N/A…）会统一规范为「未提及」，其余建议标签原样采用。\n\n此操作会直接修改数据表格中的标签值，不可逐条撤销（可重新运行打标覆盖）。\n\n确认矫正？')) return;
 
   var btn=document.getElementById('corrBtn');
   var wrap=document.getElementById('corrProgWrap');
@@ -4247,10 +5414,10 @@ async function runCorrection(){
   btn.disabled=true; _corrStop=false;
   var stopBtn=document.getElementById('corrStopBtn'); if(stopBtn) stopBtn.style.display='inline-block';
   wrap.style.display='block'; bar.style.width='0%';
-  status.textContent='矫正中...';
+  status.textContent='正在按 LLM 验证建议矫正...';
 
   var sIdx=R.sheetIdx!=null?R.sheetIdx:activeSheetIdx;
-  var done=0, applied=0, skipped=0;
+  var done=0, applied=0, skipped=0, failed=0;
   var total=problems.length;
 
   for(var i=0;i<problems.length;i++){
@@ -4258,25 +5425,43 @@ async function runCorrection(){
     var r=problems[i];
     var di=r.rowIndex-1;
     var sheet=sheets[sIdx];
-    if(sheet && di>=0 && di<sheet.data.length && sheet.data[di]){
-      sheet.data[di][r.fieldName]=r.llmVerdict;
-      r.corrected=true; applied++;
-      // Live update the tag cell in the table
-      var cell=document.getElementById('tagcell_'+R.results.indexOf(r));
-      if(cell){
-        cell.innerHTML=`<span class="tag-pill" style="background:rgba(16,185,129,0.12);color:#059669;border:1px solid rgba(16,185,129,0.35)">${esc(String(r.llmVerdict))}</span><span style="display:inline-block;margin-left:5px;font-size:9px;color:#059669;background:rgba(16,185,129,0.12);padding:1px 5px;border-radius:4px;vertical-align:middle">已修正</span>`;
+    var fld=aiFields.find(function(f){ return f.name===r.fieldName; });
+    if(sheet && di>=0 && di<sheet.data.length && sheet.data[di] && fld){
+      try{
+        // 直接采用 LLM 验证的建议标签（verdict_tag），并归一化为符合字段提示词输出规则的写法
+        var finalVal=normalizeCorrLabel(r.llmVerdict, fld);
+        sheet.data[di][r.fieldName]=finalVal;
+        r.corrected=true; applied++;
+        // Live update the tag cell in the table
+        var ri=R.results.indexOf(r);
+        var cell=document.getElementById('tagcell_'+ri);
+        if(cell){
+          cell.innerHTML='<span class="tag-pill" style="background:rgba(16,185,129,0.12);color:#059669;border:1px solid rgba(16,185,129,0.35)">'+esc(String(finalVal))+'</span><span style="display:inline-block;margin-left:5px;font-size:9px;color:#059669;background:rgba(16,185,129,0.12);padding:1px 5px;border-radius:4px;vertical-align:middle">已修正</span>';
+        }
+        // 联动更新状态图标：矫正成功 → ✗ 变 ✓
+        var statTd=document.querySelector('#resrow_'+ri+' > td:first-child');
+        if(statTd){
+          statTd.innerHTML='<span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(16,185,129,0.1);color:#059669;font-size:10px;font-weight:700">✓</span>';
+        }
+        // 联动更新 verdict 列显示为 correct
+        var vcell=document.getElementById('verdictcell_'+ri);
+        if(vcell){
+          vcell.innerHTML='<span class="tag-pill" style="background:rgba(16,185,129,0.1);color:#059669;border:1px solid rgba(16,185,129,0.25);font-weight:600">✓ correct</span>';
+        }
+        var row=cell?cell.parentNode:null;
+        if(row) row.style.borderLeftColor='var(--success)';
+      }catch(e){
+        failed++;
+        log('err','[矫正] R'+(di+1)+' '+r.fieldName+': '+e.message);
       }
-      // Update row status icon
-      var row=cell?cell.parentNode:null;
-      if(row) row.style.borderLeftColor='var(--success)';
     } else {
       skipped++;
     }
     done++;
     var pct=Math.round(done/total*100);
     bar.style.width=pct+'%';
-    txt.textContent='矫正中... '+done+'/'+total+' ('+pct+'%) · 已应用 '+applied+' 条';
-    await sleep(40);
+    txt.textContent='按 LLM 验证建议矫正... '+done+'/'+total+' ('+pct+'%) · 已应用 '+applied+' 条'+(failed?'（失败 '+failed+' 条）':'');
+    await sleep(80);
   }
 
   // Recompute accuracy
@@ -4286,10 +5471,10 @@ async function runCorrection(){
   R.incorrect=totalChecked-nowCorrect;
   R.accuracy=totalChecked?Math.round(nowCorrect/totalChecked*100):0;
 
-  saveState();
+  saveStateNow();
   // 立即把修正后的标签写回数据表格视图（无论当前在哪个视图）
   renderTable(); refreshDoc();
-  status.textContent=(_corrStop?'已停止 · ':'完成! ')+'已修正 '+applied+' 条'+(skipped?'（跳过 '+skipped+' 条无效）':'');
+  status.textContent=(_corrStop?'已停止 · ':'完成! ')+'已按字段规则修正 '+applied+' 条'+(failed?'（失败 '+failed+' 条）':'')+(skipped?'（跳过 '+skipped+' 条无效）':'');
   btn.disabled=false; btn.textContent='已矫正，可重新运行验证复核';
   if(stopBtn) stopBtn.style.display='none';
   log('info','一键矫正完成: 应用 '+applied+' 条，准确率更新为 '+R.accuracy+'%');
@@ -4543,12 +5728,20 @@ function saveState(){
     hiddenColNames:[].slice.call(hiddenColNames),
     activeSheetIdx:activeSheetIdx,
     llmValResults:llmValResults,
+    isProcessing:isProcessing,
+    valFieldSel:_valFieldSel?Array.from(_valFieldSel):[],
     thinkLog:thinkLog,
+    l2AiCache:_l2AiCache||{},
+    l2TagsCache:_l2TagsCache||{},
+    l2CellIdMap:_l2CellIdMap||{},
     savedAt:Date.now(),
-    fileName:currentFileName||''
+    fileName:currentFileName||'',
+    curView:curView
   };
   if(_flushTimer) return; // already scheduled
   _flushTimer=setTimeout(function(){ _flushTimer=null; _doSave(); },200);
+  // 同步写 localStorage 兜底（防抖期间刷新也不丢）
+  try{ localStorage.setItem('ait-ws-backup', JSON.stringify(_savePending)); }catch(e){}
 }
 function _doSave(){
   if(!_savePending) return;
@@ -4564,20 +5757,67 @@ function _doSave(){
     log('err','工作区自动保存失败: '+err);
   });
 }
+/**
+ * 立即持久化（绕过 200ms 防抖）。
+ * 用于重验、矫正等关键操作——用户可能立刻刷新，不能等防抖。
+ * 双写策略：IndexedDB（主）+ localStorage（同步兜底，防刷新丢失） */
+function saveStateNow(){
+  if(!sheets||!sheets.length) return;
+  if(_flushTimer){ clearTimeout(_flushTimer); _flushTimer=null; }
+  var payload={
+    v:1,
+    sheets:sheets,
+    aiFields:aiFields,
+    hiddenColNames:[].slice.call(hiddenColNames),
+    activeSheetIdx:activeSheetIdx,
+    llmValResults:llmValResults,
+    isProcessing:isProcessing,
+    valFieldSel:_valFieldSel?Array.from(_valFieldSel):[],
+    thinkLog:thinkLog,
+    l2AiCache:_l2AiCache||{},
+    l2TagsCache:_l2TagsCache||{},
+    l2CellIdMap:_l2CellIdMap||{},
+    savedAt:Date.now(),
+    fileName:currentFileName||'',
+    curView:curView
+  };
+  _savePending=payload;
+  // 同步写入 localStorage 兜底（IndexedDB 异步可能被刷新中断）
+  try{ localStorage.setItem('ait-ws-backup', JSON.stringify(payload)); }catch(e){}
+  _doSave();
+}
 function loadState(){
+  // 先尝试从 IndexedDB 加载
   return _openDB().then(function(db){
     return new Promise(function(res,rej){
       var tx=db.transaction('ws','readonly');
       var req=tx.objectStore('ws').get('current');
       req.onsuccess=function(){
         var d=req.result;
-        if(!d||!d.sheets||!d.sheets.length){ res(false); return; }
-        sheets=d.sheets; aiFields=d.aiFields||[]; hiddenColNames=new Set(d.hiddenColNames||[]);
-        activeSheetIdx=d.activeSheetIdx||0; llmValResults=d.llmValResults||null;
-        currentFileName=d.fileName||'';
-        thinkLog=d.thinkLog||[];
+        var idbOk=d&&d.sheets&&d.sheets.length;
+        // 检查 localStorage 兜底是否更新
+        var lsData=null;
+        try{ var lsRaw=localStorage.getItem('ait-ws-backup'); if(lsRaw) lsData=JSON.parse(lsRaw); }catch(e){}
+        var lsOk=lsData&&lsData.sheets&&lsData.sheets.length;
+        // 用更新的那个（localStorage 的 savedAt 更新则优先用它）
+        var useLs=lsOk && (!idbOk || (lsData.savedAt||0)>(d.savedAt||0));
+        var src=useLs?lsData:d;
+        if(!src||!src.sheets||!src.sheets.length){ res(false); return; }
+        sheets=src.sheets; aiFields=src.aiFields||[]; hiddenColNames=new Set(src.hiddenColNames||[]);
+        activeSheetIdx=src.activeSheetIdx||0; llmValResults=src.llmValResults||null;
+        // isProcessing: 刷新后总是重置为 false（进行中的操作已被中断，避免卡在"验证中"状态）
+        isProcessing=false;
+        if(src.valFieldSel && Array.isArray(src.valFieldSel)) _valFieldSel=new Set(src.valFieldSel);
+        currentFileName=src.fileName||'';
+        if(src.curView) curView=src.curView;
+        thinkLog=src.thinkLog||[];
+        _l2AiCache=src.l2AiCache||{};
+        _l2TagsCache=src.l2TagsCache||{};
+        _l2CellIdMap=src.l2CellIdMap||{};
+        // 自动校准旧版缓存结果（轻量规则修正，不调LLM）
+        if(src.llmValResults) autoReconcileResults();
         // Migration: old payloads stored aiFields at top level
-        if(d.aiFields && (!sheets[0].aiFields || !sheets[0].aiFields.length)) sheets[0].aiFields=d.aiFields;
+        if(src.aiFields && (!sheets[0].aiFields || !sheets[0].aiFields.length)) sheets[0].aiFields=src.aiFields;
         bindSheetGlobals();
         res(true);
       };
@@ -4586,7 +5826,16 @@ function loadState(){
   }).catch(function(){ return false; });
 }
 // Flush pending save immediately before the page is hidden/unloaded
-window.addEventListener('pagehide',function(){ if(_savePending) _doSave(); });
+window.addEventListener('pagehide',function(){
+  if(_savePending){ clearTimeout(_flushTimer); _flushTimer=null; _doSave(); }
+  // 也兜底：如果 saveStateNow 被调过但 IndexedDB 写入还没完成，这里再写一次
+  if(sheets && sheets.length && !_savePending){
+    var prev=_savePending;
+    _savePending={v:1,sheets:sheets,aiFields:aiFields,hiddenColNames:[].slice.call(hiddenColNames),activeSheetIdx:activeSheetIdx,llmValResults:llmValResults,isProcessing:isProcessing,valFieldSel:_valFieldSel?Array.from(_valFieldSel):[],thinkLog:thinkLog,l2AiCache:_l2AiCache||{},l2TagsCache:_l2TagsCache||{},l2CellIdMap:_l2CellIdMap||{},savedAt:Date.now(),fileName:currentFileName||'',curView:curView};
+    _doSave();
+    _savePending=prev; // 恢复，不影响正常流程
+  }
+});
 window.addEventListener('beforeunload',function(){ if(_savePending) _doSave(); });
 function clearData(){
   if(!confirm('删除当前所有数据并清空工作区？此操作不可撤销，刷新后将无法恢复。'))return;
@@ -4704,8 +5953,22 @@ document.body.addEventListener('drop',e=>{
 
 // Restore workspace from IndexedDB on load (async)
 loadState().then(function(ok){
+  var tableView=document.getElementById('tableView');
+  var docViews=['docStats','docValidate','docLlmVal','docThink'];
   if(ok){
-    showTable(); renderSheetTabs(); updDataInfo(); updStatus(); refreshDoc();
+    // 先根据 curView 决定初始显示状态，避免闪烁
+    if(curView && curView!=='table'){
+      if(tableView) tableView.style.display='none';
+    }
+    showTable(); renderSheetTabs(); updDataInfo(); updStatus();
+    // 同步看板标签页激活状态（curView 已从缓存恢复）
+    document.querySelectorAll('.vcard').forEach(function(c){ c.classList.toggle('on',c.dataset.v===curView); });
+    if(curView==='table'){ if(tableView) tableView.style.display='flex'; docViews.forEach(function(id){document.getElementById(id).classList.remove('active');}); }
+    else{ if(tableView) tableView.style.display='none'; docViews.forEach(function(id){document.getElementById(id).classList.remove('active');}); var m={stats:'docStats',validate:'docValidate',llmval:'docLlmVal',think:'docThink'}; if(m[curView]) document.getElementById(m[curView]).classList.add('active'); }
+    // 字段面板：非 table 视图隐藏
+    var _fpBar=document.getElementById('fldPanelBar');
+    if(_fpBar) _fpBar.style.display=(curView==='table')?'':'none';
+    refreshDoc();
     var info='已从本地缓存恢复工作区';
     if(currentFileName) info+=' ('+currentFileName+')';
     if(sheets.length&&tableData().length) info+=' — '+tableData().length+'行 / '+aiFields.length+'个AI字段';
@@ -4716,10 +5979,18 @@ loadState().then(function(ok){
     toast.onclick=function(){document.body.removeChild(toast);};
     document.body.appendChild(toast);
     setTimeout(function(){if(toast.parentNode)document.body.removeChild(toast);},5000);
+  } else {
+    // 无缓存：显示默认表格视图（空态），避免空白屏
+    if(tableView) tableView.style.display='flex';
+    showTable(); renderSheetTabs(); updDataInfo(); updStatus(); refreshDoc();
   }
   document.getElementById('unfreezeBtn').style.display = frozenCount>0?'':'none';
   renderTable();
 });
+
+// BUILD STAMP — 用于在浏览器控制台确认预览加载的是否最新文件（输入 __BUILD__ 即可查看）
+window.__BUILD__='b20260728-0810';
+console.log('%c[AI Tag Tool] build b20260727-2230 — 若预览仍显示旧行为，请硬刷新(Cmd/Ctrl+Shift+R)或重新打开预览','color:#00d4ff;font-weight:bold');
 </script>
 
 <!-- ===== AI 字段助手（侧边聊天） ===== -->
