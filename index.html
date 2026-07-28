@@ -286,10 +286,10 @@ body::after {
 .btn-ghost { background:var(--glass-bg); color:var(--text-secondary); border-color:var(--border); box-shadow:none; }
 .btn-ghost:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
 
-.content-body { flex: 1; overflow: auto; position: relative; }
+.content-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
 
 /* ===== TABLE VIEW ===== */
-.table-view { display: flex; flex-direction: column; height: 100%; }
+.table-view { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 .table-wrap { flex: 1; overflow: auto; position: relative; }
 
 /* Scroll jump buttons (↑ top / ↓ bottom) */
@@ -447,7 +447,7 @@ body.dark .sj-btn:hover { background: var(--surface); color: var(--text-primary)
 
 /* ===== DOC VIEWS ===== */
 .doc-view { display: none; padding: 24px 32px; }
-.doc-view.active { display: block; }
+.doc-view.active { display: block; overflow-y: auto; flex: 1; min-height: 0; }
 
 .dsec {
   margin-bottom: 28px;
@@ -966,6 +966,7 @@ body.dark .sj-btn:hover { background: var(--surface); color: var(--text-primary)
         </div>
         <span id="ptText" style="display:none">0/0</span>
         <span id="etaText" style="display:none;margin-left:10px"></span>
+        <span id="saveStat" style="color:var(--text-tertiary);font-size:11px;margin-left:14px"></span>
       </div>
     </div>
 
@@ -2618,14 +2619,22 @@ function fpRemoveOpt(idx, optIdx){
 
 // Insert reference column tag into a field card's prompt
 function fpInsRef(idx, col){
-  var ta = document.getElementById('fpPrompt_'+idx);
+  // 优先插入到当前聚焦的 textarea（原提示词 or 强化提示词），默认回退到原提示词
+  var ta = document.activeElement;
+  var taEnh = document.getElementById('fpEnhText_'+idx);
+  var taPrompt = document.getElementById('fpPrompt_'+idx);
+  if(ta !== taEnh && ta !== taPrompt) ta = taEnh || taPrompt;
   if(!ta) return;
   var s = ta.selectionStart, e = ta.selectionEnd, r = '{{' + col + '}}';
   ta.value = ta.value.substring(0, s) + r + ta.value.substring(e);
   ta.focus();
   ta.selectionStart = ta.selectionEnd = s + r.length;
-  // Update the field's prompt data
-  fpUpdateField(idx, 'prompt', ta.value);
+  // Update the correct field property
+  if(ta === taEnh){
+    fpUpdateField(idx, 'promptEnhanced', ta.value);
+  } else {
+    fpUpdateField(idx, 'prompt', ta.value);
+  }
 }
 
 function confirmFieldsFromPreview(){
@@ -2682,11 +2691,19 @@ function buildRefs(){
   const rh=rawHeaders();
   if(!rh.length){c.innerHTML='<span style="font-size:11px;color:var(--text-tertiary)">上传文件后可引用字段</span>';return;}
   c.innerHTML='<span style="font-size:11px;color:var(--text-tertiary);margin-right:4px">引用:</span>'+
-    rh.map(col=>`<button class="rcp" onclick="insRef('${escAttr(col)}')">@${esc(col)}</button>`).join('');
+    rh.map(col=>`<button class="rcp" type="button" onmousedown="event.preventDefault();insRef('${escAttr(col)}')">@${esc(col)}</button>`).join('');
 }
 function insRef(col){
-  const ta=document.getElementById('dfPrompt'), s=ta.selectionStart, e=ta.selectionEnd, r=`{{${col}}}`;
-  ta.value=ta.value.substring(0,s)+r+ta.value.substring(e); ta.focus(); ta.selectionStart=ta.selectionEnd=s+r.length;
+  // 优先插入到当前聚焦的 textarea（原提示词 or 强化提示词），默认回退到原提示词
+  var ta = document.activeElement;
+  var taEnh = document.getElementById('dfPromptEnhanced');
+  var taPrompt = document.getElementById('dfPrompt');
+  if(ta !== taEnh && ta !== taPrompt) ta = taPrompt;
+  if(!ta) return;
+  var s = ta.selectionStart, e = ta.selectionEnd, r = '{{' + col + '}}';
+  ta.value = ta.value.substring(0, s) + r + ta.value.substring(e);
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = s + r.length;
 }
 
 
@@ -2805,6 +2822,7 @@ async function startTagging(opts){
     for(var r=0;r<rows.length;r++){
       if(sheetProc[targetIdx].stop || fld._stop){ 
         log('info','检测到停止信号，中断字段「'+fld.name+'」打标 (已完成 '+r+'/'+rows.length+' 行)'); 
+        tagCheckpoint(true); // 停止时立即落盘，保住已打标签
         fld._running=false; fld._stop=false; renderFieldPanel(); updateRunUI(); break; 
       }
       var ri=rows[r];
@@ -2877,6 +2895,7 @@ async function startTagging(opts){
       sheetProc[targetIdx].done=done;
       if(onScreen) bufProg(done,total,t0,perTimes);
       else if(done%10===0) updateBgText();
+      tagCheckpoint(); // 增量落盘：中途崩溃/刷新不丢已打标签
       logThrottled('ok','['+fld.name+'] R'+(ri+1)+': '+String(clean||'').substring(0,40));
       await sleep(60);
     }
@@ -2884,6 +2903,7 @@ async function startTagging(opts){
   }
 
   // 多字段并行：每个字段独立 lane，最多 4 个并发，但全部字段并行推进
+  resetCheckpoint(); // 整批开始：让首行打标立即落盘
   var lanes=[];
   for(var fi=0;fi<fields.length;fi++) lanes.push(tagFieldLane(fields[fi]));
   await Promise.all(lanes);
@@ -3237,18 +3257,21 @@ async function reTagRow(ri){
         rowData[fld.name]=clean; bufCell(ri,fld.name,clean,'ok',fld);
         pushThink({t:Date.now(),sheet:curSheet()?curSheet().name:'',row:ri,field:fld.name,usedLLM:true,srcMap:srcMap,instr:instr,raw:String(raw),reason:reason,clean:clean});
         done++; bufProg(done,total);
+        tagCheckpoint(); // 增量落盘：中途崩溃/刷新不丢已打标签
         log('ok','[重打] ['+fld.name+'] R'+(ri+1)+': '+clean.substring(0,40));
       }catch(err){
         var errMsg=String(err.message||err);
         rowData[fld.name]='[错] '+errMsg; bufCell(ri,fld.name,rowData[fld.name],'err',fld);
         pushThink({t:Date.now(),sheet:curSheet()?curSheet().name:'',row:ri,field:fld.name,usedLLM:true,srcMap:srcMap,instr:instr,raw:'(调用失败) '+errMsg,reason:'',clean:'[错] '+errMsg});
         done++; bufProg(done,total);
+        tagCheckpoint(); // 增量落盘：中途崩溃/刷新不丢已打标签
         log('err','[重打] ['+fld.name+'] R'+(ri+1)+': '+errMsg);
       }
       bufProc(ri,false); await sleep(60);
     }
     if(sheetProc[activeSheetIdx].stop) setSt('done','已停止'); else setSt('done','完成');
     log('info','重新打标完成 R'+(ri+1)+(sheetProc[activeSheetIdx].stop?' (已停止)':''));
+    tagCheckpoint(true); // 完成时确保最终落盘
     refreshDoc(); saveState();
   }catch(e){
     if(e.name!=='AbortError'){ setSt('error','出错'); log('err','中断: '+e.message); }
@@ -3602,77 +3625,160 @@ function parseTagDimension(tag){
   return {dim:'(未分类)', label:t};
 }
 
-// L4 suggestion caches (so AI results survive re-render)
-var _l4AiCache={};      // dimKey -> {groups:[...]}
-var _l4TagsCache={};    // dimKey -> tags array (for AI call)
+// 把一个单元格的标签值按实际分隔符拆成数组（兼容竖线/逗号/分号/顿号）
+function splitCellTags(v){
+  var s=String(v==null?'':v);
+  if(s.indexOf(' | ')>=0) return s.split(' | ').map(function(t){return t.trim();}).filter(Boolean);
+  if(s.indexOf('|')>=0) return s.split('|').map(function(t){return t.trim();}).filter(Boolean);
+  return s.split(/[,;，；、]+/).map(function(t){return t.trim();}).filter(Boolean);
+}
+// 在单元格值中把某个具体标签替换为细分后的新标签（保留其余标签与分隔符风格）
+function replaceCellTag(v, oldTag, newTag){
+  var tags=splitCellTags(v);
+  var out=tags.map(function(t){ return t===oldTag ? newTag : t; });
+  var sep = v.indexOf(' | ')>=0 ? ' | ' : (v.indexOf('|')>=0 ? '|' : ',');
+  return out.join(sep);
+}
+// 构造细分后的新标签：真实维度下为「dim-label-sub」（parseTagDimension 按首个'-'拆，label 变为 "label-sub"，仍归该维度）
+function buildRefinedTag(dim, label, sub){
+  if(dim==='(未分类)'||dim==='(未标记)'||dim==='(自由文本)') return label+'-'+sub;
+  return dim+'-'+label+'-'+sub;
+}
+// L3 标签出现次数达到该阈值才提示可细分
+var L4_SUBDIVIDE_MIN = 10;
+
+// L4 细分缓存（让 AI 结果在重渲染后仍在）
+var _l4AiCache={};      // key=field||dim||label -> {subs:[...], counts:{sub:n}, total:n}
 
 // L2 dimension summary caches (AI groups L3 tags into L2 dimensions)
 var _l2AiCache={};      // modKey -> [{dim, members:[...], reason}]
 var _l2TagsCache={};    // modKey -> tags array (for AI call)
 var _l2CellIdMap={};    // modKey -> DOM cellId (for aiSummarizeAllL2 lookup)
 
-/**
- * Lightweight L4 suggestion.
- * Core rule (per product spec): a dimension is worth splitting into L4 when
- *   (1) its total hit count is high (>=15), AND
- *   (2) it contains several distinct label types (>=3), e.g. 质量差/不好用/垃圾.
- * Returns null when not worth splitting (cell shows "—").
- */
-function suggestL4(dimension, tagsWithCounts){
-  var tags=tagsWithCounts;
-  var dimTotal=0; tags.forEach(function(t){dimTotal+=t.count;});
-  var distinct=tags.length;
-  if(dimTotal>=15 && distinct>=3){
-    var top=tags.slice(0,4).map(function(t){return t.label+'('+t.count+')';});
-    return {
-      reason:'该维度共命中 '+dimTotal+' 次，含 '+distinct+' 类标签',
-      example: top.join('、'),
-      action:'可下拆为 L4 子类（点右侧 AI 聚类）'
-    };
-  }
-  return null;
-}
-
-// Render AI clustering result into the L4 cell
-function renderL4AiHtml(groups){
-  if(!groups||!groups.length) return '<span style="color:var(--text-tertiary);font-size:10.5px">AI 未返回有效分组</span>';
+// Render L4 细分结果（子类 + 改写行数）到单元格
+function renderL4AiHtml(items){
+  if(!items||!items.length) return '<span style="color:var(--text-tertiary);font-size:10.5px">AI 未返回有效结果</span>';
   return '<div style="display:flex;flex-direction:column;gap:5px;max-width:260px">'
-    + groups.map(function(g){
-        var mem=(g.members||[]).map(function(x){return typeof x==='string'?x:String(x);});
-        return '<div style="padding:5px 9px;background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.18);border-radius:6px;font-size:10.5px;line-height:1.5">'
-          +'<span style="font-weight:600;color:var(--accent)">'+esc(g.group||'(未命名)')+'</span>'
-          +'<span style="color:var(--text-secondary)"> ← '+esc(mem.join('、'))+'</span>'
-          + (g.reason?'<br><span style="color:var(--text-tertiary);font-size:10px">'+esc(g.reason)+'</span>':'')
+    + items.map(function(g){
+        return '<div style="padding:5px 9px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.18);border-radius:6px;font-size:10.5px;line-height:1.5">'
+          +'<span style="font-weight:600;color:#9333ea">'+esc(g.group||'(未命名)')+'</span>'
+          + (g.reason?'<span style="color:var(--text-secondary);margin-left:6px">'+esc(g.reason)+'</span>':'')
           +'</div>';
       }).join('')
     + '</div>';
 }
 
-// AI deep-cluster: call LLM to group the dimension's labels into L4 sub-classes
-async function aiClusterL4(field, dim, cellId){
+/**
+ * L4 细分（不是聚类）：把某个 L3 标签按原文进一步拆细。
+ * 逻辑：① 找到所有包含该 L3 标签的行；② 取这些行的原文（被 {{列名}} 引用的列）；
+ * ③ 让 LLM 判断能否按原文语义拆成更具体的子类，并为每条原文分配子类；
+ * ④ 默认只缓存 + 在 L4 列预览，不写数据表；用户点「填入数据表」才真正回写。 */
+async function aiSubdivideL3(field, dim, label, cellId){
   var cfg=apiCfg();
   if(!cfg.key){alert('请先在左侧配置面板填写 API Key');return;}
-  var cell=document.getElementById(cellId); if(!cell)return;
+  var fld=aiFields.find(function(f){return f.name===field;});
+  if(!fld){alert('字段不存在');return;}
   var resEl=document.getElementById(cellId+'_r');
-  var key=field+'||'+dim;
-  var tags=_l4TagsCache[key]||[];
-  if(resEl) resEl.innerHTML='<div style="font-size:10.5px;color:var(--accent)">AI 聚类中…</div>';
-  else cell.insertAdjacentHTML('beforeend','<div id="'+cellId+'_r" style="margin-top:6px"><div style="font-size:10.5px;color:var(--accent)">AI 聚类中…</div></div>');
-  var list=tags.map(function(t){return t.label+' ×'+t.count;}).join('\n');
-  var sys='你是标签体系聚类专家。下面是一组同维度下的具体标签及其出现次数。请将语义相近的标签聚合成 L4 子类（最多4组，每组2-5个成员）。只输出 JSON 数组，格式:[{"group":"子类名","members":["标签1","标签2"],"reason":"一句话说明"}]。不要输出任何其他文字。';
-  var user='维度名称: '+dim+'\n标签及出现次数:\n'+list;
+  var cell=document.getElementById(cellId);
+  var key=field+'||'+dim+'||'+label;
+  // ① 找包含该 L3 标签的所有行
+  var refCols=refColsOf(fld);
+  if(!refCols.length) refCols=originalColumns();
+  var all=tableData(), matched=[];
+  for(var ri=0; ri<all.length; ri++){
+    var v=all[ri][field];
+    if(!v || String(v).indexOf('[错]')===0) continue;
+    var tags=splitCellTags(v);
+    for(var k=0;k<tags.length;k++){
+      var p=parseTagDimension(tags[k]);
+      var dimOk = (dim==='(未分类)'||dim==='(未标记)'||dim==='(自由文本)') ? true : (p.dim===dim);
+      if(p.label===label && dimOk){
+        var src=refCols.map(function(rc){return rc+': '+(all[ri][rc]||'(无)');}).join(' | ');
+        matched.push({ri:ri, origTag:tags[k], src:src});
+        break;
+      }
+    }
+  }
+  if(!matched.length){ alert('未找到包含「'+label+'」的行'); return; }
+  // 超长保护：最多分析前 250 行，避免 token 超限（其余行保持原标签）
+  var analyze = matched.length>250 ? matched.slice(0,250) : matched;
+  if(resEl) resEl.innerHTML='<div style="font-size:10.5px;color:#9333ea">AI 细分中… (共 '+matched.length+' 行)</div>';
+  else if(cell) cell.insertAdjacentHTML('beforeend','<div id="'+cellId+'_r" style="margin-top:6px"><div style="font-size:10.5px;color:#9333ea">AI 细分中… (共 '+matched.length+' 行)</div></div>');
+  var list=analyze.map(function(m,idx){ return '['+idx+'] '+m.src; }).join('\n');
+  var sys='你是标签细分专家。下面有多条原始文本，它们都被打上了同一个标签「'+dim+'-'+label+'」。请判断这个标签能否按原文语义进一步拆分成更具体的子类（最多5个，每个2-4字）。然后为每条原文分配最合适的子类。只输出 JSON，格式:{"subs":["子类1","子类2"],"assign":[[0,"子类1"],[1,"子类2"]]}。索引必须与上面列表的[编号]严格对应。不要输出其他文字。';
+  var user='标签: '+dim+'-'+label+'\n共 '+analyze.length+' 条原文:\n'+list;
   try{
-    var resp=await callAPI(sys,user,cfg.key,0.3,1500);
-    var m=resp.match(/\[[\s\S]*?\]/); if(!m) throw new Error('未解析到 JSON');
-    var groups=JSON.parse(m[0]);
-    _l4AiCache[key]={groups:groups};
+    var resp=await callAPI(sys,user,cfg.key,0.2,3000);
+    // 提取 JSON：优先匹配 {"subs":...} 对象，其次 [...]
+    var m=resp.match(/\{[\s\S]*"subs"[\s\S]*\}/) || resp.match(/\[[\s\S]*\]/);
+    if(!m) throw new Error('未解析到 JSON（原始响应前200字: '+(resp||'').substring(0,200)+'）');
+    var obj=JSON.parse(m[0]);
+    var subs=obj.subs||[], assign=obj.assign||[];
+    if(!subs.length) throw new Error('AI 未给出任何子类');
+    // ④ 仅缓存结果 + 预览，默认不写入数据表（用户点「填入数据表」才回写）
+    var counts={}; subs.forEach(function(s){counts[s]=0;});
+    assign.forEach(function(pair){
+      var idx=pair[0], sub=pair[1];
+      if(idx==null||sub==null) return;
+      sub=String(sub).trim(); if(!sub) return;
+      if(idx<0||idx>=analyze.length) return;
+      counts[sub]=(counts[sub]||0)+1;
+    });
+    // 缓存供后续「填入数据表」使用：analyzed 行的 ri + 原标签 + 分配
+    var applyPlan=[];
+    assign.forEach(function(pair){
+      var idx=pair[0], sub=pair[1];
+      if(idx==null||sub==null) return;
+      sub=String(sub).trim(); if(!sub) return;
+      if(idx<0||idx>=analyze.length) return;
+      applyPlan.push({ri:analyze[idx].ri, origTag:analyze[idx].origTag, sub:sub});
+    });
+    _l4AiCache[key]={subs:subs, counts:counts, total:matched.length, applied:false, applyPlan:applyPlan};
     var target=document.getElementById(cellId+'_r');
-    if(target) target.innerHTML=renderL4AiHtml(groups);
-    log('info','AI 聚类完成: '+dim+' → '+groups.length+' 组');
+    if(target) target.innerHTML=renderL4Preview(field,dim,label,cellId,subs,counts,matched.length,false);
+    log('info','L4 细分预览完成: '+dim+'-'+label+' → '+subs.length+' 个子类（待填入，共 '+matched.length+' 行）');
   }catch(e){
     var target=document.getElementById(cellId+'_r');
-    if(target) target.innerHTML='<div style="font-size:10.5px;color:var(--error)">聚类失败: '+esc(e.message)+'<br><button class="tbtn" style="font-size:10px;padding:2px 9px;margin-top:5px" onclick="aiClusterL4(\''+String(field).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\',\''+String(dim).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\',\''+cellId+'\')">重试</button></div>';
+    if(target) target.innerHTML='<div style="font-size:10.5px;color:var(--error)">细分失败: '+esc(e.message)+'<br><button class="tbtn" style="font-size:10px;padding:2px 9px;margin-top:5px" onclick="aiSubdivideL3(\''+String(field).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\',\''+String(dim).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\',\''+String(label).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\',\''+cellId+'\')">重试</button></div>';
   }
+}
+
+// L4 细分结果「填入数据表」—— 用户手动触发才真正回写
+async function applyL4Subdivide(field, dim, label, cellId){
+  var key=field+'||'+dim+'||'+label;
+  var cached=_l4AiCache[key];
+  if(!cached || cached.applied) return;
+  var fld=aiFields.find(function(f){return f.name===field;});
+  if(!fld){alert('字段不存在');return;}
+  var all=tableData();
+  var applied=0;
+  (cached.applyPlan||[]).forEach(function(plan){
+    var row=all[plan.ri];
+    if(!row) return;
+    var newTag=buildRefinedTag(dim,label,plan.sub);
+    row[field]=replaceCellTag(String(row[field]||''), plan.origTag, newTag);
+    applied++;
+  });
+  cached.applied=true;
+  var target=document.getElementById(cellId+'_r');
+  if(target) target.innerHTML=renderL4Preview(field,dim,label,cellId,cached.subs,cached.counts,cached.total,true);
+  renderTable(); refreshDoc(); renderFieldPanel(); saveStateNow();
+  log('info','L4 细分已填入数据表: '+dim+'-'+label+' → 改写 '+applied+' 行');
+}
+
+// 渲染 L4 细分结果（预览态 / 已写入态）
+function renderL4Preview(field,dim,label,cellId,subs,counts,total,applied){
+  var safeField=String(field).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  var safeDim=String(dim).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  var safeLabel=String(label).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  var html=renderL4AiHtml(subs.map(function(s){return {group:s, reason:(counts[s]||0)+' 行'};}));
+  if(applied){
+    html+='<div style="font-size:10px;color:var(--success);margin-top:4px">已写入数据表 ✓</div>';
+  }else{
+    html+='<div style="margin-top:6px"><button class="tbtn" style="font-size:10px;padding:2px 9px;color:#9333ea;border-color:rgba(168,85,247,.3)" onclick="applyL4Subdivide(\''+safeField+'\',\''+safeDim+'\',\''+safeLabel+'\',\''+cellId+'\')">填入数据表</button>'
+      + '<span style="font-size:10px;color:var(--text-tertiary);margin-left:6px">'+total+' 行待写入</span></div>';
+  }
+  return html;
 }
 
 // Render AI-derived L2 dimension summary into cell
@@ -3847,9 +3953,9 @@ function renderStats(c){
   html+='<div class="ds-title">标签统计明细</div>';
   html+='<div class="ds-meta"><span>AI 字段: <strong>'+aiFields.length+'</strong></span><span>L2 维度: <strong>'+totalDims+'</strong></span><span>总标注次数: <strong>'+grandTotal+'</strong></span></div>';
 
-  // Hierarchical table: L1模块 | L2维度 | L3标签 | 数量 | 4级建议
+  // Hierarchical table: L1模块 | L2维度 | L3标签 | 数量 | L4 细分建议
   html+='<div style="overflow-x:auto"><table class="dt"><thead><tr>';
-  html+='<th style="width:110px">L1 模块</th><th style="width:100px">L2 维度 <button class="tbtn pri" onclick="aiSummarizeAllL2()" title="一键归纳所有「未分类」的 L2 维度" style="font-size:10px;padding:1px 8px;margin-left:4px;white-space:nowrap;background:var(--rad-grad);color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:600;vertical-align:middle">＋ 全部归纳</button></th><th style="min-width:140px">L3 标签</th><th style="text-align:right;width:70px">数量</th><th style="min-width:180px;max-width:260px">4级标签建议</th>';
+  html+='<th style="width:110px">L1 模块</th><th style="width:100px">L2 维度 <button class="tbtn pri" onclick="aiSummarizeAllL2()" title="一键归纳所有「未分类」的 L2 维度" style="font-size:10px;padding:1px 8px;margin-left:4px;white-space:nowrap;background:var(--rad-grad);color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:600;vertical-align:middle">＋ 全部归纳</button></th><th style="min-width:140px">L3 标签</th><th style="text-align:right;width:70px">数量</th><th style="min-width:180px;max-width:260px">L4 细分建议</th>';
   html+='</tr></thead><tbody>';
 
   // Pre-calculate module rowspans
@@ -3869,9 +3975,6 @@ function renderStats(c){
     Object.keys(dims).forEach(function(dim){
       var tags=dims[dim];
 
-      // L4 suggestion for this dimension
-      var l4Suggestion = (dim!=='(未标记)'&&dim!=='(自由文本)'&&dim!=='(未分类)')
-        ? suggestL4(dim, tags) : null;
       tags.forEach(function(ti, tiIdx){
         html+='<tr>';
         // L1 Module cell (rowspan)
@@ -3908,34 +4011,75 @@ function renderStats(c){
         html+='<td style="'+tagStyle+'">'+esc(ti.label)+'</td>';
         // Count
         html+='<td style="text-align:right;font-weight:600;color:var(--accent)">'+ti.count+'</td>';
-        // L4 Suggestion (only on first row of dimension)
-        if(tiIdx===0){
-          if(l4Suggestion){
-            var dimKey=mod+'||'+dim;
-            _l4TagsCache[dimKey]=tags; // cache for AI call
-            _cellSeq++;
-            var cellId='l4cell_'+_cellSeq;
-            var cached=_l4AiCache[dimKey];
-            html+='<td rowspan="'+tags.length+'" style="font-size:11px;vertical-align:middle">';
-            html+='<div style="padding:6px 10px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.15);border-radius:6px;color:#9333ea;max-width:260px;line-height:1.5">';
-            html+='<div>'+esc(l4Suggestion.reason)+'</div>';
-            html+='<div style="color:var(--text-secondary);font-size:10px;margin-top:2px">高频: '+esc(l4Suggestion.example)+'</div>';
-            var safeMod4=String(mod).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-            var safeDim4=String(dim).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-            html+='<div style="margin-top:6px"><button class="tbtn" id="'+cellId+'" style="font-size:10px;padding:2px 9px;color:#9333ea;border-color:rgba(168,85,247,.3)" onclick="aiClusterL4(\''+safeMod4+'\',\''+safeDim4+'\',\''+cellId+'\')">AI 深度聚类</button></div>';
-            if(cached){
-              html+='<div id="'+cellId+'_r" style="margin-top:6px">'+renderL4AiHtml(cached.groups)+'</div>';
-            }
-            html+='</div></td>';
-          } else if(dim!=='(未标记)'&&dim!=='(自由文本)'&&dim!=='(未分类)'){
-            html+='<td rowspan="'+tags.length+'" style="color:var(--text-tertiary);font-size:10.5px;vertical-align:middle;text-align:center">—</td>';
-          } else {
-            html+='<td rowspan="'+tags.length+'" style="vertical-align:middle"></td>';
+        // L4 细分建议（每个 L3 标签一行）——仅对已打标的真实标签显示，排除(未标记)/(未提及)等
+        var l4Key=mod+'||'+dim+'||'+ti.label;
+        var _skipL4 = ti.label.startsWith('(') || ti.label==='(未分类)' || dim==='(未标记)' || dim==='(自由文本)';
+        var l4Worthy = !_skipL4 && ti.count >= L4_SUBDIVIDE_MIN;
+        html+='<td style="font-size:11px;vertical-align:middle;min-width:150px;max-width:260px">';
+        if(l4Worthy){
+          _cellSeq++;
+          var cellId='l4cell_'+_cellSeq;
+          var safeMod4=String(mod).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          var safeDim4=String(dim).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          var safeLbl4=String(ti.label).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          html+='<div style="padding:5px 8px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.15);border-radius:6px;color:#9333ea;line-height:1.5">';
+          html+='<div style="font-size:10px;color:var(--text-secondary)">出现 '+ti.count+' 次，可细分</div>';
+          html+='<div style="margin-top:5px"><button class="tbtn" id="'+cellId+'" style="font-size:10px;padding:2px 9px;color:#9333ea;border-color:rgba(168,85,247,.3)" onclick="aiSubdivideL3(\''+safeMod4+'\',\''+safeDim4+'\',\''+safeLbl4+'\',\''+cellId+'\')">AI 细分</button></div>';
+          var cached=_l4AiCache[l4Key];
+          if(cached){
+            html+='<div id="'+cellId+'_r" style="margin-top:6px">'+renderL4Preview(safeMod4,safeDim4,safeLbl4,cellId,cached.subs,cached.counts,cached.total,cached.applied)+'</div>';
           }
+          html+='</div>';
+        } else {
+          html+='<span style="color:var(--text-tertiary);font-size:10.5px">—</span>';
         }
+        html+='</td>';
         html+='</tr>';
       });
     });
+  });
+
+  // 兜底：展示已缓存的 L4 细分结果（原标签被完全拆分后从统计消失，但结果仍应在 L4 列展示）
+  var _renderedL4Keys={};
+  // 收集本轮已渲染过的 L4 key（用于去重）
+  Object.keys(hierarchy).forEach(function(mod){
+    var dims=hierarchy[mod];
+    Object.keys(dims).forEach(function(dim){
+      if(dim==='(未标记)'||dim==='(自由文本)') return;
+      var tags=dims[dim];
+      tags.forEach(function(ti){
+        _renderedL4Keys[mod+'||'+dim+'||'+ti.label]=true;
+      });
+    });
+  });
+  // 对缓存中未被渲染的 L4 结果，在对应维度下插入「已细分」汇总行
+  Object.keys(_l4AiCache).forEach(function(cacheKey){
+    if(_renderedL4Keys[cacheKey]) return; // 已在正常行展示过
+    var parts=cacheKey.split('||');
+    if(parts.length!==3) return;
+    var cMod=parts[0], cDim=parts[1], cLbl=parts[2];
+    var cached=_l4AiCache[cacheKey];
+    if(!cached||!cached.subs||!cached.subs.length) return;
+    // 找到该维度在当前统计中的位置（可能仍有部分残留行，或维度本身还在）
+    var dimExists=false;
+    Object.keys(hierarchy).forEach(function(mod){ if(hierarchy[mod][cDim]) dimExists=true; });
+    if(!dimExists) return; // 维度也消失了就不插了
+    _cellSeq++;
+    var fbCellId='l4cell_'+_cellSeq;
+    var safeModF=String(cMod).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var safeDimF=String(cDim).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var safeLblF=String(cLbl).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    html+='<tr>';
+    html+='<td style="color:var(--text-tertiary);font-size:10.5px;font-style:italic"></td>';
+    html+='<td style="color:var(--text-tertiary);font-size:10.5px;font-style:italic">'+esc(cDim)+'</td>';
+    html+='<td style="color:var(--text-tertiary);font-size:10.5px;font-style:italic">'+esc(cLbl)+' <span style="color:#9333ea;font-size:10px">(已细分)</span></td>';
+    html+='<td style="text-align:right;color:var(--text-tertiary);font-size:10.5px">'+(cached.total||0)+'</td>';
+    html+='<td style="font-size:11px;vertical-align:middle">';
+    html+='<div style="padding:5px 8px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.15);border-radius:6px;color:#9333ea;line-height:1.5">';
+    html+='<div id="'+fbCellId+'_r">'+renderL4Preview(safeModF,safeDimF,safeLblF,fbCellId,cached.subs,cached.counts,cached.total,cached.applied)+'</div>';
+    html+='</div>';
+    html+='</td>';
+    html+='</tr>';
   });
 
   html+='</tbody></table></div>';
@@ -4244,6 +4388,22 @@ function renderLlmVal(c){
     </div>
 
     <div class="dsec"><div class="ds-title">逐条验证明细</div>
+      <div id="batchRevalBar" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:8px 12px;background:rgba(0,212,255,0.04);border:1px solid rgba(0,212,255,0.12);border-radius:8px;flex-wrap:wrap">
+        <span style="font-size:11px;color:var(--text-secondary);font-weight:600">批量重验</span>
+        <select id="brFilterStatus" onchange="filterValTable()" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;background:var(--surface)">
+          <option value="all">全部状态</option>
+          <option value="incorrect">仅 ✗ 不正确</option>
+          <option value="partial">仅 ! 存疑</option>
+          <option value="correct">仅 ✓ 正确</option>
+          <option value="problematic">✗ + !（有问题）</option>
+        </select>
+        <select id="brFilterField" onchange="filterValTable()" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:5px;background:var(--surface;min-width:120px)">
+          <option value="all">全部字段</option>
+        </select>
+        <span id="brCount" style="font-size:11px;color:var(--text-tertiary)">—</span>
+        <button class="tbtn pri" id="batchRevalBtn" onclick="startBatchRevalidate()" style="font-size:11px;padding:4px 14px;border-radius:6px;white-space:nowrap;background:var(--rad-grad);color:#fff;border:none;cursor:pointer;font-weight:600" disabled>批量重验</button>
+        <span id="brProgress" style="font-size:11px;color:var(--accent);display:none"></span>
+      </div>
       <div style="overflow-x:auto">
         <table class="dt freeze-first" style="font-size:12px;min-width:1050px">
           <thead><tr>
@@ -4309,6 +4469,9 @@ function renderLlmVal(c){
   }
   // 同步表头全选排除框状态
   _syncExclAllChk();
+  // 初始化批量重验工具栏（填充字段下拉 + 更新计数）+ 应用筛选器过滤表格
+  initBatchRevalBar();
+  filterValTable();
   } catch(err) {
     c.innerHTML = '<div style="padding:30px;text-align:center;color:var(--error);font-size:13px"><p style="margin:0 0 10px">⚠ LLM 验证看板渲染异常</p><p style="margin:0;color:var(--text-secondary);font-size:11.5px">'+esc(err.message||String(err))+'</p><button class="tbtn" onclick="renderLlmVal(document.getElementById(\'docLlmVal\'))" style="margin-top:12px">重新渲染</button></div>';
     log('err', 'renderLlmVal 异常: ' + (err.message || err));
@@ -5234,7 +5397,8 @@ function applyBuiltFields(fields){
 function getCorrectableCount(R){
   if(!R||!R.results) return 0;
   // 与 runCorrection 的过滤条件完全一致，避免「显示N条」与「点击后0条」不匹配
-  return R.results.filter(function(r){ return r.verdict==='incorrect' && !r.excluded && !r.corrected && r.llmVerdict && r.llmVerdict!=='解析失败' && r.llmVerdict!=='未知'; }).length;
+  // 包含 incorrect + partial（感叹号也纳入）；llmVerdict 为空说明尚未校准但仍应计入
+  return R.results.filter(function(r){ return (r.verdict==='incorrect'||r.verdict==='partial') && !r.excluded && !r.corrected && (!r.llmVerdict || (r.llmVerdict!=='解析失败' && r.llmVerdict!=='未知')); }).length;
 }
 // 仅刷新验证报告顶部汇总数字 + 矫正/抽样按钮状态（不重渲染明细行）
 function llmValStatsRefresh(){
@@ -5258,6 +5422,7 @@ function toggleExclude(ri, checked){
   // 联动表头全选框状态
   _syncExclAllChk();
   refreshExcludeUI();
+  filterValTable();
 }
 // 根据当前各行排除状态，同步表头全选 checkbox 的 checked/indeterminate
 function _syncExclAllChk(){
@@ -5367,7 +5532,181 @@ async function revalidateRow(ri){
   } finally {
     _revalidating[ri]=false;
     if(btn){ btn.textContent=oldLabel; btn.disabled=false; }
+    filterValTable();
   }
+}
+
+// ============================================================
+// BATCH RE-VALIDATE: 批量重验 —— 按状态+字段筛选后逐条重验
+// ============================================================
+let _batchRevalRunning=false;
+let _batchRevalStop=false;
+
+// 填充字段下拉 + 更新计数
+function initBatchRevalBar(){
+  var sel=document.getElementById('brFilterField');
+  if(!sel || !llmValResults) return;
+  // 保留第一个"全部字段"，清空其余
+  while(sel.options.length>1) sel.remove(1);
+  // 收集去重字段名
+  var fields={};
+  llmValResults.results.forEach(function(r){ fields[r.fieldName]=1; });
+  Object.keys(fields).sort().forEach(function(f){
+    var o=document.createElement('option');
+    o.value=f; o.textContent=f;
+    sel.appendChild(o);
+  });
+  updateBatchRevalCount();
+}
+
+// 筛选器：实时过滤下方验证明细表格 + 更新批量重验计数
+function filterValTable(){
+  if(!llmValResults || !llmValResults.results) return;
+  var st=document.getElementById('brFilterStatus').value;
+  var fl=document.getElementById('brFilterField').value;
+  var tbody=document.querySelector('#docLlmVal .dt.freeze-first tbody');
+  if(!tbody) return;
+  var rows=tbody.querySelectorAll('tr[id^="resrow_"]');
+  var visible=0, total=0;
+  rows.forEach(function(tr){
+    total++;
+    // 从 tr id 提取 ri: "resrow_3" → 3
+    var id=tr.id||'';
+    var m=id.match(/resrow_(\d+)/);
+    if(!m){ tr.style.display=''; visible++; return; }
+    var ri=parseInt(m[1]);
+    var r=llmValResults.results[ri];
+    if(!r){ tr.style.display=''; visible++; return; }
+    // 字段过滤
+    if(fl!=='all' && r.fieldName!==fl){ tr.style.display='none'; return; }
+    // 状态过滤
+    if(st==='all'){ /* show */ }
+    else if(st==='incorrect' && r.verdict!=='incorrect'){ tr.style.display='none'; return; }
+    else if(st==='partial' && r.verdict!=='partial'){ tr.style.display='none'; return; }
+    else if(st==='correct' && r.verdict!=='correct'){ tr.style.display='none'; return; }
+    else if(st==='problematic' && r.verdict!=='incorrect' && r.verdict!=='partial'){ tr.style.display='none'; return; }
+    tr.style.display='';
+    visible++;
+  });
+  updateBatchRevalCount();
+}
+
+// 根据筛选条件计算匹配数
+function updateBatchRevalCount(){
+  var el=document.getElementById('brCount');
+  var btn=document.getElementById('batchRevalBtn');
+  if(!el||!btn||!llmValResults){ el.textContent='—'; btn.disabled=true; return; }
+  var st=document.getElementById('brFilterStatus').value;
+  var fl=document.getElementById('brFilterField').value;
+  var matched=llmValResults.results.filter(function(r,i){
+    if(r.excluded||r.corrected) return false;
+    if(fl!=='all'&&r.fieldName!==fl) return false;
+    if(st==='all') return true;
+    if(st==='incorrect') return r.verdict==='incorrect';
+    if(st==='partial') return r.verdict==='partial';
+    if(st==='correct') return r.verdict==='correct';
+    if(st==='problematic') return r.verdict==='incorrect'||r.verdict==='partial';
+    return true;
+  });
+  var total=llmValResults.results.length;
+  var isFiltered=(st!=='all'||fl!=='all');
+  el.textContent=isFiltered ? '显示 '+matched.length+' / 总 '+total+' 条' : '共 '+total+' 条';
+  btn.disabled=(matched.length===0||_batchRevalRunning);
+}
+
+async function startBatchRevalidate(){
+  if(!llmValResults){alert('没有验证结果');return;}
+  if(_batchRevalRunning){return;}
+  var cfg=apiCfg(); if(!cfg.key){ alert('请先填写 API Key'); return; }
+  var st=document.getElementById('brFilterStatus').value;
+  var fl=document.getElementById('brFilterField').value;
+  var R=llmValResults;
+  var indices=[];
+  R.results.forEach(function(r,i){
+    if(r.excluded||r.corrected) return;
+    if(fl!=='all'&&r.fieldName!==fl) return;
+    if(st==='all') indices.push(i);
+    else if(st==='incorrect' && r.verdict==='incorrect') indices.push(i);
+    else if(st==='partial' && r.verdict==='partial') indices.push(i);
+    else if(st==='correct' && r.verdict==='correct') indices.push(i);
+    else if(st==='problematic' && (r.verdict==='incorrect'||r.verdict==='partial')) indices.push(i);
+  });
+  if(!indices.length){ alert('没有匹配的条目'); return; }
+  if(!confirm('即将批量重验 '+indices.length+' 条记录（按当前筛选条件）。\n\n每条将重新调用 LLM 判定，预计耗时较长。\n\n确认开始？')) return;
+
+  _batchRevalRunning=true; _batchRevalStop=false;
+  var btn=document.getElementById('batchRevalBtn');
+  var progEl=document.getElementById('brProgress');
+  btn.disabled=true; btn.textContent='重验中…';
+  progEl.style.display=''; progEl.textContent='0/'+indices.length;
+
+  var ok=0, fail=0;
+  for(var k=0;k<indices.length;k++){
+    if(_batchRevalStop){ progEl.textContent='已停止 ('+ok+' 成功, '+fail+' 失败)'; break; }
+    var ri=indices[k];
+    progEl.textContent=(k+1)+'/'+indices.length+' ('+ok+' OK, '+fail+' 失)';
+    try{
+      await revalidateRowSilent(ri, cfg);
+      ok++;
+    }catch(e){
+      fail++;
+    }
+    // 每条间小间隔避免 API 限流
+    if(k<indices.length-1 && !_batchRevalStop) await new Promise(function(res){setTimeout(res,300);});
+  }
+  _batchRevalRunning=false;
+  btn.disabled=false; btn.textContent='批量重验';
+  progEl.textContent=_batchRevalStop ? '已停止 ('+ok+'/'+indices.length+')' : '完成 ✓ '+ok+' 成功, '+fail+' 失败';
+  saveStateNow();
+  log('info','批量重验完成: '+ok+' 成功, '+fail+' 失败'+(_batchRevalStop?' (已停止)':''));
+}
+
+// 静默版 revalidateRow（不弹 confirm，供批量调用）
+async function revalidateRowSilent(ri, cfg){
+  var R=llmValResults;
+  var res=R.results[ri]; if(!res) return;
+  var fld=aiFields.find(function(f){ return f.name===res.fieldName; });
+  if(!fld) return;
+  var nv=await validateOne(res.rowIndex-1, fld, cfg);
+  if(nv.verdict!=='correct'){
+    nv=await reconcileVerdict(nv, fld, cfg);
+  }
+  nv.excluded=!!res.excluded; nv.corrected=!!res.corrected;
+  R.results[ri]=nv;
+  // 内联刷新该行
+  var rowEl=document.getElementById('resrow_'+ri);
+  var vcell=document.getElementById('verdictcell_'+ri);
+  var tcell=document.getElementById('tagcell_'+ri);
+  var rcell=document.getElementById('reasoncell_'+ri);
+  var vc=nv.verdict==='correct'?'var(--success)':nv.verdict==='partial'?'var(--warning)':'var(--error)';
+  if(rowEl) rowEl.style.borderLeftColor=vc;
+  var firstTd=rowEl?rowEl.querySelector('td:first-child'):null;
+  if(firstTd){
+    firstTd.innerHTML=nv.verdict==='correct'
+      ?'<span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(16,185,129,0.1);color:#059669;font-size:10px;font-weight:700">✓</span>'
+      :nv.verdict==='partial'
+        ?'<span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(245,158,11,0.1);color:#b45309;font-size:11px;font-weight:700">!</span>'
+        :'<span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(239,68,68,0.1);color:#dc2626;font-size:10px;font-weight:700">✗</span>';
+  }
+  if(vcell){
+    vcell.innerHTML=(nv.corrected||nv.verdict==='correct')
+      ?'<span class="tag-pill" style="background:rgba(16,185,129,0.1);color:#059669;border:1px solid rgba(16,185,129,0.25);font-weight:600">✓ correct</span>'
+      :'<span class="tag-pill" style="background:rgba(245,158,11,0.1);color:#b45309;border:1px solid rgba(245,158,11,0.25)">'+esc(String(nv.llmVerdict))+'</span>';
+  }
+  var showTag=nv.corrected?nv.llmVerdict:nv.originalTag;
+  if(tcell){
+    tcell.setAttribute('data-fulltext',escAttr(String(showTag||'')));
+    tcell.innerHTML=nv.corrected
+      ?'<span class="tag-pill" style="background:rgba(16,185,129,0.12);color:#059669;border:1px solid rgba(16,185,129,0.35)">'+esc(String(nv.llmVerdict))+'</span><span style="display:inline-block;margin-left:5px;font-size:9px;color:#059669;background:rgba(16,185,129,0.12);padding:1px 5px;border-radius:4px;vertical-align:middle">已修正</span>'
+      :'<span class="tag-pill" style="background:rgba(37,99,235,0.1);color:#2563EB;border:1px solid rgba(37,99,235,0.2)">'+esc(String(nv.originalTag))+'</span>';
+  }
+  if(rcell){
+    var ln=verdictLogicNote(nv.verdict,fld);
+    rcell.setAttribute('data-fulltext',escAttr(ln.txt+(nv.reason?'\n\nAI 语义理解：'+nv.reason:'')));
+    rcell.innerHTML='<div style="font-size:11px;line-height:1.5;padding:5px 7px;border-radius:6px;margin-bottom:5px;color:'+ln.col+';background:'+ln.bg+';border-left:3px solid '+ln.col+'">'+esc(ln.txt)+'</div>'+(nv.reason?expCellHtml(nv.reason):'');
+  }
+  // 重应用筛选（verdict 可能变了，需要 show/hide 该行）
+  filterValTable();
 }
 
 // --- One-click correction: 直接采用 LLM 验证给出的建议标签（verdict_tag）进行矫正 ---
@@ -5401,10 +5740,10 @@ function normalizeCorrLabel(val, fld){
 async function runCorrection(){
   if(!llmValResults){alert('没有验证结果');return;}
   const R=llmValResults;
-  // 只矫正「不正确(incorrect)」且未被排除的条目；partial 存疑不自动矫正（见 #59）
-  var problems=R.results.filter(function(r){ return r.verdict==='incorrect' && !r.corrected && !r.excluded && r.llmVerdict && r.llmVerdict!=='解析失败' && r.llmVerdict!=='未知'; });
+  // 矫正「不正确(incorrect)」+「存疑(partial)」且未被排除的条目（感叹号也纳入；llmVerdict为空也计入）
+  var problems=R.results.filter(function(r){ return (r.verdict==='incorrect'||r.verdict==='partial') && !r.corrected && !r.excluded && (!r.llmVerdict || (r.llmVerdict!=='解析失败' && r.llmVerdict!=='未知')); });
   if(!problems.length){ alert('没有可矫正的条目（或全部已修正/已排除）'); return; }
-  if(!confirm('即将按「LLM 验证给出的建议标签」矫正 '+problems.length+' 条判定为「不正确」的标签（已排除项不参与）。\n\n矫正 = 直接采用 LLM 验证对每条数据的建议标签值；其中「未提及」类写法（未提及/未提到/无/无相关/N/A…）会统一规范为「未提及」，其余建议标签原样采用。\n\n此操作会直接修改数据表格中的标签值，不可逐条撤销（可重新运行打标覆盖）。\n\n确认矫正？')) return;
+  if(!confirm('即将按「LLM 验证给出的建议标签」矫正 '+problems.length+' 条判定为「不正确/存疑」的标签（已排除项不参与）。\n\n矫正 = 直接采用 LLM 验证对每条数据的建议标签值；其中「未提及」类写法统一规范为「未提及」，其余建议标签原样采用。\n\n注意：深度抽样新增的结果可能尚未生成建议标签，此类行会自动跳过（需先单条或批量重验）。\n\n此操作会直接修改数据表格中的标签值，不可逐条撤销（可重新运行打标覆盖）。\n\n确认矫正？')) return;
 
   var btn=document.getElementById('corrBtn');
   var wrap=document.getElementById('corrProgWrap');
@@ -5423,6 +5762,8 @@ async function runCorrection(){
   for(var i=0;i<problems.length;i++){
     if(_corrStop) break;
     var r=problems[i];
+    // 深度抽样等来源的结果可能 llmVerdict 为空（尚未校准），跳过并提示先重验
+    if(!r.llmVerdict){ skipped++; continue; }
     var di=r.rowIndex-1;
     var sheet=sheets[sIdx];
     var fld=aiFields.find(function(f){ return f.name===r.fieldName; });
@@ -5573,7 +5914,7 @@ async function exportTaggedData(){
     XLSX.utils.book_append_sheet(wb, ws1, '打标全量数据');
 
     // ── Sheet 2: 标签统计（L1模块→L2维度→L3标签 层级）──
-    var srows=[['L1 模块','L2 维度','L3 标签','数量','L4 拆分建议']];
+    var srows=[['L1 模块','L2 维度','L3 标签','数量','L4 细分建议']];
     if(aiFields.length){
       aiFields.forEach(function(fld){
         if(fld.type==='text'){
@@ -5605,7 +5946,8 @@ async function exportTaggedData(){
               var p=parseTagDimension(entry[0]);
               if(p.dim==='(未分类)') return;
               var dimItems=sortedEntries.filter(function(e){return parseTagDimension(e[0]).dim===p.dim;});
-              var l4suggest=(dimItems.length>=5)?'建议按语义细分为子类':'';
+              var _skipL4Exp = p.label.startsWith('(') || p.dim==='(未标记)' || p.dim==='(自由文本)';
+              var l4suggest=(!_skipL4Exp && entry[1]>=L4_SUBDIVIDE_MIN)?'可细分':'';
               srows.push([fld.name, p.dim, p.label, entry[1], l4suggest]);
             });
             _l2AiCache[fld.name].groups.forEach(function(g){
@@ -5629,7 +5971,8 @@ async function exportTaggedData(){
           sortedEntries.forEach(function(entry){
             var p=parseTagDimension(entry[0]);
             var dimItems=dimGroups[p.dim]||[];
-            var l4suggest=(dimItems.length>=5)?'建议按语义细分为子类':'';
+            var _skipL4Exp2 = p.label.startsWith('(') || p.dim==='(未标记)' || p.dim==='(自由文本)';
+            var l4suggest=(!_skipL4Exp2 && entry[1]>=L4_SUBDIVIDE_MIN)?'可细分':'';
             srows.push([fld.name, p.dim, p.label, entry[1], l4suggest]);
           });
         }
@@ -5734,6 +6077,7 @@ function saveState(){
     l2AiCache:_l2AiCache||{},
     l2TagsCache:_l2TagsCache||{},
     l2CellIdMap:_l2CellIdMap||{},
+    l4AiCache:_l4AiCache||{},
     savedAt:Date.now(),
     fileName:currentFileName||'',
     curView:curView
@@ -5742,6 +6086,7 @@ function saveState(){
   _flushTimer=setTimeout(function(){ _flushTimer=null; _doSave(); },200);
   // 同步写 localStorage 兜底（防抖期间刷新也不丢）
   try{ localStorage.setItem('ait-ws-backup', JSON.stringify(_savePending)); }catch(e){}
+  markSaved();
 }
 function _doSave(){
   if(!_savePending) return;
@@ -5777,6 +6122,7 @@ function saveStateNow(){
     l2AiCache:_l2AiCache||{},
     l2TagsCache:_l2TagsCache||{},
     l2CellIdMap:_l2CellIdMap||{},
+    l4AiCache:_l4AiCache||{},
     savedAt:Date.now(),
     fileName:currentFileName||'',
     curView:curView
@@ -5784,8 +6130,27 @@ function saveStateNow(){
   _savePending=payload;
   // 同步写入 localStorage 兜底（IndexedDB 异步可能被刷新中断）
   try{ localStorage.setItem('ait-ws-backup', JSON.stringify(payload)); }catch(e){}
+  markSaved();
   _doSave();
 }
+// 更新状态栏「已自动保存」时间，让用户感知缓存已落盘
+function markSaved(){
+  var el=document.getElementById('saveStat'); if(!el) return;
+  var d=new Date(), p=function(n){return (n<10?'0':'')+n;};
+  el.textContent='已自动保存 '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+}
+/**
+ * 打标增量检查点：节流落盘，防止中途崩溃/刷新/关闭丢失已打标签。
+ * 默认 3 秒内最多落盘一次；force=true（停止/完成时）立即落盘。
+ * 首次调用（_lastCheckpointTs=0）会立即落盘，保证前几行也安全。 */
+var _lastCheckpointTs=0;
+function tagCheckpoint(force){
+  var now=Date.now();
+  if(!force && now-_lastCheckpointTs < 3000) return;
+  _lastCheckpointTs=now;
+  saveStateNow();
+}
+function resetCheckpoint(){ _lastCheckpointTs=0; }
 function loadState(){
   // 先尝试从 IndexedDB 加载
   return _openDB().then(function(db){
@@ -5814,6 +6179,7 @@ function loadState(){
         _l2AiCache=src.l2AiCache||{};
         _l2TagsCache=src.l2TagsCache||{};
         _l2CellIdMap=src.l2CellIdMap||{};
+        _l4AiCache=src.l4AiCache||{};
         // 自动校准旧版缓存结果（轻量规则修正，不调LLM）
         if(src.llmValResults) autoReconcileResults();
         // Migration: old payloads stored aiFields at top level
@@ -5973,6 +6339,7 @@ loadState().then(function(ok){
     if(currentFileName) info+=' ('+currentFileName+')';
     if(sheets.length&&tableData().length) info+=' — '+tableData().length+'行 / '+aiFields.length+'个AI字段';
     log('info',info);
+    markSaved(); // 恢复后刷新「已自动保存」时间指示
     var toast=document.createElement('div');
     toast.style.cssText='position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#22c55e;color:#fff;padding:8px 20px;border-radius:6px;font-size:12.5px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.15);';
     toast.textContent=info+' [点击关闭]';
@@ -5989,8 +6356,8 @@ loadState().then(function(ok){
 });
 
 // BUILD STAMP — 用于在浏览器控制台确认预览加载的是否最新文件（输入 __BUILD__ 即可查看）
-window.__BUILD__='b20260728-0810';
-console.log('%c[AI Tag Tool] build b20260727-2230 — 若预览仍显示旧行为，请硬刷新(Cmd/Ctrl+Shift+R)或重新打开预览','color:#00d4ff;font-weight:bold');
+window.__BUILD__='b20260728-1125';
+console.log('%c[AI Tag Tool] build b20260728-0937 — 若预览仍显示旧行为，请硬刷新(Cmd/Ctrl+Shift+R)或重新打开预览','color:#00d4ff;font-weight:bold');
 </script>
 
 <!-- ===== AI 字段助手（侧边聊天） ===== -->
