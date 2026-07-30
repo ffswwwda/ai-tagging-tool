@@ -9098,12 +9098,31 @@ function autoReconcileResults(){
 
 // 从评估文本中提取修正后的标签（客户端规则，不调LLM）
 // 从评估文本中提取建议标签 —— 按优先级匹配评估中明确给出的修正目标
+// 优先级0: 中文引号包裹的目标（LLM实际最常用「」「』""等）
 // 优先级1: 「应重写为/应改为/正确格式」后的目标文本（最明确）
 // 优先级2: 评估中引用的格式示例（如「如'尺寸偏小（正文：Smaller than expected）'」→ 提取引号内）
 // 优先级3: 「语义理解/语义拆解」段落中描述的正确标签
 // 优先级4: 「→ 标签值」/「建议标签→」等简单箭头格式
 function extractSuggestionFromEvaluation(evaluation, originalTag, fld){
   if(!evaluation || !originalTag) return null;
+
+  // ===== 优先级0: 中文引号包裹（LLM 实际输出最常用）=====
+  var cnQuotePatterns = [
+    /(?:最)?应以[「『""](.+?)[」』""]/g,           // 应以「XXX」/最应以「XXX」
+    /(?:应该)?应为[「『""](.+?)[」』""]/g,          // 应为「XXX」/应为"XXX"
+    /正确标签(?:是|应为|应该是)[「『""](.+?)[」』""]/g, // 正确标签是「XXX」
+    /(?:建议|推荐)(?:标签|改为|重写为)[「『""](.+?)[」』""]/g, // 建议标签「XXX」
+    /\*\*(.+?)\*\*/g                                 // **加粗**包裹（LLM常用强调）
+  ];
+  for(var qi=0; qi<cnQuotePatterns.length; qi++){
+    var qm;
+    while((qm = cnQuotePatterns[qi].exec(evaluation)) !== null){
+      if(qm && qm[1]){
+        var qc = cleanExtracted(qm[1], originalTag);
+        if(qc) return qc;
+      }
+    }
+  }
 
   // ===== 优先级1: 明确的改写目标 =====
   var targetPatterns = [
@@ -12163,7 +12182,7 @@ loadState().then(function(ok){
 });
 
 // BUILD STAMP — 用于在浏览器控制台确认预览加载的是否最新文件（输入 __BUILD__ 即可查看）
-window.__BUILD__='b20260730-1825';
+window.__BUILD__='b20260730-1840';
 console.log('%c[AI Tag Tool] build b20260728-2220 — 向量匹配种子库功能','color:#00d4ff;font-weight:bold');
 </script>
 
