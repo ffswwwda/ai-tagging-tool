@@ -3288,61 +3288,7 @@ function wfParseLabelSystemHeuristic(desc){
   }
   return dims.length?dims:null;
 }
-
-// ===== L3 细标签展开：把「L2大类：细标签1 / 细标签2 / 细标签3」拆成独立维度 =====
-// 用户数据常是「时间场景：深夜/睡前、早晨...」这种格式，解析后变成 1 个大维度。
-// 向量匹配需要每个 L3 细标签独立作为维度，否则匹配粒度太粗。
-function expandL3Dims(dims){
-  if(!dims || !dims.length) return dims;
-  var result=[];
-  var seen={};
-  for(var di=0;di<dims.length;di++){
-    var d=dims[di];
-    var txt=(d.text||d.name||'').trim();
-    // 检测 text 是否包含多个短项（用 / 或 、分隔，每项≤12字）
-    // 典型模式：「深夜 / 睡前、早晨、周末」或「卧室床上、浴室、酒店」
-    var items=[];
-    // 先按 / 分割（用户常用 / 分隔组）
-    var groups=txt.split(/\s*\/\s*/);
-    for(var gi=0;gi<groups.length;gi++){
-      var g=groups[gi].trim();
-      if(!g) continue;
-      // 每组内再按 、分割
-      var subs=g.split(/\s*[、,，]\s*/).filter(function(s){return s.trim().length>0;});
-      for(var si=0;si<subs.length;si++){
-        var sub=subs[si].trim();
-        // 过滤：太长不像标签（>15字）、纯数字/符号、与父名相同
-        if(sub.length>15 || sub.length<1) continue;
-        if(/^[\d\s\-\.\+]+$/.test(sub)) continue;
-        if(sub===d.name) continue;
-        // 过滤非标签文本（含句号、引号等完整句子特征）
-        if(/[。！？；\n]/.test(sub)) continue;
-        items.push(sub);
-      }
-    }
-    // 判定是否需要展开：≥2 个有效子项 且 子项数≥原始维度数的某个比例
-    if(items.length>=2 && items.length<=50){
-      // 展开为独立 L3 维度
-      var parentName=d.name;
-      for(var ii=0;ii<items.length;ii++){
-        var itemName=items[ii];
-        if(seen[itemName]) continue; // 去重
-        seen[itemName]=1;
-        result.push({
-          name: itemName,
-          text: parentName+' / '+itemName,  // 保留 L2 上下文提升向量精度
-          _l3Parent: parentName              // 标记来源（管理面板可展示）
-        });
-      }
-    } else {
-      // 不展开，保留原维度
-      if(!seen[d.name]){ seen[d.name]=1; result.push(d); }
-    }
-  }
-  return result.length?result:dims; // 只有展开后才替换，否则返回原数组
-}
-
-// 共享：解析标签体系文档（.md/.txt）→ 维度��组（数据清洗专属）
+// 共享：解析标签体系文档（.md/.txt）→ 维度数组（数据清洗专属）
 // 策略：有 LLM Key 且文档较长/含表格（通常是「标签体系说明」或「提示词文档」）→ 优先 AI 提取真正的 L3 标签；
 //       否则启发式（免 Key 兜底）
 async function wfParseLabelSystemDoc(desc){
@@ -3375,10 +3321,9 @@ async function wfBuildLabelSpaceFromPaste(){
   btn.disabled=true; btn.textContent='AI 解析中...';
   try{
     var arr=await wfParseLabelSystemDoc(desc);
-    arr=expandL3Dims(arr); // L3 细标签展开：把「大类：细标签列表」拆成独立维度
     labelSpace={source:'paste', builtAt:new Date().toISOString(), keywords:[], dims:arr.map(function(d){return {name:d.name, text:(d.text||d.name), vec:null};})};
     wfRenderLabelStatus();
-    log('info','从粘贴文档构建标签向量空间：'+labelSpace.dims.length+' 个维度'+(arr.length&&arr[0]._l3Parent?'（已展开 L3 细标签）':''));
+    log('info','从粘贴文档构建标签向量空间：'+labelSpace.dims.length+' 个维度');
   }catch(e){ alert('解析失败: '+e.message); log('err','标签体系解析失败: '+e.message); }
   btn.disabled=false; btn.textContent='AI 解析并构建向量空间';
 }
@@ -3400,10 +3345,9 @@ async function wfHandleLabelSystemFile(e){
       txt=txt.trim();
       if(!txt){ alert('文件为空'); if(statusEl) statusEl.innerHTML='<span style="color:var(--error)">文件为空</span>'; return; }
       var arr=await wfParseLabelSystemDoc(txt);
-      arr=expandL3Dims(arr); // L3 细标签展开
       labelSpace={source:'file', builtAt:new Date().toISOString(), keywords:[], dims:arr.map(function(d){return {name:d.name, text:(d.text||d.name), vec:null};})};
       wfRenderLabelStatus();
-      log('info','从文件 '+f.name+' 构建标签向量空间：'+labelSpace.dims.length+' 个维度'+(arr.length&&arr[0]._l3Parent?'（已展开 L3 细标签）':''));
+      log('info','从文件 '+f.name+' 构建标签向量空间：'+labelSpace.dims.length+' 个维度');
     }catch(err){ alert('解析失败: '+err.message); log('err','标签体系文件解析失败: '+err.message); if(statusEl) statusEl.innerHTML='<span style="color:var(--error)">解析失败</span>'; }
   };
   reader.onerror=function(){ alert('文件读取失败'); };
@@ -4135,20 +4079,13 @@ function wfRenderExpandResult(container, raw, obj, added, enriched){
   }
   // 完全无数据时：显示可折叠的原始返回
   if(totalNew===0 && (!addDims||!addDims.length)){
-    var rawLen=(raw||'').length;
     h+='<div style="padding:12px;background:rgba(220,38,38,.05);border:1px solid rgba(220,38,38,.15);border-radius:8px">';
-    if(rawLen===0){
-      h+='<div style="font-weight:600;color:#dc2626;margin-bottom:6px">AI 返回了空内容（0 字符）</div>';
-      h+='<div style="font-size:11.5px;color:var(--text-secondary);margin-bottom:8px">API 调用成功但模型未返回任何内容。可能原因：①输入过长（已自动缩减样本至80条）；②模型临时问题；③API Key 余额不足（返回空而非报错）。请打开浏览器控制台(F12)查看详细日志。</div>';
-      h+='<div style="margin-top:8px;font-size:11px;color:var(--text-tertiary)">建议：①检查 API Key 余额 ②切换模型试试 ③稍后重试（已内置最多3次重试）</div>';
-    } else {
-      h+='<div style="font-weight:600;color:#dc2626;margin-bottom:6px">AI 未返回可解析的扩充建议</div>';
-      h+='<div style="font-size:11.5px;color:var(--text-secondary);margin-bottom:8px">返回了 '+rawLen+' 字符，但未能提取到 addDims/enrichDims 结构。可能原因：AI 返回格式不符合 JSON 规范、或被 markdown/注释包裹。</div>';
-      if(raw && raw.length>0){
-        h+='<details open style="margin-top:6px"><summary style="cursor:pointer;font-size:11.5px;color:var(--text-tertiary);user-select:none">📋 查看原始返回（前1000字）</summary>';
-        h+='<pre style="margin-top:8px;padding:10px;background:var(--surface);border-radius:6px;font-size:11px;line-height:1.5;overflow-x:auto;white-space:pre-wrap;max-height:300px;overflow-y:auto;color:var(--text-secondary)">'+esc(raw.slice(0,1000))+(raw.length>1000?'\n\n... (共 '+raw.length+' 字符)':'')+'</pre>';
-        h+='</details>';
-      }
+    h+='<div style="font-weight:600;color:#dc2626;margin-bottom:6px">AI 未返回可解析的扩充建议</div>';
+    h+='<div style="font-size:11.5px;color:var(--text-secondary);margin-bottom:8px">返回了 '+(raw||'').length+' 字符，��未能提取到 addDims/enrichDims 结构。可能原因：AI 返回格式不符合 JSON 规范、或被 markdown/注释包裹。</div>';
+    if(raw && raw.length>0){
+      h+='<details><summary style="cursor:pointer;font-size:11.5px;color:var(--text-tertiary);user-select:none">查看原始返回（前1000字）</summary>';
+      h+='<pre style="margin-top:8px;padding:10px;background:var(--surface);border-radius:6px;font-size:11px;line-height:1.5;overflow-x:auto;white-space:pre-wrap;max-height:300px;overflow-y:auto;color:var(--text-secondary)">'+esc(raw.slice(0,1000))+(raw.length>1000?'\n\n... (共 '+raw.length+' 字符)':'')+'</pre>';
+      h+='</details>';
     }
     h+='</div>';
   }
@@ -4447,37 +4384,9 @@ async function expandLabelSystem(){
   if(!samples.length) return {added:0};
   var dimNames=labelSpace.dims.map(function(d){return d.name;}).join('、');
   var sys='你是「数据清洗·标签体系扩充」专家。当前在做向量清洗：把用户评论与标签体系做语义匹配，相似度低会被排除（可能误杀有价值的评论）。现给你现有标签维度和一批被排除但可能含价值的评论样本，请你提炼现有标签体系未覆盖的高频主题，建议新增维度或补充关键词，目标是减少误杀、提升向量召回（不是去建标注字段）。严格输出 JSON：{addDims:[{name:新维度名, text:维度定义与关键标签}], keywords:[补充关键词]}。只输出 JSON。';
-  // 保护：user message 过长时缩减样本数（部分模型对超长输入返回空 content）
-  var MAX_SAMPLES=80, userSamples=samples;
-  if(samples.length>MAX_SAMPLES){
-    // 均匀抽样：保留首尾 + 中间均匀取
-    userSamples=[samples[0]];
-    var step=(samples.length-2)/(MAX_SAMPLES-1);
-    for(var si=1;si<MAX_SAMPLES-1;si++) userSamples.push(samples[Math.min(samples.length-2,Math.round(si*step))]);
-    if(samples.length>1) userSamples.push(samples[samples.length-1]);
-    log('warn','扩充标签库：样本数 '+samples.length+' → 缩减为 '+userSamples.length+'（防 prompt 过长）');
-  }
-  var user='现有维度：'+dimNames+' 被排除样本（前'+userSamples.length+'条）：'+userSamples.map(function(s,i){return (i+1)+'. '+s;}).join(' | ');
+  var user='现有维度：'+dimNames+' 被排除样本（前'+samples.length+'条）：'+samples.map(function(s,i){return (i+1)+'. '+s;}).join(' | ');
   var cfg=apiCfg(); if(!cfg.key) return {added:0};
-  log('info','扩充标签库：调用 AI | 维度='+labelSpace.dims.length+' | 样本='+userSamples.length+' | user_msg_len='+user.length);
-
-  // 调用 AI（带空结果重试）
-  var raw='', lastErr=null, MAX_RETRY=2;
-  for(var attempt=0;attempt<=MAX_RETRY;attempt++){
-    try{
-      raw=await callAPI(sys,user,cfg.key,0.5,4000);
-      log('info','扩充标签库：AI 返回 | attempt='+(attempt+1)+' | raw_len='+(raw||'').length+' | prefix='+((raw||'').slice(0,120).replace(/\n/g,'\\n')));
-      if(raw && raw.trim().length>=10) break; // 有效内容，跳出重试
-      if(attempt<MAX_RETRY){
-        log('warn','扩充标签库：返回为空/过短('+((raw||'').length)+'字)，重试 '+(attempt+2)+'/'+(MAX_RETRY+1));
-        await new Promise(function(res){setTimeout(res,800*(attempt+1));}); // 递增延迟
-      }
-    }catch(e){
-      lastErr=e;
-      log('err','扩充标签库：API 异常 | attempt='+(attempt+1)+' | '+e.message);
-      if(attempt<MAX_RETRY) await new Promise(function(res){setTimeout(res,1000*(attempt+1));});
-    }
-  }
+  var raw=await callAPI(sys,user,cfg.key,0.5,4000);
   // 多策略提取（与构建期共用 wfExtractExpandData）
   var obj=wfExtractExpandData(raw);
   if(!obj) obj={addDims:[],keywords:[],summary:''};
@@ -6945,85 +6854,7 @@ async function callAPI(sysMsg,userMsg,apiKey,temp=0.3,maxTokens=2000,extraMessag
     body:JSON.stringify({model:cfg.model,messages:msgs,temperature:temp,max_tokens:maxTokens})
   });
   if(!r.ok){const b=await r.text().catch(()=>''); throw new Error(`API ${r.status}: ${b}`);}
-  const d=await r.json();
-  var msg=d.choices?.[0]?.message||{};
-  var content=msg.content||'';
-  // 兼容推理模型（deepseek-v4-flash 等）：输出可能在 reasoning_content 而非 content
-  // 推理模型的 reasoning_content 混有思考过程（可能含乱码/中间步骤），不能直接全拿
-  // 策略：从 reasoning_content 尾部提取最终答案（通常在末尾，格式干净）
-  if(!content && msg.reasoning_content){
-    content=_extractReasoningAnswer(msg.reasoning_content);
-    console.log('[callAPI] 从 reasoning_content 提取答案, 原长='+msg.reasoning_content.length+', 提取后='+content.length);
-  }
-  // 诊断日志：当返回为空时，记录完整响应结构（帮助排查模型/余额/格式问题）
-  if(!content){
-    var diag={
-      status:r.status,
-      hasChoices:!!d.choices,
-      choicesLen:(d.choices||[]).length,
-      finishReason:d.choices?.[0]?.finish_reason,
-      hasError:!!d.error,
-      errorCode:d.error?.code,
-      errorMsg:(d.error?.message||'').slice(0,200),
-      modelUsed:d.model,
-      id:d.id,
-      usage:d.usage,
-      msgKeys:Object.keys(msg),
-      keys:Object.keys(d).filter(function(k){return k!=='choices';})
-    };
-    console.warn('[callAPI] 返回空内容，完整响应诊断:', JSON.stringify(diag));
-    if(d.error){ throw new Error('API 返回错误(200): '+(d.error.message||d.error.code||JSON.stringify(d.error).slice(0,300))); }
-  }
-  return content;
-}
-
-/**
- * 从推理模型的 reasoning_content 中提取最终干净答案
- * 推理内容通常 = 思考过程（乱码/中间步骤）+ 最终答案（尾部，格式整洁）
- * 策略：
- *   1. 去掉 <\/think> 标签包裹的内容（如果有）
- *   2. 找最后一个结构化内容块（JSON数组/对象/常见分隔符后的内容）
- *   3. 兜底：取后 60%（答案通常在尾部）
- */
-function _extractReasoningAnswer(rc){
-  if(!rc) return '';
-  var s=rc;
-  // 去掉 <think...</think > 或 <\/think> 包裹部分（DeepSeek/QwQ 等推理模型常用）
-  s=s.replace(/<think[\s\S]*?<\/think>\s*/gi,'').trim();
-  if(!s) s=rc; // 去掉 think 后为空则回退原始
-  // 策略A：找最后一个 JSON 数组 [...] （最常见的结构化输出）
-  var lastBracket=s.lastIndexOf('[');
-  if(lastBracket>0 && lastBracket>s.length*0.4){
-    // 确认这个 [ 后面有对应的 ]（或至少看起来像 JSON）
-    var candidate=s.slice(lastBracket);
-    if(candidate.match(/^\s*\[/)){
-      // 尝试解析验证
-      try{ JSON.parse(candidate); return candidate; }catch(e){}
-      // 解析失败但看起来像 JSON → 交给调用方修复
-      if(candidate.length>20 && (candidate.match(/"/g)||[]).length>=4) return candidate;
-    }
-  }
-  // 策略B：找最后一个 JSON 对象 {...}
-  var lastBrace=s.lastIndexOf('{');
-  if(lastBrace>0 && lastBrace>s.length*0.4){
-    var candidate2=s.slice(lastBrace);
-    if(candidate2.match(/^\s*\{/)){
-      try{ JSON.parse(candidate2); return candidate2; }catch(e){}
-      if(candidate2.length>20 && (candidate2.match(/"/g)||[]).length>=4) return candidate2;
-    }
-  }
-  // 策略C：找常见答案分隔符之后的内容
-  var separators=['\n\n答案是','\n\nAnswer','\n\n输出','\n\nOutput','\n\n结果','\n\nResult','\n---\n'];
-  for(var i=0;i<separators.length;i++){
-    var idx=s.lastIndexOf(separators[i]);
-    if(idx>0 && idx<s.length*0.7){
-      var tail=s.slice(idx+separators[i].length).trim();
-      if(tail.length>10) return tail;
-    }
-  }
-  // 兜底：取后 60%（推理过程通常在前半段，答案在后半段）
-  if(s.length>100) return s.slice(Math.floor(s.length*0.4));
-  return s;
+  const d=await r.json(); return d.choices?.[0]?.message?.content||'';
 }
 
 async function testAPIConn(){
@@ -12394,7 +12225,7 @@ loadState().then(function(ok){
 });
 
 // BUILD STAMP — 用于在浏览器控制台确认预览加载的是否最新文件（输入 __BUILD__ 即可查看）
-window.__BUILD__='b20260731-1405';
+window.__BUILD__='b20260731-0945';
 console.log('%c[AI Tag Tool] build b20260728-2220 — 向量匹配种子库功能','color:#00d4ff;font-weight:bold');
 </script>
 
