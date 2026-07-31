@@ -6947,8 +6947,14 @@ async function callAPI(sysMsg,userMsg,apiKey,temp=0.3,maxTokens=2000,extraMessag
   if(!r.ok){const b=await r.text().catch(()=>''); throw new Error(`API ${r.status}: ${b}`);}
   const d=await r.json();
   var msg=d.choices?.[0]?.message||{};
+  var content=msg.content||'';
   // 兼容推理模型（deepseek-v4-flash 等）：输出可能在 reasoning_content 而非 content
-  var content=msg.content||msg.reasoning_content||'';
+  // 推理模型的 reasoning_content 混有思考过程（可能含乱码/中间步骤），不能直接全拿
+  // 策略：从 reasoning_content 尾部提取最终答案（通常在末尾，格式干净）
+  if(!content && msg.reasoning_content){
+    content=_extractReasoningAnswer(msg.reasoning_content);
+    console.log('[callAPI] 从 reasoning_content 提取答案, 原长='+msg.reasoning_content.length+', 提取后='+content.length);
+  }
   // 诊断日志：当返回为空时，记录完整响应结构（帮助排查模型/余额/格式问题）
   if(!content){
     var diag={
@@ -6969,6 +6975,55 @@ async function callAPI(sysMsg,userMsg,apiKey,temp=0.3,maxTokens=2000,extraMessag
     if(d.error){ throw new Error('API 返回错误(200): '+(d.error.message||d.error.code||JSON.stringify(d.error).slice(0,300))); }
   }
   return content;
+}
+
+/**
+ * 从推理模型的 reasoning_content 中提取最终干净答案
+ * 推理内容通常 = 思考过程（乱码/中间步骤）+ 最终答案（尾部，格式整洁）
+ * 策略：
+ *   1. 去掉 <\/think> 标签包裹的内容（如果有）
+ *   2. 找最后一个结构化内容块（JSON数组/对象/常见分隔符后的内容）
+ *   3. 兜底：取后 60%（答案通常在尾部）
+ */
+function _extractReasoningAnswer(rc){
+  if(!rc) return '';
+  var s=rc;
+  // 去掉 <think...</think > 或 <\/think> 包裹部分（DeepSeek/QwQ 等推理模型常用）
+  s=s.replace(/<think[\s\S]*?<\/think>\s*/gi,'').trim();
+  if(!s) s=rc; // 去掉 think 后为空则回退原始
+  // 策略A：找最后一个 JSON 数组 [...] （最常见的结构化输出）
+  var lastBracket=s.lastIndexOf('[');
+  if(lastBracket>0 && lastBracket>s.length*0.4){
+    // 确认这个 [ 后面有对应的 ]（或至少看起来像 JSON）
+    var candidate=s.slice(lastBracket);
+    if(candidate.match(/^\s*\[/)){
+      // 尝试解析验证
+      try{ JSON.parse(candidate); return candidate; }catch(e){}
+      // 解析失败但看起来像 JSON → 交给调用方修复
+      if(candidate.length>20 && (candidate.match(/"/g)||[]).length>=4) return candidate;
+    }
+  }
+  // 策略B：找最后一个 JSON 对象 {...}
+  var lastBrace=s.lastIndexOf('{');
+  if(lastBrace>0 && lastBrace>s.length*0.4){
+    var candidate2=s.slice(lastBrace);
+    if(candidate2.match(/^\s*\{/)){
+      try{ JSON.parse(candidate2); return candidate2; }catch(e){}
+      if(candidate2.length>20 && (candidate2.match(/"/g)||[]).length>=4) return candidate2;
+    }
+  }
+  // 策略C：找常见答案分隔符之后的内容
+  var separators=['\n\n答案是','\n\nAnswer','\n\n输出','\n\nOutput','\n\n结果','\n\nResult','\n---\n'];
+  for(var i=0;i<separators.length;i++){
+    var idx=s.lastIndexOf(separators[i]);
+    if(idx>0 && idx<s.length*0.7){
+      var tail=s.slice(idx+separators[i].length).trim();
+      if(tail.length>10) return tail;
+    }
+  }
+  // 兜底：取后 60%（推理过程通常在前半段，答案在后半段）
+  if(s.length>100) return s.slice(Math.floor(s.length*0.4));
+  return s;
 }
 
 async function testAPIConn(){
@@ -12339,7 +12394,7 @@ loadState().then(function(ok){
 });
 
 // BUILD STAMP — 用于在浏览器控制台确认预览加载的是否最新文件（输入 __BUILD__ 即可查看）
-window.__BUILD__='b20260731-1140';
+window.__BUILD__='b20260731-1405';
 console.log('%c[AI Tag Tool] build b20260728-2220 — 向量匹配种子库功能','color:#00d4ff;font-weight:bold');
 </script>
 
