@@ -9098,6 +9098,7 @@ function autoReconcileResults(){
 
 // 从评估文本中提取修正后的标签（客户端规则，不调LLM）
 // 从评估文本中提取建议标签 —— 按优先级匹配评估中明确给出的修正目标
+// 优先级-1: 评估明确说"应不填/应删除/应移除/无法推断" → 返回空字符串(建议留空)
 // 优先级0: 中文引号包裹的目标（LLM实际最常用「」「』""等）
 // 优先级1: 「应重写为/应改为/正确格式」后的目标文本（最明确）
 // 优先级2: 评估中引用的格式示例（如「如'尺寸偏小（正文：Smaller than expected）'」→ 提取引号内）
@@ -9105,6 +9106,22 @@ function autoReconcileResults(){
 // 优先级4: 「→ 标签值」/「建议标签→」等简单箭头格式
 function extractSuggestionFromEvaluation(evaluation, originalTag, fld){
   if(!evaluation || !originalTag) return null;
+
+  // ===== 优先级-1: 评估明确说应删除/留空/不填 =====
+  var removePatterns = [
+    /(?:应该?|建议)(?:不填|不填写|为空|留空|清空)/,
+    /(?:应|建议)(?:删除|移除|去掉|清除)(?:该|此|当前)?(?:标签|值)?/,
+    /无法推断.*?(?:应|建议)?(?:不填|删除|移除|去掉|清空)/,
+    /无(?:法)?(?:推断|判断|确定).*?(?:该)?(?:标签|收入水平|人口统计|使用体验|材质|价格段|性别)/,
+    /不应(?:填写|包含|有|存在)/,
+    /无需(?:填写|标注|打标|标记)/
+  ];
+  for(var ri=0; ri<removePatterns.length; ri++){
+    if(removePatterns[ri].test(evaluation)){
+      console.log('[extractSuggestion] 优先级-1命中: 评估建议删除/留空 → 返回空字符串');
+      return '';  // 空字符串 = 建议删除该标签
+    }
+  }
 
   // ===== 优先级0: 中文引号包裹（LLM 实际输出最常用）=====
   var cnQuotePatterns = [
@@ -9296,14 +9313,16 @@ async function reconcileVerdict(res, fld, cfg){
     // 策略：先尝试从评估文本中正则提取明确给出的修正标签（零LLM方差）；
     //       只有评估未给出明确答案时才调用 LLM 生成。
     var suggestedTag = extractSuggestionFromEvaluation(evaluation, res.originalTag, fld);
+    var _suggestEmpty = (suggestedTag === '');  // 空字符串=评估明确建议删除/留空
     var extractionSource = null; // 记录来源，用于日志
-    if(suggestedTag){
+    if(suggestedTag || _suggestEmpty){
       // 最终安全网：模糊去重——提取结果规格化后若与原标签相同 → 视为无效，强制走LLM
-      if(_normForCompare(suggestedTag) === _normForCompare(res.originalTag)){
+      if(suggestedTag !== '' && _normForCompare(suggestedTag) === _normForCompare(res.originalTag)){
         console.log('[reconcile] STEP2 正则提取结果与原标签模糊相同，降级走LLM生成');
         suggestedTag = null; // 强制走 LLM
+        _suggestEmpty = false;
       } else {
-        extractionSource = '正则提取';
+        extractionSource = _suggestEmpty ? '正则提取(建议留空)' : '正则提取';
       }
     }
     if(!suggestedTag){
@@ -9317,7 +9336,11 @@ async function reconcileVerdict(res, fld, cfg){
         extractionSource = suggestedTag ? 'LLM+格式强修' : 'LLM(未变)';
       }
     }
-    if(!suggestedTag) suggestedTag = res.originalTag; // 兜底
+    if(!suggestedTag) {
+      suggestedTag = null;  // 不再静默回退原标签，标记失败由下游处理
+      res._suggestFailed = true;
+      console.log('[reconcile] STEP2 所有路径均未产出新建议标签，标记_suggestFailed');
+    } // 兜底
     console.log('[reconcile] STEP2 建议标签来源: '+extractionSource+', 值: '+suggestedTag);
 
     // ========== STEP3: 校验建议标签是否符合评估标准 ==========
@@ -9325,13 +9348,25 @@ async function reconcileVerdict(res, fld, cfg){
     var finalTag = normalizeCorrLabel(verifiedTag || suggestedTag, fld);
 
     // 记录校准过程到评估末尾
-    if(finalTag !== res.originalTag){
+    // ===== STEP3 结果分支：4 种状态 =====
+    if(finalTag !== '' && finalTag !== res.originalTag && !res._suggestFailed){
+      // 状态1: 成功生成不同于原标签的新建议
       res.llmVerdict = finalTag;
       res.reason = evaluation + '\n\n[⚡ 校准] 已按评估规则生成并校验建议标签 → ' + finalTag;
       res._reconcileMode = 'verified';
+    } else if(finalTag === '' || (res._suggestEmpty && !res._suggestFailed)){
+      // 状态2: 评估明确建议删除/留空
+      res.llmVerdict = '[建议删除/留空]';
+      res.reason = evaluation + '\n\n[⚡ 校准] 评估建议删除或留空该标签';
+      res._reconcileMode = 'verified-remove';
+    } else if(res._suggestFailed || (finalTag === res.originalTag && res.verdict!=='correct')){
+      // 状态3: 评估说不合格但未能生成新建议（需人工）
+      res.llmVerdict = '⚠ 未能生成建议（需人工）';
+      res.reason = evaluation + '\n\n[⚡ 校准] 经三步后未能生成不同于原标签的建议，需人工判断';
+      res._reconcileMode = 'verified-failed';
     } else {
-      // 建议标签和原标签一样（LLM认为无需改），但评估说不符 → 强制标注
-      res.llmVerdict = finalTag;
+      // 状态4: 未变化（correct 或 LLM 认为无需改）
+      res.llmVerdict = finalTag || res.originalTag;
       res.reason = evaluation + '\n\n[⚡ 校准] 经评估+生成+校验三步后，建议标签未发生变化（可能原标签已接近正确或评估过于严格）';
       res._reconcileMode = 'verified-nochange';
     }
@@ -12190,7 +12225,7 @@ loadState().then(function(ok){
 });
 
 // BUILD STAMP — 用于在浏览器控制台确认预览加载的是否最新文件（输入 __BUILD__ 即可查看）
-window.__BUILD__='b20260731-0900';
+window.__BUILD__='b20260731-0945';
 console.log('%c[AI Tag Tool] build b20260728-2220 — 向量匹配种子库功能','color:#00d4ff;font-weight:bold');
 </script>
 
