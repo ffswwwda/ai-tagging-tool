@@ -3297,7 +3297,7 @@ async function wfParseLabelSystemDoc(desc){
     try{
       var sys='你是标签体系分析专家。用户会给你一份「标签体系文档」或「标注提示词文档」，里面混有大量规则说明、章节标题、判定条件、示例、markdown 格式符号。请提取**所有可用于向量语义匹配评论的标签维度，包含 L1 一级板块、L2 二级分类、L3 具体标签全部层级**（例如"用户画像""人口统计""年龄段-25岁以下"三个层级都应保留，形成由粗到细的标签树）。严格排除：①纯规则名/判定条件（如"视角判断""直接表达才算""使用行为≠目的"）②章节标题（如"六、模块详解"）③markdown 符号残留（**/*/💡/#）④示例文字 ⑤表格表头行。每个维度输出 {name:标签名（简洁≤20字，保留其原始层级名，如"必买层""用户画像"也保留）, text:标签名+关键同义词+上层级上下文，拼接成一段用于向量化匹配评论}。严格输出 JSON 数组，只输出 JSON 无解释。';
       var user='标签体系文档：'+desc.slice(0,12000);
-      var raw=await callAPI(sys,user,cfg.key,0.3,4000);
+      var raw=await callAPIWithReasoning(sys,user,cfg.key,0.3,4000);
       var arr=safeParseJSON(raw);
       if(Array.isArray(arr)&&arr.length) return arr;
     }catch(e){ /* 回退启发式 */ }
@@ -3306,7 +3306,7 @@ async function wfParseLabelSystemDoc(desc){
   if(heur && heur.length) return heur;
   if(!cfg.key){ throw new Error('文档无法自动识别维度（且无 LLM Key）。请写成「维度名: 描述」每行一个，或在「设置」填写 LLM API Key'); }
   var sys2='从文档提取所有标注维度，每个维度输出 name 与 text（text 为维度名+定义+关键标签，拼接成一段用于向量化匹配评论）。严格输出 JSON 数组，元素形如 {name:维度名, text:维度定义与标签}，只输出 JSON 无解释。';
-  var raw2=await callAPI(sys2,'标签体系文档：'+desc.slice(0,12000),cfg.key,0.3,4000);
+  var raw2=await callAPIWithReasoning(sys2,'标签体系文档：'+desc.slice(0,12000),cfg.key,0.3,4000);
   var arr2=safeParseJSON(raw2);
   if(!Array.isArray(arr2)||!arr2.length) throw new Error('AI 未返回有效维度');
   return arr2;
@@ -3426,7 +3426,7 @@ async function wfCleanLabelSpace(){
       var dimList = keepDims.map(function(d,i){ return (i+1)+'. ['+d.name+'] '+d.text.slice(0,80); }).join('\n');
       var aiSys = '你是标签体系清洗专家。用户导入了一个标签体系文档用于向量语义匹配清洗评论，文档包含 L1 一级板块、L2 二级分类、L3 具体标签 全部层级（例如"用户画像""人口统计""年龄段-25岁以下"都要保留，形成由粗到细的标签树）。但里面可能混入「规则说明文字」「markdown 格式残渣」「章节/层级标题」「判定条件」「示例」。给你一组已通过规则初筛的维度列表，请逐个判断：该维度是否为「真正可用于匹配用户评论内容的标签/主题/类别（含 L1/L2/L3 任意层级）」？\n\n一个合格的标签维度示例（任意层级都算）：用户画像（L1）/ 人口统计（L2）/ 必买层（L2）/ 解决生理需求（L3）/ 年龄段-25岁以下（L3）/ 深夜睡前使用（L3）/ 材质不适太硬太软 / 清洁困难 / 复购行为 / 价格太贵性价比低。\n一个不合格的维度示例：视角判断 / 直接表达才算 / 使用行为≠目的 / 六模块详解 / L1标签体系 / 产出 / 例子 / 说明（即纯规则名、章节标题、判定条件、markdown 符号残留、给标注员的指导语，而非可匹配的标签本身）。\n\n排除标准：①看起来像规则/判定条件/说明/格式要求 ②名字含 markdown 符号(**/*/💡/#) ③是章节/模块标题而非标签 ④内容是给标注员看的指导语而非标签本身。注意：L1/L2 层级名（如用户画像、必买层、身份层）是合法标签，不要排除。\n严格输出 JSON：{keep:[保留的原始索引数组], remove:[排除的原始索引数组], reason:"一句话总结排除了什么"}。keep/remove 的索引对应输入列表的序号（从1开始）。只输出 JSON。';
       var aiUser = '待精筛维度列表（'+keepDims.length+'个）：\n'+dimList;
-      var raw = await callAPI(aiSys, aiUser, cfg.key, 0.3, 4000);
+      var raw = await callAPIWithReasoning(aiSys, aiUser, cfg.key, 0.3, 4000);
       var obj = safeParseJSON(raw);
       if(obj && Array.isArray(obj.remove) && obj.remove.length){
         var removeSet = {};
@@ -3973,6 +3973,31 @@ function wfCopyExpandedLib(btn){
 function wfExtractExpandData(raw){
   if(!raw) return null;
   var obj=null;
+  // ===== 策略0（新增）：推理模型混合输出专用 —— 全文扫描含 addDims/enrichDims 的 JSON 块 =====
+  // deepseek-v4-flash 的 reasoning_content 提取后常混入思考文本，JSON 嵌在中间某处
+  // 此策略只在 wfExtractExpandData 中生效，仅服务"扩充标签库"功能
+  var targetKeys=['addDims','enrichDims','keywords'];
+  for(var ti=0;ti<targetKeys.length;ti++){
+    var keyPos=raw.indexOf('"'+targetKeys[ti]+'"');
+    if(keyPos<0) continue;
+    // 从键名位置向前找 { ，向后找匹配的 }
+    var objStart=raw.lastIndexOf('{',keyPos);
+    if(objStart<0) continue;
+    // 括号匹配找对应的 }
+    var depth=0, objEnd=-1;
+    for(var p=objStart; p<raw.length; p++){
+      if(raw[p]==='{') depth++;
+      else if(raw[p]==='}'){ depth--; if(depth===0){ objEnd=p+1; break; } }
+    }
+    if(objEnd>objStart){
+      var candidate=raw.slice(objStart,objEnd);
+      try{ obj=JSON.parse(candidate); }catch(e){ obj=null; }
+      if(obj && ((obj.addDims&&obj.addDims.length)||(obj.enrichDims&&obj.enrichDims.length)||(obj.keywords&&obj.keywords.length))){
+        console.log('[wfExtractExpandData] 策略0命中: 从位置'+objStart+'提取到含'+targetKeys[ti]+'的JSON, 长度'+candidate.length);
+        return obj;
+      }
+    }
+  }
   // 策略1: safeParseJSON（标准路径）
   var s=raw.trim();
   var jm=s.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -4119,7 +4144,7 @@ async function wfExpandLabelAtBuild(){
     var sys='你是「数据清洗·标签库扩充」专家。用户在做向量语义匹配清洗评论数据：把每条用户评论与标签库每个维度算 cosine 相似度，低于阈值的排除。\n\n核心事实（已实测验证）：标签越具体（层级越低、字面越贴近真实评价用语），cosine 分数��高；越抽象的父级标签分数反而更低。因此扩充必须以「细化」为核心策略。\n\n给你现有的标签库（已清洗过，含 L1/L2/L3 各层级）和一批真实评论样本。请按以下五条规则扩充标签库：\n\n规则一【向下细化】（最高优先）：对标签库里偏抽象的维度（如"用户画像""物流体验""产品品质"这类 L1/L2 层级名），逐个拆解出更具体的子维度。例如"用户画像"可细化为"性别-男""年龄段-25岁以下""职业-学生"；"物流体验"可细化为"快递速度慢""发货延迟""包装破损"。目标：让每条泛泛的评价都能命中一个足够具体的叶子标签。\n\n规则二【同义词/近义富化】（高优先）：对已有的具体标签（L3 叶子），补充同义词、口语变体、电商常用表达写法到 text 字段。例如"快递速度慢"的 text 应包含"物流太慢 发货迟 到货晚 等很久 物流差 快递慢 发货慢"。这直接提升匹配命中率且不增加维度数量。\n\n规则三【同级横向补全】（中优先）：在同一个抽象层级下，补充该层级尚未覆盖的同类主题。例如 L3 已有"材质-硅胶"，同级应补"材质-TPE""材质-ABS"；L2 已有"使用场景"，同级若有缺失的"购买渠道""送礼对象"等也补上。\n\n规则四【扩充量要求】：新增维度数量至少达到现有标签库的 **20% 以上**（即如果现有 94 个维度，至少新增 19 个）。宁可多补也不要漏补——多余的维度在向量匹配中只是不命中，不会造成误判；但缺少维度会导致有效评价被误排除。\n\n规则五【优先级排序】：\n  ① 最高优先：细化抽象标签 → 生成新的具体子标签（规则一）\n  ② 高优先：给已有具体标签补同义词/上下文（规则二，通过更新 text 字段实现）\n  ③ 中优先：同级横向补全遗漏主题（规则三）\n  ④ 低优先：仅在发现全新大类时才新增抽象父节点（极少情况）\n\n输出格式（严格 JSON）：\n{\n  "addDims": [{"name":"新维度名（简洁≤20字）","text":"用于向量化匹配的文本（维度名+同义词+关键表达+上层级上下文，拼接成一段话）","parent":"所属父级标签名（如有，方便理解层级关系）"}],\n  "enrichDims": [{"idx":原始维度序号(从1开始),"name":"原维度名","text":"富化后的新text（原有关键词+大量同义词+口语变体+电商常用写法）"}],\n  "summary":"一句话说明做了什么（细化了哪些、富化了哪些、补全了哪些）、新增/修改总数"\n}\n只输出 JSON，不要解释。';
     var user='现有标签库（'+labelSpace.dims.length+'个维度）：\n'+dimList+'\n\n评论样本（前'+samples.length+'条，用于判断哪些主题未被覆盖）：\n'+samples.map(function(s,i){return (i+1)+'. '+s;}).join('\n');
     var cfg=apiCfg(); if(!cfg.key){ alert('请在「设置」填写 LLM API Key 后再扩充标签库'); return; }
-    var raw=await callAPI(sys,user,cfg.key,0.4,8000);
+    var raw=await callAPIWithReasoning(sys,user,cfg.key,0.4,8000);
     // ===== 多策略提取（容错：AI 返回格式多变）=====
     var obj=wfExtractExpandData(raw);
     if(!obj) obj={addDims:[],enrichDims:[],summary:''};
@@ -4386,16 +4411,35 @@ async function expandLabelSystem(){
   var sys='你是「数据清洗·标签体系扩充」专家。当前在做向量清洗：把用户评论与标签体系做语义匹配，相似度低会被排除（可能误杀有价值的评论）。现给你现有标签维度和一批被排除但可能含价值的评论样本，请你提炼现有标签体系未覆盖的高频主题，建议新增维度或补充关键词，目标是减少误杀、提升向量召回（不是去建标注字段）。严格输出 JSON：{addDims:[{name:新维度名, text:维度定义与关键标签}], keywords:[补充关键词]}。只输出 JSON。';
   var user='现有维度：'+dimNames+' 被排除样本（前'+samples.length+'条）：'+samples.map(function(s,i){return (i+1)+'. '+s;}).join(' | ');
   var cfg=apiCfg(); if(!cfg.key) return {added:0};
-  var raw=await callAPI(sys,user,cfg.key,0.5,4000);
+  // validate：验证返回是否含有效 addDims/enrichDims/keywords 结构
+  // 交给 callAPIWithReasoning 做 reasoning_content 兜底 —— 冷启动时 content 是思考片段，
+  // 真正的 JSON 答案在 reasoning_content 里，单次调用即可解决，无需重调API。
+  function validateExpand(t){
+    if(!t) return false;
+    var o=wfExtractExpandData(t);
+    return !!(o&&((o.addDims&&o.addDims.length)||(o.enrichDims&&o.enrichDims.length)||(o.keywords&&o.keywords.length)));
+  }
+  var raw=await callAPIWithReasoning(sys,user,cfg.key,0.5,4000,null,validateExpand);
+  console.log('[expandLabelSystem] raw长度='+raw.length+', 前200��: '+raw.slice(0,200));
   // 多策略提取（与构建期共用 wfExtractExpandData）
   var obj=wfExtractExpandData(raw);
   if(!obj) obj={addDims:[],keywords:[],summary:''};
   var addDims=obj.addDims||[], kws=obj.keywords||[];
+  // 极端兜底：若单次仍失败（非推理模型 / 罕见双冷启动），重试 1 次（温度0.7 打破相同冷启动）
   if(!addDims.length && !kws.length){
-    // 显示结构化失败信息
-    var eres=document.getElementById('wfExpandRes');
-    if(eres) wfRenderExpandResult(eres, raw, obj, 0, 0);
-    return {added:0};
+    console.log('[expandLabelSystem] ⚠ 首次提取失败（推理模型可能冷启动），自动重试...');
+    var raw2=await callAPIWithReasoning(sys,user,cfg.key,0.7,4000,null,validateExpand);
+    console.log('[expandLabelSystem] 重试 raw长度='+raw2.length+', 前200字: '+raw2.slice(0,200));
+    var obj2=wfExtractExpandData(raw2);
+    if(obj2 && ((obj2.addDims&&obj2.addDims.length)||(obj2.keywords&&obj2.keywords.length))){
+      obj=obj2; addDims=obj.addDims||[]; kws=obj.keywords||[];
+      console.log('[expandLabelSystem] 重试成功！新增'+addDims.length+'维, 关键词'+kws.length+'个');
+    } else {
+      // 两次都失败 → 显示失败信息（用第二次的原始返回，通常更有信息量）
+      var eres=document.getElementById('wfExpandRes');
+      if(eres) wfRenderExpandResult(eres, raw2, obj2, 0, 0);
+      return {added:0};
+    }
   }
   var msg='AI 建议扩充标签体系：\n新增维度 '+addDims.length+' 个，补充关键词 '+kws.length+' 个。\n\n维度：\n'+addDims.map(function(d){return '- '+d.name;}).join('\n')+'\n\n是否采纳并重新向量清洗（捞回被误杀的行）？';
   if(!confirm(msg)) return {added:0};
@@ -6319,7 +6363,7 @@ async function aiBuildLabelSystem(){
   try{
     // 长文档需要更大的输出空间：9个模块 × 每个含详细prompt+大量选项 → 8000不够
     const maxTok = desc.length > 10000 ? 16000 : 8000;
-    const raw=await callAPI(sysPrompt,userMsg,cfg.key,0.4, maxTok);
+    const raw=await callAPIWithReasoning(sysPrompt,userMsg,cfg.key,0.4, maxTok);
     console.log('[aiBuildLabelSystem] 原始返回长度='+raw.length+', max_tokens='+maxTok+', 文档长度='+desc.length);
     // 更健壮的 JSON 提取与修复：LLM 输出常有截断/换行/特殊字符问题
     var jsonStr = raw;
@@ -6855,6 +6899,85 @@ async function callAPI(sysMsg,userMsg,apiKey,temp=0.3,maxTokens=2000,extraMessag
   });
   if(!r.ok){const b=await r.text().catch(()=>''); throw new Error(`API ${r.status}: ${b}`);}
   const d=await r.json(); return d.choices?.[0]?.message?.content||'';
+}
+
+// ===== 推理模型兼容：仅在「数据清洗 AI 功能」中使用（扩充标签库/导入标签体系/AI精筛） =====
+// 普通功能（打标/验证/建刚/重校准）严禁使用此函数，否则推理过程会污染输出
+function _extractReasoningAnswer(rc){
+  // 从推理模型的 reasoning_content 中提取最终答案（去除思考过程）
+  // deepseek-v4-flash 的 reasoning_content 结构：多段混合（思考→提示词回显→再思考→最终JSON答案）
+  // 不能简单"取后N%"，必须用内容特征定位真正的答案
+  if(!rc) return '';
+  var t=rc.replace(/<\/?think>.*?(?:<\/think>|$)/gis,'').trim();
+  if(!t) return rc;
+  // 策略1: 找 markdown 代码块 ```json ... ``` 或 ``` ... ```
+  var codeBlock=t.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if(codeBlock&&codeBlock[1].trim().length>20){ var cb=codeBlock[1].trim(); if(cb.charAt(0)==='['||cb.charAt(0)==='{') return cb; }
+  // 策略2: 找��有含目标特征键的 JSON 块（不限位置——答案可能在中间）
+  // 目标特征键：数据清洗 AI 功能的输出都含这些键之一
+  var jsonKeys=['name','prompt','type','options','addDims','enrichDims','keep','remove','verdict','suggested_tag'];
+  var candidates=[];
+  // 找所有 [...] 数组块
+  var arrRe=/\[[\s\S]{30,8000}\]/g;
+  var m;
+  while((m=arrRe.exec(t))!==null){
+    var seg=m[0];
+    // 验证是否含目标键
+    var keyCount=0;
+    for(var ki=0;ki<jsonKeys.length;ki++){if(seg.indexOf(jsonKeys[ki])!==-1)keyCount++;}
+    if(keyCount>=2) candidates.push({pos:m.index,len:seg.length,text:seg,score:keyCount});
+  }
+  // 找所有 {...} 对象块（长对象，非短属性）
+  var objRe=/\{[\s\S]{50,8000}\}/g;
+  while((m=objRe.exec(t))!==null){
+    var seg=m[0];
+    var keyCount=0;
+    for(var ki=0;ki<jsonKeys.length;ki++){if(seg.indexOf(jsonKeys[ki])!==-1)keyCount++;}
+    if(keyCount>=3) candidates.push({pos:m.index,len:seg.length,text:seg,score:keyCount});
+  }
+  // 取得分最高的候选（键匹配最多 = 最可能是最终答案）
+  if(candidates.length>0){
+    candidates.sort(function(a,b){return b.score-a.score||b.len-a.len;});
+    return candidates[0].text.trim();
+  }
+  // 策略3: 找尾部 JSON 结构（兜底位置策略，但要求更长）
+  var p60=Math.floor(t.length*0.6);
+  var j2=t.lastIndexOf('[',t.length), j1=t.lastIndexOf('{',t.length);
+  var jp=(j2>p60&&j2>j1)?j2:(j1>p60?j1:-1);
+  if(jp>0){ var c=t.slice(jp); if(c.length>50&&c.length<t.length*0.8) return c.trim(); }
+  // 策略4: 找答案分隔符
+  var seps=['\n\n答案是','\n\nOutput','\n\n输出','\n\nResult','\n\n结果','\n\nFinal',' --- ','：\n\n'];
+  for(var i=0;i<seps.length;i++){ var si=t.indexOf(seps[i]); if(si>0&&si<t.length*0.7){ var a=t.slice(si+seps[i].length).trim(); if(a.length>10) return a; } }
+  // 策略5: 最后兜底——取后 40%（比之前的 60% 更激进地切掉前面的提示词回显）
+  return t.slice(Math.floor(t.length*0.6)).trim();
+}
+async function callAPIWithReasoning(sysMsg,userMsg,apiKey,temp=0.3,maxTokens=2000,extraMessages=null,validate=null){
+  // 与 callAPI 完全相同的请求逻辑
+  const cfg=apiCfg(), msgs=[{role:'system',content:sysMsg}];
+  if(extraMessages && Array.isArray(extraMessages)) msgs.push(...extraMessages);
+  if(userMsg) msgs.push({role:'user',content:userMsg});
+  const r=await fetch(`${cfg.base}/chat/completions`,{
+    method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiKey||cfg.key}`},
+    body:JSON.stringify({model:cfg.model,messages:msgs,temperature:temp,max_tokens:maxTokens})
+  });
+  if(!r.ok){const b=await r.text().catch(()=>''); throw new Error(`API ${r.status}: ${b}`);}
+  const d=await r.json();
+  var msg=d.choices?.[0]?.message||{};
+  var content=msg.content||'';
+  // 推理模型兼容（核心修复）：
+  // content 为空，或 content 非空但经 validate 验证不是有效结构（冷启动返回思考片段而非JSON）时，
+  // 从 reasoning_content 提取真正的答案（零成本兜底，数据已在同一次返回里，无需重调API）。
+  var needReasoning = (!content || (typeof validate==='function' && !validate(content))) && msg.reasoning_content;
+  if(needReasoning){
+    var rc=_extractReasoningAnswer(msg.reasoning_content);
+    // 采用条件：content 原本为空直接采用；或 content 验证失败但 reasoning 提取结果能通过 validate（用更优的覆盖）
+    var adopt = !content || (typeof validate!=='function' || validate(rc));
+    if(adopt && rc){
+      console.log('[callAPIWithReasoning] content验证失败，从reasoning_content提取: '+rc.length+'字 (原始content '+content.length+'字)');
+      content=rc;
+    }
+  }
+  return content;
 }
 
 async function testAPIConn(){
@@ -9988,7 +10111,7 @@ async function extractLabelFields(desc, typePref, apiKey){
     '## 提取策略\n1. 优先使用文档正式维度名作为 name\n2. prompt 必须包含文档中的关键判断要点\n3. options 必须来自文档具体标签，不要编造\n'+
     '4. 互斥归类→single；可同时命中多个→multi；需自由描述→text\n\n只输出 JSON 数组，不要解释文字/代码块标记。';
   var userMsg='【当前数据表的列名】\n'+(originalColumns().join(', ')||'(尚未上传数据文件)')+'\n\n【标签体系文档内容】\n'+desc+'\n\n【输出格式偏好】默认: '+typePref+'\n\n请仔细分析文档，提取所有标注维度并生成完整字段配置。';
-  var raw=await callAPI(sysPrompt,userMsg,apiKey,0.4,8000);
+  var raw=await callAPIWithReasoning(sysPrompt,userMsg,apiKey,0.4,8000);
   var jsonStr=raw;
   var m=raw.match(/\[[\s\S]*\]/);
   if(m) jsonStr=m[0];
@@ -10043,7 +10166,8 @@ var _ACTION_INTENT_PATTERNS=[
   /修复|矫正|修正|fix|纠错/,
   /删除|删行|清空|清除/,
   /替换|批量改|全部改|重打|重标|重新标注/,
-  /执行|操作|帮我改|帮我修|帮我删/
+  /执行|操作|帮我改|帮我修|帮我��/,
+  /新建|创建|建.*字段|建.*表|建.*工作表|添加.*字段|导入.*标签|增加.*字段|新增|新建一个/
 ];
 function _agentDetectActionableIntent(txt){
   if(!txt) return false;
@@ -10053,6 +10177,124 @@ function _agentDetectActionableIntent(txt){
   }
   // 也检测英文
   if(/\b(fix|modify|change|update|delete|remove|replace|unify|standardize)\b/i.test(t)) return true;
+  return false;
+}
+
+
+// 伪工具标签提取器：LLM 有时不遵守 JSON actions 协议，
+// 把操作写成 <tagName attr="value"/> 格式混在自然语言中。
+// 本函数从文本中提取这些标签并转换为正式 actions 对象数组。
+// 返回 {actions: [], cleanText: ''} —— actions 可能为空（无伪标签时）
+function _extractPseudoToolTags(text){
+  if(!text) return {actions:[], cleanText:text||''};
+  var actions=[];
+  // 匹配 <tagName attr1="val1" attr2="val2" ... /> 或 <tagName attr1="val1" ...> ... </tagName>
+  var tagRegex = /<(\w+)\s+([^>]*?)\/?>[\s\S]*?(?:<\/>)?/gi;
+  var match;
+  var cleanText = text;
+  
+  // 标签名 → 正式 action 的映射配置
+  var TAG_MAP = {
+    'getdatasample':   {action:'getDataSample',  params:{field:'field',limit:'n',n:'n'}},
+    'inspectcell':     {action:'inspectCell',   params:{row:'ri',column:'field',ri:'ri',field:'field'}},
+    'inspectvalidation':{action:'inspectValidation',params:{row:'ri',ri:'ri'}},
+    'scantagerrors':   {action:'scanTagErrors',  params:{}},
+    'auditfieldrules': {action:'auditFieldRules',params:{field:'field'}},
+    'addcolumn':       {action:'create',        params:{columnName:'name',columnType:'type',name:'name',prompt:'prompt',type:'type',options:'options',strict:'strict'}},
+    'createfield':     {action:'create',        params:{name:'name',prompt:'prompt',type:'type',options:'options',strict:'strict'}},
+    'create':          {action:'create',        params:{name:'name',prompt:'prompt',type:'type',options:'options',strict:'strict'}},
+    'deletefield':     {action:'delete',        params:{name:'name'}},
+    'deletecolumn':    {action:'delete',        params:{name:'name'}},
+    'delete':          {action:'delete',        params:{name:'name'}},
+    'renamefield':     {action:'rename',        params:{from:'from',to:'to'}},
+    'rename':          {action:'rename',        params:{from:'from',to:'to'}},
+    'modifyfield':     {action:'modify',        params:{name:'name',prompt:'prompt',type:'type',options:'options',strict:'strict'}},
+    'modify':          {action:'modify',        params:{name:'name',prompt:'prompt',type:'type',options:'options',strict:'strict'}},
+    'fixtag':          {action:'fixTag',        params:{row:'ri',field:'field',value:'value',ri:'ri'}},
+    'fixtags':         {action:'fixTags',       params:{}},  // complex, skip auto-convert
+    'setcell':         {action:'setCell',       params:{row:'ri',col:'col',value:'value',ri:'ri'}},
+    'replaceincolumn': {action:'replaceInColumn',params:{col:'col',search:'search',replace:'replace'}},
+    'replaceinfield':  {action:'replaceInField', params:{field:'field',search:'search',replace:'replace'}},
+    'deleterows':      {action:'deleteRows',    params:{ris:'ris'}},
+    'insertrow':       {action:'insertRow',     params:{idx:'idx',data:'data'}},
+    'queryrows':       {action:'queryRows',     params:{field:'field',match:'match',mode:'mode'}},
+    'updatewhere':     {action:'updateWhere',   params:{field:'field',match:'match',mode:'mode',value:'value'}},
+    'revalidate':      {action:'revalidate',    params:{row:'ri',ri:'ri'}},
+    'filterrows':      {action:'filterRows',    params:{field:'field',match:'match',mode:'mode'}},
+    'clearfilter':     {action:'clearFilter',   params:{}},
+    'exportreport':    {action:'exportReport',  params:{}},
+    'switchsheet':     {action:'switchSheet',   params:{name:'name'}},
+    'createsheet':     {action:'createSheet',   params:{name:'name'}},
+    'extracttonewsheet':{action:'extractToNewSheet',params:{field:'field',cond:'cond',name:'name'}},
+    'copyrowstonewsheet':{action:'copyRowsToNewSheet',params:{ris:'ris',name:'name'}},
+    'importlabels':    {action:'import',        params:{desc:'desc'}},
+    'import':          {action:'import',        params:{desc:'desc'}},
+    'hidecols':        {action:'hideCols',      params:{columns:'columns'}},
+    'showcols':        {action:'showCols',      params:{columns:'columns'}},
+    'showallcols':     {action:'showAllCols',   params:{}},
+    'freezeto':        {action:'freezeTo',      params:{column:'column'}}
+  };
+  
+  while((match = tagRegex.exec(text)) !== null){
+    var fullTag = match[0];
+    var tagName = match[1].toLowerCase();
+    var attrsStr = match[2];
+    
+    // 跳过非工具标签（HTML标签如 div/span 等）
+    if(!TAG_MAP[tagName]) continue;
+    
+    var mapping = TAG_MAP[tagName];
+    var actionObj = {action: mapping.action};
+    
+    // 解析属性 key="value"
+    var attrRegex = /(\w+)\s*=\s*"([^"]*)"/g;
+    var attrMatch;
+    while((attrMatch = attrRegex.exec(attrsStr)) !== null){
+      var attrName = attrMatch[1];
+      var attrVal = attrMatch[2];
+      // 映射属性名到正式参数名
+      if(mapping.params[attrName]){
+        var paramName = mapping.params[attrName];
+        // 数值转换
+        if(paramName==='ri'||paramName==='n'||paramName==='idx'){
+          actionObj[paramName] = parseInt(attrVal,10)||attrVal;
+        } else if(paramName==='strict'){
+          actionObj[paramName] = attrVal==='true'||attrVal==='1';
+        } else if(paramName==='ris'){
+          try{ actionObj[paramName]=JSON.parse(attrVal); }catch(e){ actionObj[paramName]=attrVal; }
+        } else if(paramName==='options'){
+          try{ actionObj[paramName]=JSON.parse(attrVal); }catch(e){ actionObj[paramName]=attrVal.split(',').map(function(s){return s.trim();}); }
+        } else {
+          actionObj[paramName] = attrVal;
+        }
+      }
+    }
+    
+    actions.push(actionObj);
+    // 从 cleanText 中移除该标签（保留其余文本）
+    cleanText = cleanText.replace(fullTag, '[→'+mapping.action+']');
+  }
+  
+  return {actions:actions, cleanText:cleanText.trim()};
+}
+
+// 建刚响应校验：content 是否含有效结构（合法 JSON 或 XML 工具标签）
+// 返回 false 时 callAPIWithReasoning 会从推理模型的 reasoning_content 提取答案兜底（解决冷启动"听不懂"）
+function _validateBrainJSON(t){
+  if(!t || typeof t!=='string') return false;
+  // 双模：XML 工具标签（如 <create name="X"/>）也算有效，交由 _extractPseudoToolTags 解析，不算无效
+  if(/<[a-zA-Z]+[\s\S]*?\/?>/.test(t)) return true;
+  if(t.indexOf('reply')<0 && t.indexOf('actions')<0 && t.indexOf('"action"')<0 && t.indexOf("'action'")<0) return false;
+  var jsonPatterns=[
+    /\{[\s\S]*?"reply"[\s\S]*?"actions"[\s\S]*?\}/,
+    /\{[\s\S]*?"reply"[\s\S]*?\}/,
+    /\{[\s\S]*?"action"[\s\S]*?\}/,
+    /\{[\s\S]*?\}/
+  ];
+  for(var i=0;i<jsonPatterns.length;i++){
+    var m=t.match(jsonPatterns[i]);
+    if(m){ try{ var o=JSON.parse(m[0]); if(o&&(o.reply!==undefined||Array.isArray(o.actions)||o.action)) return true; }catch(e){} }
+  }
   return false;
 }
 
@@ -10072,14 +10314,14 @@ function _agentGroundReply(reply, actions, execSummary, hasFailures, actionExecu
   if(reply&&actions&&actions.length&&actionExecuted){
     var falseClaims=[];
     // 检测 "已修改/已删除/已新建/已修复/已统一" 等声称
-    var claimPatterns=[/已修改|已改写|已更新.*提示|已优化.*提示/,/已删除|已移除|已清除/,/已新建|已创建|已添加/,/已修复|已矫正|已修正|已统一|已标准化/];
+    var claimPatterns=[/已修改|已改写|已更新.*提示|已优化.*提示|已改名|已重命名/,/已删除|已移除|已清除/,/已新建|已创建|已添加|已导入|已建成|建好了|改好了|搞定了/,/已修复|已矫正|已修正|已统一|已标准化/];
     for(var ci=0;ci<claimPatterns.length;ci++){
       if(claimPatterns[ci].test(reply)){
         // 检查是否有对应的 write action 匹配
         var hasMatchingWrite=actions.some(function(a){
           if(ci===0) return a.action==='modify'||a.action==='import';
           if(ci===1) return a.action==='delete'||a.action==='deleteRows';
-          if(ci===2) return a.action==='create'||a.action==='createSheet'||a.action==='insertRow';
+          if(ci===2) return a.action==='create'||a.action==='createSheet'||a.action==='insertRow'||a.action==='import';
           return a.action==='fixTag'||a.action==='fixTags'||a.action==='correctRow'||a.action==='replaceInField'||a.action==='updateWhere'||a.action==='revalidate';
         });
         if(!hasMatchingWrite){ falseClaims.push('声称执行了写操作但未生成对应action'); break; }
@@ -10120,16 +10362,12 @@ async function sendChat(){
   var thinkingBubble=showThinkingBubble('建刚思考中…');
   // 用结构化 messages 数组传递对话历史（不再压成纯文本），保留最近 30 条以维持长对话上下文
   var recentHistory = chatHistory.slice(-30);
-  var sysPrompt='你是这个标注工具里的 AI 助手，可以直接帮用户操作数据——读表、改字段、修标签、跑校验。说话自然点，像同事之间交流一样。\n'+
-    '## 思维铁律（最高优先级，违反即不合格）\n'+
-    '你的价值 = 用最少的轮次把事做对。每轮必须按四步思考，不可跳步：\n'+
-    '1) 调查：用户提到任何字段/列/值时，先用 getDataSample 或 inspectCell 确认字段名是否精确匹配、值的分布、数据量是否够。无数据时直接告知用户缺什么，不调任何 action。禁止不看数据就猜字段名、猜值格式、构造 action。\n'+
-    '2) 判断：把口语翻译成精确操作意图，分清"用户说了什么"和"用户真正要什么"；判断操作是否破坏已有数据——非破坏性(新建字段/建表/筛选查看/诊断)直接做，破坏性(改标签/删行/批量改)先说计划。\n'+
-    '3) 执行：一次做一件事，复杂任务拆多步；action 参数必须基于调查到的真实数据，不凭印象写；建表操作直接执行不犹豫。\n'+
-    '4) 验证：执行后在 reply 说明做了什么、结果如何、接下来建议；报错时分析错误原因→调整参数重试，不转述错误信息就完事。\n'+
-    '禁止事项：不套话(不说"好的/我来帮你/作为AI助手/让我来分析")；不猜测(不确定先查)；不跳步(不跳过调查直接出action)；不隐瞒(出错就说原因和修法)；不过度谨慎(非破坏性操作直接做，不反复确认)。\n'+
-    '错误自愈：action 失败时读错误信息，参数错误回到调查重查重试，系统错误(表结构/网络/API)告知用户具体错误并建议刷新检查；永远不要输出空 actions 然后说"完成了"。\n'+
-    '## 当前工作环境（实时快照）\n'+
+  var sysPrompt='你是标注工具里的 AI 助手「建刚」，可直接操作数据：建工作表、建/改/删字段、修标签、跑校验。像同事一样自然说话，不套话。\n'+
+    '# 操作原则\n'+
+    '- 调查→判断→执行→验证，四步不跳。用户提到字段/列/值时先采样确认真实名称与分布，不凭印象造 action；无数据就直说缺什么，不调操作。\n'+
+    '- 非破坏性操作（新建字段/建表/筛选/诊断/改单条）直接做、不反复确认；会破坏已有数据的批量改/删先出计划等用户确认。\n'+
+    '- 真做完才说"搞定了"；出错说明原因和修法，不转述错误就完事。\n\n'+
+    '# 实时环境（每次请求自动刷新）\n'+
     '### 工作表\n'+
     '当前工作表：'+(curSheet()?curSheet().name:'(无)')+'（第 '+(activeSheetIdx+1)+' / '+sheets.length+' 个）\n'+
     '所有工作表：'+(sheets.length?sheets.map(function(s,i){return (i===activeSheetIdx?'▸ ':'  ')+s.name+'('+s.data.length+'行)';}).join('\n'):'(无)')+'\n'+
@@ -10139,95 +10377,42 @@ async function sendChat(){
     '总行数：'+tableData().length+'\n'+
     '### 标签统计（每字段已标注/未标注）\n'+
     _agentBuildTagStats()+
-    '### 校验���态\n'+
+    '### 校验状态\n'+
     (llmValResults?('已运行 LLM 验证，共 '+llmValResults.results.length+' 条结果（correct:'+llmValResults.results.filter(function(r){return r.verdict==='correct';}).length+' / partial:'+llmValResults.results.filter(function(r){return r.verdict==='partial';}).length+' / incorrect:'+llmValResults.results.filter(function(r){return r.verdict==='incorrect';}).length+'）'):'尚未运行验证')+'\n'+
     '### 向量匹配\n'+
-    _agentBuildVectorContext()+
-    '\n'
-    '## 你的能力\n'+
-    '1. 字段完整管理（直接执行，立即生效）：create(新建字段，含名称/提示词/类型/选项/严格模式) / delete(删除字段，数据列同步清除) / rename(改名，已打标数据自动迁移) / modify(编辑字段属性：提示词/类型/选项/严格模式) / import(从描述文本导入标签体系批量建字段) / hideCols / showCols / showAllCols / freezeTo\n'+
-    '2. 只读诊断：inspectCell(查看某行某字段的打标结果+原文+引用列) / inspectValidation(查看某行校验详情) / scanTagErrors(扫全表找异常：空值/错误字样/非选项标签) / auditFieldRules(列出某字段全部结果供你判断违规) / getDataSample(采样数据)\n'+
-    '3. 写权限（修改数据）：fixTag(改单条打标结果) / fixTags(批量改，需确认) / revalidate(重验单行) / revalidateField(重验某字段全部，需确认) / setVerdict(改单行校验verdict) / setVerdicts(批量改，需确认) / correctRow(按LLM建议矫正单行) / setCell(改原始单元格) / replaceInColumn(整列符号/子串替换) / replaceInField(整字段列符号/子串替换)\n'+
-    '4. 行操作与条件批量：deleteRows(批量删行，需确认) / insertRow(插入新行) / queryRows(条件查询，只读) / updateWhere(条件批量改字段值) / revalidateAll(重验全部) / revalidateErrors(只重验异常结果)\n'+
-    '5. 视图筛选与报表（不改数据）：filterRows(仅显示符合条件的行) / clearFilter(清除筛选) / exportReport(导出全表异常为CSV文件)\n'+
-    '6. 工作表操作：switchSheet(切换到指定工作表，直接执行) / createSheet(新建空白工作表) / extractToNewSheet(按条件筛选行到新表) / copyRowsToNewSheet(复制指定行到新表，需确认)\n\n'+
-    '## 回复格式（内部协议，不要向用户提及）\n'+
-'你只需要正常回复用户，同时附带操作指令。回复格式为 JSON：\n'+
-'{"reply":"用自然口语写你的分析或回答，像真人助手一样说话","actions":[操作列表]}\n'+
-'- reply 写人话，不要写"作为AI助手"、不要复述格式规则、不要输出markdown代码块\n'+
-'- 没有操作时 actions 为空数组 []\n'+
-'- 只输出这一个 JSON 对象，不要有多余文字\n\n'+
-
-    '## 重要约定\n'+
-    '- 单条写操作(fixTag/revalidate/setVerdict/correctRow/setCell)直接执行\n'+
-    '- 字段管理操作(create/delete/rename/modify/import)直接执行，立即生效，不需要用户确认\n'+
-    '- 新建/筛选建表/切换表操作(createSheet/extractToNewSheet/switchSheet)直接执行，非破坏性，立即生效，不需要用户确认——用户让你"切到XX表"，直接做\n'+
-    '- 批量写操作(fixTags/revalidateField/setVerdicts/deleteRows/copyRowsToNewSheet)会改动或删除已有数据，先出计划，用户确认后才执行\n'+
-    '- 诊断类操作(scanTagErrors/auditFieldRules/inspect*)返回数据后，你要在 reply 里给出因果分析和修正建议\n'+
-    '- 当用户问「为什么有问题/重验逻辑是什么」时，结合字段提示词和结果给出清晰解释\n'+
-    '- 总体原则：能直接做成的事就直接做（新建、筛选、改单条、建字段都算"能直接做"）；只有会破坏已有数据的多行批量改/删才先问。别因为过度谨慎而只诊断不动手\n\n'+
-    '## ⚠️ 字段/列名发现规则（极重要）\n'+
-    '- 用户说的「星级」「评分」「3星」等可能对应原始列或 AI 字段，名称未必精确匹配\n'+
-    '- 如果你找不到用户提到的字段/列名，先看上方「当前数据表列」和「当前 AI 字段」的列表，那里有精确名称\n'+
-    '- getDataSample 只用来查看某字段的数据样例，【不要用它来发现字段名】——字段名已经在上方给出了\n'+
-    '- 如果确实没有匹配的字段/列，直接在 reply 里告诉用户「未找到该字段，现有字段是：XXX」，不要反复采样\n'+
-    '- 【无数据时】如果总行数为 0 或「尚未上传」，直接告诉用户需要先导入数据，不要调用任何读/写操作\n'+
-    '## action 参数示例\n'+
-    '{"action":"inspectCell","ri":5,"field":"价格敏感度"}\n'+
+    _agentBuildVectorContext()+'\n\n'+
+    '# 你的能力（action 清单）\n'+
+    '字段管理：create(name,prompt,type,options,strict) / delete(name) / rename(from,to) / modify(name,prompt,type,options,strict) / import(desc)\n'+
+    '只读诊断：inspectCell(ri,field) / inspectValidation(ri) / scanTagErrors / auditFieldRules(field) / getDataSample(field,n)\n'+
+    '写数据：fixTag(ri,field,value) / fixTags(items) / revalidate(ri) / setVerdict(ri,verdict) / setCell(ri,col,value) / replaceInField(field,search,replace)\n'+
+    '行/表：deleteRows(ris) / insertRow(idx,data) / queryRows(field,match) / updateWhere(field,match,value) / filterRows / clearFilter / exportReport\n'+
+    '工作表：switchSheet(name) / createSheet(name) / extractToNewSheet(field,cond,name) / copyRowsToNewSheet(ris,name)\n'+
+    '视图：hideCols / showCols / showAllCols / freezeTo\n\n'+
+    '# 回复格式（双模，两种等效，任选其一）\n'+
+    '格式A（推荐）JSON：{"reply":"自然口语的分析或回答","actions":[操作列表]}\n'+
+    '- reply 只写人话，不写"作为AI助手"、不复述格式规则、不输出多余文字\n'+
+    '- 没有操作时 actions 为空数组 []\n'+
+    '格式B 工具标签（直接写，系统自动识别执行）：<create name="价格敏感度" prompt="..." type="multi" options=\'["高","中","低"]\'/>\n'+
+    '- 标签名不区分大小写，create/delete/rename/modify/addColumn 等都可；属性用双引号或单引号\n'+
+    '- 无论哪种格式，reply 只写自然语言，操作指令只放在 actions 或标签里\n\n'+
+    '# 关键约定\n'+
+    '- 字段管理/建表/切表直接执行、立即生效，无需确认\n'+
+    '- 批量改/删先出计划等确认\n'+
+    '- 用户说的「星级/评分/3星」可能对应原列或AI字段，先对上方字段列表确认精确名；找不到就直说"未找到，现有字段是：X"，不反复采样\n'+
+    '- 无数据（0行/未上传）直接让用户先导入，不调任何操作\n'+
+    '- 跨表操作可选参数 "sheet":"表名"\n\n'+
+    '# 常用示例\n'+
     '{"action":"scanTagErrors"}\n'+
-    '{"action":"auditFieldRules","field":"价格敏感度"}\n'+
+    '{"action":"inspectCell","ri":5,"field":"价格敏感度"}\n'+
+    '{"action":"create","name":"产品评价拆解","prompt":"提取用户核心不满点","type":"multi","strict":true}\n'+
+    '{"action":"modify","name":"价格敏感度","prompt":"根据价格/优惠/性价比表述判断敏感度","type":"multi","options":["非常敏感","比较敏感","一般","不敏感"]}\n'+
+    '{"action":"rename","from":"旧名","to":"新名"}\n'+
+    '{"action":"delete","name":"旧字段"}\n'+
     '{"action":"fixTag","ri":5,"field":"价格敏感度","value":"高"}\n'+
-    '{"action":"fixTags","items":[{"ri":5,"field":"价格敏感度","value":"高"},{"ri":8,"field":"价格敏感度","value":"中"}]}\n'+
-    '{"action":"revalidate","ri":5}\n'+
-    '{"action":"revalidateField","field":"价格敏感度"}\n'+
-    '{"action":"setVerdict","ri":5,"verdict":"correct","corrected":true}\n'+
-    '{"action":"setVerdicts","items":[{"ri":5,"verdict":"correct","corrected":true}]}\n'+
-    '{"action":"correctRow","ri":5}\n'+
-    '{"action":"setCell","ri":3,"col":"ASIN","value":"B0XXXX"}\n'+
-    '{"action":"replaceInColumn","col":"ASIN","search":"，","replace":","}\n'+
-    '{"action":"replaceInField","field":"用户画像","search":"；","replace":"、"}\n'+
-    '{"action":"deleteRows","ris":[5,6,7]}\n'+
-    '{"action":"insertRow","idx":3,"data":{"ASIN":"B0NEW","用户画像":"男性"}}\n'+
-    '{"action":"queryRows","field":"价格敏感度","match":"高","mode":"contains"}\n'+
-    '{"action":"updateWhere","field":"价格敏感度","match":"未提及","mode":"exact","value":""}\n'+
-    '{"action":"revalidateAll"}\n'+
-    '{"action":"revalidateErrors"}\n'+
-    '{"action":"filterRows","field":"价格敏感度","match":"高","mode":"contains"}\n'+
-    '{"action":"filterRows","field":"用户画像","mode":"empty"}\n'+
-    '{"action":"clearFilter"}\n'+
-    '{"action":"exportReport"}\n'+
-    '{"action":"switchSheet","name":"评价数据"}\n'+
-'{"action":"createSheet","name":"筛选结果"}\n'+
-'{"action":"copyRowsToNewSheet","ris":[1,2,3,5],"name":"高星级数据"}\n'+
-'{"action":"extractToNewSheet","field":"星级","cond":{"op":"range","min":1,"max":3},"name":"1-3星评价"}\n'+
-'{"action":"extractToNewSheet","field":"评分","cond":{"op":"in","values":[1,2,3]},"name":"低分评价"}\n'+
-'{"action":"extractToNewSheet","field":"评论","cond":{"op":"contains","value":"差评"},"name":"含差评关键词"}\n'+
-'{"action":"create","name":"价格敏感度","prompt":"判断消费者对价格的高低敏感程度，根据评论中关于价格、性价比、贵贱的表述判断","type":"multi","options":["高","中","低"]}\n'+
-'{"action":"create","name":"产品评价拆解","prompt":"从评价中提取用户对产品的核心不满点，每条评价可多个维度","type":"multi","strict":true}\n'+
-'{"action":"modify","name":"价格敏感度","prompt":"根据评论中关于价格、优惠、性价比、值不值得的表述，判断消费者价格敏感度","type":"multi","options":["非常敏感","比较敏感","一般","不敏感"]}\n'+
-'{"action":"rename","from":"产品评价拆解","to":"负面反馈归因"}\n'+
-'{"action":"delete","name":"旧字段名"}\n'+
-'\n关键概念说明（必须正确理解）\n'+
-    '- ri = 行号（从1开始，对应表格数据行，不是表头）\n'+
-    '- field = AI 字段名（如"价格敏感度"），col = 原始数据列名（如"ASIN"）\n'+
-    '- 用户说「前三排/前几行」= 指定 field 列的前 N 个单元格（ri=1,2,3...），不是删除整行数据\n'+
-    '- 修改打标结果用 fixTag(fixTags)，不要用 setCell（setCell 只改原始列）\n'+
-    '- 删除字段本身用 delete action；清空某字段某些行的值用 fixTag+value=""\n'+
-    '- filterRows 只改变表格显示（隐藏不匹配的行），不修改任何数据；用 clearFilter 或点击表格上方横幅恢复\n'+
-    '- exportReport 会生成并下载一个 CSV 异常报告文件，不改数据\n'+
-    '- 跨工作表：所有读/写 action 都支持可选参数 "sheet":"工作表名"，指定后操作该工作表；不指定则操作当前（或校验结果所在）工作表\n'+
-    '- 【筛选并建新表用 extractToNewSheet，一步完成】它按某列条件扫描全表、收集匹配行、直接新建工作表并切换过去，你只需给条件，不必自己算行号。op 支持 range(区间)/in(枚举值)/contains(包含)/exact(精确)/empty(空)/notEmpty(非空)。field 列名会自动模糊匹配（"星级""评分""rating"都能认），不用担心名字不完全一致。例：用户说"把1到3星的评价单独建个表"→ 输出 {"action":"extractToNewSheet","field":"星级","cond":{"op":"range","min":1,"max":3},"name":"1-3星评价"}\n'+
-    '- 和 copyRowsToNewSheet 的区别：copyRowsToNewSheet 要你给具体行号 ris（适合已知少量行）；extractToNewSheet 给条件自动筛选（适合按某列值批量分流），二选一用更顺手的\n\n'+
-    '## 对话上下文规则（极重要）\n'+
-    '- 你处于一个【多轮对话】中，你能看到用户之前说过的话和你之前的回复\n'+
-    '- 当用户说「刚刚说的XXX」「刚才那个」「还是按之前说的」等指代性表述时，【必须回顾前面的对话内容】来理解具体指什么\n'+
-    '- 不要回复"(无回复)"或"我不理解上下文"——如果你不确定用户指什么，在 reply 中主动追问具体是哪条数据/哪个字段\n'+
-    '- 保持对话连贯：如果上一轮你问了问题（如「请指定行号范围」），用户的这一轮回答就是对你问题的回应，据此执行即可\n'+
-    '\n## 工作方式（内部规则）\n'+
-    '- 你可以多轮对话——做完一步操作后系统会把结果告诉你，你可以继续下一步\n'+
-    '- 用户让你改东西时，不要只看不动——先诊断可以，但看完就得动手改（输出写操作 action）\n'+
-    '- 真做完了再在回复里说"搞定了"，没做就别说做了\n'+
-    '- 每轮你会收到上一步的执行结果，根据实际情况决定接下来做什么';
+    '{"action":"extractToNewSheet","field":"星级","cond":{"op":"range","min":1,"max":3},"name":"1-3星评价"}\n'+
+    '{"action":"createSheet","name":"筛选结果"}\n'+
+    '# 概念\n'+
+    'ri=行号(从1) field=AI字段名 col=原列名；改打标用 fixTag 不用 setCell；filterRows 只隐藏不删数据；extractToNewSheet 按条件自动分流建新表，不必自己算行号\n';
   window._lastAgentUserMsg=txt;
   var userMsg='用户���新指令: '+txt;
   var MAX_AGENT_LOOP=4;
@@ -10244,7 +10429,7 @@ async function sendChat(){
       brainBoardUpdate(thinkItem, '发送 API 请求…'+loopTag, null,
         '模型: '+cfg.model+' · 目标: '+cfg.base.replace(/^https?:\/\//,''));
       var t0=Date.now();
-      var resp=await callAPI(sysPrompt, iter===0?userMsg:loopHistory[loopHistory.length-1].content, cfg.key,0.2,4000,loopHistory);
+      var resp=await callAPIWithReasoning(sysPrompt, iter===0?userMsg:loopHistory[loopHistory.length-1].content, cfg.key,0.2,4000,loopHistory, _validateBrainJSON);
       var elapsed=((Date.now()-t0)/1000).toFixed(1);
       brainBoardUpdate(thinkItem, '收到响应，解析中…'+loopTag, null,
         '耗时 '+elapsed+'s · 响应长度 '+(resp||'').length+' 字符');
@@ -10264,11 +10449,29 @@ async function sendChat(){
         if(gm){ var raw=gm[0]; for(var cut=raw.length;cut>10;cut--){ try{ obj=JSON.parse(raw.substring(0,cut)); break; }catch(e2){} } }
       }
       if(!obj){
-        finalReply=resp||'(无回复)';
-        break;
+        // JSON 解析失败 → 尝试从文本中提取伪工具标签（LLM 不守协议时常见）
+        var _pseudo=_extractPseudoToolTags(resp||'');
+        if(_pseudo.actions.length>0){
+          obj={reply:_pseudo.cleanText,actions:_pseudo.actions};
+          brainBoard('info', '⚡ 从文本中提取到 '+_pseudo.actions.length+' 个伪工具标签（已转换为正式 actions）'+loopTag, null,
+            _pseudo.actions.map(function(a){return a.action+':'+(a.name||a.field||'');}).join('\n'));
+        } else {
+          finalReply=resp||'(无回复)';
+          break;
+        }
       }
       var reply=obj.reply||'(无回复)';
       var actions=Array.isArray(obj.actions)?obj.actions:[];
+      // 补充检查：actions 为空但 reply 中含伪工具标签 → 提取并补充执行
+      if(!actions.length && reply){
+        var _pseudo2=_extractPseudoToolTags(reply);
+        if(_pseudo2.actions.length>0){
+          actions=_pseudo2.actions;
+          reply=_pseudo2.cleanText;
+          brainBoard('info', '⚡ 从回复文本中提取到 '+actions.length+' 个伪工具标签'+loopTag, null,
+            actions.map(function(a){return a.action+':'+(a.name||a.field||'');}).join('\n'));
+        }
+      }
       brainBoardUpdate(thinkItem, 'AI 分析完成'+loopTag, 'think-done',
         reply.length>200 ? reply.slice(0,200)+'…' : reply);
       if(actions.length){
@@ -10828,6 +11031,7 @@ function __cap(arr,x){ arr.push(x); return x; }
 function _agentSnapshot(){
   var snap={
     fieldNames:aiFields.map(function(f){return f.name;}),
+    aiFieldCount:aiFields.length,
     fieldPrompts:{},fieldTypes:{},
     sheetNames:sheets.map(function(s){return s.name;}),
     sheetRowCounts:sheets.map(function(s){return s.data.length;}),
@@ -10903,6 +11107,13 @@ function _agentVerifyAction(action,before){
       if(action.prompt!=null&&mf.prompt!==String(action.prompt).trim()) chg.push('提示词');
       if(chg.length>0) return {ok:false,message:'「'+action.name+'」属性未生效: '+chg.join('、'),retryHint:{action:'modify',name:mf.name,prompt:action.prompt,type:action.type,options:action.options,strict:action.strict}};
       return {ok:true,message:'字段「'+action.name+'」已确认更新'};
+    }
+    if(action.action==='import'){
+      // import 从描述文本批量建字段——验证 aiFields 是否有新增（通过 before 快照对比）
+      var beforeCount = (before && before.aiFieldCount != null) ? before.aiFieldCount : 0;
+      var afterCount = aiFields.length;
+      if(afterCount <= beforeCount) return {ok:false,message:'导入标签体系未新增任何字段（导入前 '+beforeCount+' 个，导入后 '+afterCount+' 个）',retryHint:{action:'import',desc:action.desc}};
+      return {ok:true,message:'导入标签体系成功，新增 '+(afterCount-beforeCount)+' 个字段（总计 '+afterCount+' 个）'};
     }
     if(action.action==='fixTag'||action.action==='setCell'){
       var si=_brainSheetIdx(),sh=sheets[si];if(!sh) return {ok:true,message:'(无工作表上下文)'};
@@ -12225,7 +12436,7 @@ loadState().then(function(ok){
 });
 
 // BUILD STAMP — 用于在浏览器控制台确认预览加载的是否最新文件（输入 __BUILD__ 即可查看）
-window.__BUILD__='b20260731-0945';
+window.__BUILD__='b20260731-1740';
 console.log('%c[AI Tag Tool] build b20260728-2220 — 向量匹配种子库功能','color:#00d4ff;font-weight:bold');
 </script>
 
