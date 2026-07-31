@@ -10165,7 +10165,8 @@ var _ACTION_INTENT_PATTERNS=[
   /统一|标准化|归并|合并.*标签|替换.*标签/,
   /修复|矫正|修正|fix|纠错/,
   /删除|删行|清空|清除/,
-  /替换|批量改|全部改|重打|重标|重新标注/,
+  /替换|批量改|全部改|重打|重标|重新标注|打标签|打标|打.{0,8}标签|标注|给.*打标|把.*打标/,
+  /改一下|改动|修改一下|调一下|帮忙改|帮我调|改.*这.*行|改.*那.*行/,
   /执行|操作|帮我改|帮我修|帮我��/,
   /新建|创建|建.*字段|建.*表|建.*工作表|添加.*字段|导入.*标签|增加.*字段|新增|新建一个/
 ];
@@ -10176,7 +10177,7 @@ function _agentDetectActionableIntent(txt){
     if(_ACTION_INTENT_PATTERNS[i].test(t)) return true;
   }
   // 也检测英文
-  if(/\b(fix|modify|change|update|delete|remove|replace|unify|standardize)\b/i.test(t)) return true;
+  if(/\b(fix|modify|change|update|delete|remove|replace|unify|standardize|tag|label|annotate|relabel)\b/i.test(t)) return true;
   return false;
 }
 
@@ -10189,7 +10190,7 @@ function _extractPseudoToolTags(text){
   if(!text) return {actions:[], cleanText:text||''};
   var actions=[];
   // 匹配 <tagName attr1="val1" attr2="val2" ... /> 或 <tagName attr1="val1" ...> ... </tagName>
-  var tagRegex = /<(\w+)\s+([^>]*?)\/?>[\s\S]*?(?:<\/>)?/gi;
+  var tagRegex = /<(\w+)\s*([^>]*?)\/?>[\s\S]*?(?:<\/>)?/gi;
   var match;
   var cleanText = text;
   
@@ -10367,6 +10368,7 @@ async function sendChat(){
     '- 调查→判断→执行→验证，四步不跳。用户提到字段/列/值时先采样确认真实名称与分布，不凭印象造 action；无数据就直说缺什么，不调操作。\n'+
     '- 非破坏性操作（新建字段/建表/筛选/诊断/改单条）直接做、不反复确认；会破坏已有数据的批量改/删先出计划等用户确认。\n'+
     '- 真做完才说"搞定了"；出错说明原因和修法，不转述错误就完事。\n\n'+
+    '- 【编排闭环铁律】写操作执行后系统会自动验证实际写入是否成功。你不要在回复里凭空说"已更新/已写入/搞定了"——只根据系统给出的执行结果（含验证✅或⚠）来汇报；系统验证通过才算真做完。\n'+
     '# 实时环境（每次请求自动刷新）\n'+
     '### 工作表\n'+
     '当前工作表：'+(curSheet()?curSheet().name:'(无)')+'（第 '+(activeSheetIdx+1)+' / '+sheets.length+' 个）\n'+
@@ -10484,7 +10486,9 @@ async function sendChat(){
       var hasFailures=false;
       if(actions.length){
         var execItem = brainBoard('exec', '准备执行 '+actions.length+' 个操作'+loopTag+'…');
-        summary=await execBrainActions(actions, false);
+        // [b1900-编排闭环] 用户明确意图(打标签/改一下/删掉)时直接执行，不再走确认路径 → 消除"说了没做"
+        var force=_agentDetectActionableIntent(txt);
+        summary=await execBrainActions(actions, force);
         hasFailures=(summary&&summary.indexOf('⚠')>=0)||(summary&&summary.indexOf('验证失败')>=0);
         brainBoardUpdate(execItem, '执行完成'+loopTag, 'exec-done',
           summary||'所有操作已完成');
@@ -11121,6 +11125,17 @@ function _agentVerifyAction(action,before){
       var col=action.field||action.col,act=sh.data[ri-1][col],exp=action.value;
       if(String(act)!==String(exp)) return {ok:false,message:'第'+ri+'行「'+col+'」值不匹配',retryHint:{action:action.action,ri:ri,field:action.field,col:action.col,value:exp}};
       return {ok:true,message:'第'+ri+'行「'+col+'」已确认'};
+    }
+    if(action.action==='fixTags'){
+      var si=_brainSheetIdx(),sh=sheets[si];if(!sh) return {ok:true,message:'(无工作表上下文)'};
+      var items=action.items||[]; if(!items.length) return {ok:true,message:'fixTags 无项目'};
+      var misses=[];
+      items.forEach(function(it){
+        var ri=it.ri,col=it.field,exp=it.value; if(ri<1||ri>sh.data.length){ misses.push('行'+ri+'超界'); return; }
+        var act=sh.data[ri-1][col]; if(String(act)!==String(exp)) misses.push('第'+ri+'行「'+col+'」='+(act==null?'(空)':String(act))+'≠'+String(exp));
+      });
+      if(!misses.length) return {ok:true,message:'批量打标 '+items.length+' 项已全部确认写入'};
+      return {ok:false,message:'批量打标有未生效项: '+misses.join('；'),retryHint:null};
     }
     if(action.action==='createSheet'||action.action==='extractToNewSheet'){
       if(sheets.length>before.sheetNames.length) return {ok:true,message:'已新建工作表「'+sheets[sheets.length-1].name+'」，行数='+sheets[sheets.length-1].data.length};
@@ -12436,7 +12451,7 @@ loadState().then(function(ok){
 });
 
 // BUILD STAMP — 用于在浏览器控制台确认预览加载的是否最新文件（输入 __BUILD__ 即可查看）
-window.__BUILD__='b20260731-1740';
+window.__BUILD__='b20260731-1900';
 console.log('%c[AI Tag Tool] build b20260728-2220 — 向量匹配种子库功能','color:#00d4ff;font-weight:bold');
 </script>
 
