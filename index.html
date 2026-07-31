@@ -11928,6 +11928,11 @@ function saveStateNow(){
     l2TagsCache:_l2TagsCache||{},
     l2CellIdMap:_l2CellIdMap||{},
     l4AiCache:_l4AiCache||{},
+    vectorSeeds:vectorSeeds,                 // 向量匹配种子库（跨表全局）—— 必须同步保存，否则立即落盘会丢失种子
+    vectorMatchLog:vectorMatchLog,           // 向量匹配命中日志
+    fieldExcludedSeeds:serializeExcludedSeeds(_fieldExcludedSeeds), // 字段排除种子
+    garbageLib:garbageLib,                   // 废话库（数据清洗·反面匹配）
+    garbageLibInit:garbageLibInit,           // 废话库初始化标记
     savedAt:Date.now(),
     fileName:currentFileName||'',
     curView:curView,
@@ -11994,6 +11999,9 @@ function loadState(){
         _l2CellIdMap=src.l2CellIdMap||{};
         _l4AiCache=src.l4AiCache||{};
         if(src.vectorSeeds) vectorSeeds=src.vectorSeeds;  // 恢复向量种子库
+        // 防御：若选中 src 缺种子库（历史空 payload），但另一份存档有，则采用另一份，避免种子被覆盖丢失
+        if((!vectorSeeds||!Object.keys(vectorSeeds).length) && idbOk && d && d.vectorSeeds && Object.keys(d.vectorSeeds).length) vectorSeeds=d.vectorSeeds;
+        if((!vectorSeeds||!Object.keys(vectorSeeds).length) && lsOk && lsData && lsData.vectorSeeds && Object.keys(lsData.vectorSeeds).length) vectorSeeds=lsData.vectorSeeds;
         if(src.vectorMatchLog) vectorMatchLog=src.vectorMatchLog;  // 恢复向量匹配命中日志
         if(src.fieldExcludedSeeds) _fieldExcludedSeeds=deserializeExcludedSeeds(src.fieldExcludedSeeds);  // 恢复字段排除种子
         if(src.garbageLib) garbageLib=src.garbageLib;  // 恢复废话库
@@ -12182,7 +12190,7 @@ loadState().then(function(ok){
 });
 
 // BUILD STAMP — 用于在浏览器控制台确认预览加载的是否最新文件（输入 __BUILD__ 即可查看）
-window.__BUILD__='b20260730-1840';
+window.__BUILD__='b20260731-0900';
 console.log('%c[AI Tag Tool] build b20260728-2220 — 向量匹配种子库功能','color:#00d4ff;font-weight:bold');
 </script>
 
